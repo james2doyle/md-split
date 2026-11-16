@@ -13,14 +13,15 @@ from pathlib import Path
 import gi
 
 gi.require_version("Gtk", "4.0")
+gi.require_version("Gdk", "4.0")
 gi.require_version("Adw", "1")
 gi.require_version("Gio", "2.0")
 gi.require_version("GLib", "2.0")
 gi.require_version("GtkSource", "5")
 
-from gi.repository import Adw, Gio, GLib, Gtk, GtkSource
+from gi.repository import Adw, Gdk, Gio, GLib, Gtk, GtkSource
 
-from . import APP_ID, fileio
+from . import APP_ID, editing, fileio
 from .document import Document
 from .markdown_view import MarkdownView
 
@@ -94,6 +95,7 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self._force_close = False
         self._focused_once = False
         self._scroll_guard = False
+        self._key_controller = None
         self._signal_handlers: list[tuple[object, int]] = []
 
         self.set_icon_name(APP_ID)
@@ -115,6 +117,14 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self._buffer.set_highlight_syntax(True)
         self.editor_view.set_buffer(self._buffer)
         self._apply_editor_scheme()
+
+        controller = Gtk.EventControllerKey()
+        controller.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        self._signal_handlers.append(
+            (controller, controller.connect("key-pressed", self._on_key_pressed))
+        )
+        self.editor_view.add_controller(controller)
+        self._key_controller = controller
 
     def _setup_window(self) -> None:
         width = self._settings.get_int("window-width")
@@ -312,6 +322,96 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self.label_cursor.set_label(
             _("Ln {line}, Col {column}").format(line=line, column=column)
         )
+
+    def _on_key_pressed(
+        self, _controller, keyval: int, _keycode: int, state: Gdk.ModifierType
+    ) -> bool:
+        modifiers = state & Gtk.accelerator_get_default_mod_mask()
+        blocked = (
+            Gdk.ModifierType.CONTROL_MASK
+            | Gdk.ModifierType.ALT_MASK
+            | Gdk.ModifierType.SUPER_MASK
+        )
+        if modifiers & blocked:
+            return False
+
+        text = self.get_text()
+        bounds = self._buffer.get_selection_bounds()
+        if bounds:
+            start_iter, end_iter = bounds
+            codepoint = Gdk.keyval_to_unicode(keyval)
+            if codepoint:
+                edit = editing.surround_selection(
+                    text,
+                    start_iter.get_offset(),
+                    end_iter.get_offset(),
+                    chr(codepoint),
+                )
+                if edit is not None:
+                    self._apply_text_edit(edit)
+                    return True
+            return False
+
+        if (
+            keyval == Gdk.KEY_bracketright
+            and self._settings.get_boolean("autocomplete-links")
+        ):
+            insert = self._buffer.get_iter_at_mark(self._buffer.get_insert())
+            edit = editing.complete_link(text, insert.get_offset())
+            if edit is not None:
+                self._apply_text_edit(edit)
+                return True
+        return False
+
+    def format_selection(self, kind: str) -> None:
+        text = self.get_text()
+        bounds = self._buffer.get_selection_bounds()
+        if bounds:
+            start_iter, end_iter = bounds
+            start = start_iter.get_offset()
+            end = end_iter.get_offset()
+        else:
+            insert = self._buffer.get_iter_at_mark(self._buffer.get_insert())
+            start = end = insert.get_offset()
+
+        markers = {
+            "bold": ("**", "**"),
+            "italic": ("*", "*"),
+            "underline": ("<u>", "</u>"),
+        }
+        if kind in markers:
+            edit = editing.format_inline(text, start, end, *markers[kind])
+        elif kind == "blockquote":
+            edit = editing.toggle_blockquote(text, start, end)
+        elif kind == "code":
+            edit = editing.format_code(text, start, end)
+        else:
+            return
+        self._apply_text_edit(edit)
+
+    def _apply_text_edit(self, edit: editing.TextEdit) -> None:
+        self._buffer.begin_user_action()
+        try:
+            self._buffer.delete(
+                self._buffer.get_iter_at_offset(edit.start),
+                self._buffer.get_iter_at_offset(edit.end),
+            )
+            self._buffer.insert(
+                self._buffer.get_iter_at_offset(edit.start),
+                edit.replacement,
+            )
+            if edit.selection_start == edit.selection_end:
+                self._buffer.place_cursor(
+                    self._buffer.get_iter_at_offset(edit.selection_start)
+                )
+            else:
+                self._buffer.select_range(
+                    self._buffer.get_iter_at_offset(edit.selection_start),
+                    self._buffer.get_iter_at_offset(edit.selection_end),
+                )
+        finally:
+            self._buffer.end_user_action()
+        self.editor_view.scroll_mark_onscreen(self._buffer.get_insert())
 
     def _on_dark_changed(self, *_args) -> None:
         self._apply_editor_scheme()
@@ -757,6 +857,9 @@ class MdSplitWindow(Adw.ApplicationWindow):
         if getattr(self, "_sync_scroll_handler", 0):
             self._settings.disconnect(self._sync_scroll_handler)
             self._sync_scroll_handler = 0
+        if self._key_controller is not None:
+            self.editor_view.remove_controller(self._key_controller)
+            self._key_controller = None
         self._preview.shutdown()
 
     def _on_close_request(self, *_args) -> bool:

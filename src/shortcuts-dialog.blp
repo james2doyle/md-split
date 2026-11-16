@@ -41,6 +41,35 @@ Adw.ShortcutsDialog shortcuts_dialog {
   }
 
   Adw.ShortcutsSection {
+    title: _("Formatting");
+
+    Adw.ShortcutsItem {
+      title: C_("shortcut window", "Bold");
+      action-name: "app.format-bold";
+    }
+
+    Adw.ShortcutsItem {
+      title: C_("shortcut window", "Italic");
+      action-name: "app.format-italic";
+    }
+
+    Adw.ShortcutsItem {
+      title: C_("shortcut window", "Underline");
+      action-name: "app.format-underline";
+    }
+
+    Adw.ShortcutsItem {
+      title: C_("shortcut window", "Block Quote");
+      action-name: "app.format-blockquote";
+    }
+
+    Adw.ShortcutsItem {
+      title: C_("shortcut window", "Code");
+      action-name: "app.format-code";
+    }
+  }
+
+  Adw.ShortcutsSection {
     title: _("Application");
 
     Adw.ShortcutsItem {

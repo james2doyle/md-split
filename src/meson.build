@@ -41,6 +41,7 @@ configure_file(
 md_split_sources = [
   '__init__.py',
   'document.py',
+  'editing.py',
   'fileio.py',
   'main.py',
   'markdown_parser.py',

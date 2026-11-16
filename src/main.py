@@ -42,6 +42,14 @@ class MdSplitApplication(Adw.Application):
         self.create_action(
             "save-as", self.on_save_as_action, ["<control><shift>s"]
         )
+        for name, shortcut in (
+            ("format-bold", "<control>b"),
+            ("format-italic", "<control>i"),
+            ("format-underline", "<control>u"),
+            ("format-blockquote", "<control>t"),
+            ("format-code", "<control>grave"),
+        ):
+            self.create_action(name, self.on_format_action, [shortcut])
         self.create_action(
             "toggle-preview",
             self.on_toggle_preview_action,
@@ -137,6 +145,11 @@ class MdSplitApplication(Adw.Application):
         win = self.props.active_window
         if win is not None:
             win.save_as_document()
+
+    def on_format_action(self, action, _parameter):
+        win = self.props.active_window
+        if win is not None and win.editor_view.has_focus():
+            win.format_selection(action.get_name().removeprefix("format-"))
 
     def on_preferences_action(self, *_args):
         if self._preferences_dialog is not None:
