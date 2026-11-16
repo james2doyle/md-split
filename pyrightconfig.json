@@ -1,0 +1,11 @@
+{
+  "typeCheckingMode": "basic",
+  "pythonVersion": "3.12",
+  "reportMissingImports": "none",
+  "reportMissingTypeStubs": "none",
+  "exclude": [
+    "build",
+    "build-install",
+    "build-flatpak"
+  ]
+}

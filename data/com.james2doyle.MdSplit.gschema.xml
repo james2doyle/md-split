@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="md_split">
+	<schema id="com.james2doyle.MdSplit" path="/com/james2doyle/MdSplit/">
+		<key name="window-width" type="i">
+			<default>1100</default>
+			<range min="600" max="4000"/>
+		</key>
+		<key name="window-height" type="i">
+			<default>720</default>
+			<range min="400" max="3000"/>
+		</key>
+		<key name="paned-position" type="i">
+			<default>540</default>
+			<range min="0" max="4000"/>
+		</key>
+		<key name="show-preview" type="b">
+			<default>true</default>
+		</key>
+		<key name="remote-images" type="b">
+			<summary>Load remote images in the preview</summary>
+			<description>Fetch HTTP and HTTPS images referenced by the current document. Disabled by default to prevent tracking and requests to local network services.</description>
+			<default>false</default>
+		</key>
+		<key name="last-folder" type="s">
+			<default>''</default>
+		</key>
+	</schema>
+</schemalist>

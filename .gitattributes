@@ -1,0 +1,7 @@
+* text=auto
+
+# Unified diff context lines legitimately begin with a space, including blank
+# context lines. Do not reject the tracked vendor patch for that whitespace.
+*.patch -whitespace
+
+*.png binary

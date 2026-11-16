@@ -1,0 +1,45 @@
+#!@PYTHON@
+
+# SPDX-License-Identifier: MIT
+
+import gettext
+import locale
+import os
+import signal
+import sys
+
+VERSION = '@VERSION@'
+pkgdatadir = '@pkgdatadir@'
+localedir = '@localedir@'
+datadir = os.path.dirname(pkgdatadir)
+
+# Make schemas and icons work when running from a local install prefix.
+schema_dir = os.path.join(datadir, 'glib-2.0', 'schemas')
+if os.path.isdir(schema_dir):
+    existing_schema_dir = os.environ.get('GSETTINGS_SCHEMA_DIR')
+    os.environ['GSETTINGS_SCHEMA_DIR'] = (
+        schema_dir + os.pathsep + existing_schema_dir
+        if existing_schema_dir
+        else schema_dir
+    )
+data_dirs = os.environ.get('XDG_DATA_DIRS', '/usr/local/share:/usr/share')
+if datadir not in data_dirs.split(os.pathsep):
+    os.environ['XDG_DATA_DIRS'] = datadir + os.pathsep + data_dirs
+
+sys.path.insert(1, pkgdatadir)
+signal.signal(signal.SIGINT, signal.SIG_DFL)
+locale.bindtextdomain('md_split', localedir)
+locale.textdomain('md_split')
+gettext.bindtextdomain('md_split', localedir)
+gettext.textdomain('md_split')
+
+if __name__ == '__main__':
+    import gi
+
+    gi.require_version('Gio', '2.0')
+    from gi.repository import Gio
+    resource = Gio.Resource.load(os.path.join(pkgdatadir, 'md_split.gresource'))
+    resource._register()
+
+    from md_split import main
+    sys.exit(main.main(VERSION))

@@ -1,0 +1,99 @@
+/* SPDX-License-Identifier: MIT */
+/* Native Markdown preview styling. Colors come from the active Adwaita theme. */
+
+.md-h1,
+.md-h2 {
+  border-bottom: 1px solid @borders;
+  padding-bottom: 6px;
+}
+
+.md-h1 {
+  margin-top: 14px;
+}
+
+.md-h2 {
+  margin-top: 12px;
+}
+
+.md-h3 {
+  margin-top: 8px;
+}
+
+.md-code-block {
+  background-color: @card_bg_color;
+  border: 1px solid @borders;
+  border-radius: 8px;
+}
+
+.md-code-header {
+  border-bottom: 1px solid @borders;
+}
+
+.md-table {
+  border: 1px solid @borders;
+  border-radius: 8px;
+}
+
+.md-table-cell {
+  padding: 6px 12px;
+  border-right: 1px solid @borders;
+  border-bottom: 1px solid @borders;
+}
+
+.md-table-header {
+  background-color: alpha(@card_bg_color, 0.65);
+  font-weight: 600;
+}
+
+.md-table-last-column {
+  border-right: none;
+}
+
+.md-table-last-row {
+  border-bottom: none;
+}
+
+.md-blockquote {
+  border-left: 3px solid @borders;
+  padding-left: 12px;
+}
+
+.md-alert {
+  border-radius: 8px;
+  padding: 10px 14px;
+  border-left: 4px solid @accent_bg_color;
+  background-color: alpha(@accent_bg_color, 0.08);
+}
+
+.md-alert-note {
+  border-left-color: @accent_bg_color;
+  background-color: alpha(@accent_bg_color, 0.08);
+}
+
+.md-alert-tip {
+  border-left-color: @success_bg_color;
+  background-color: alpha(@success_bg_color, 0.10);
+}
+
+.md-alert-important {
+  border-left-color: @accent_bg_color;
+  background-color: alpha(@accent_bg_color, 0.10);
+}
+
+.md-alert-warning {
+  border-left-color: @warning_bg_color;
+  background-color: alpha(@warning_bg_color, 0.10);
+}
+
+.md-alert-caution {
+  border-left-color: @error_bg_color;
+  background-color: alpha(@error_bg_color, 0.10);
+}
+
+.md-alert-title {
+  font-weight: 700;
+}
+
+.md-list-bullet {
+  font-size: 1.1em;
+}

@@ -1,0 +1,51 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.ShortcutsDialog shortcuts_dialog {
+  Adw.ShortcutsSection {
+    title: _("Documents");
+
+    Adw.ShortcutsItem {
+      title: C_("shortcut window", "New Document");
+      action-name: "app.new";
+    }
+
+    Adw.ShortcutsItem {
+      title: C_("shortcut window", "Open");
+      action-name: "app.open";
+    }
+
+    Adw.ShortcutsItem {
+      title: C_("shortcut window", "Save");
+      action-name: "app.save";
+    }
+
+    Adw.ShortcutsItem {
+      title: C_("shortcut window", "Save As");
+      action-name: "app.save-as";
+    }
+  }
+
+  Adw.ShortcutsSection {
+    title: _("View");
+
+    Adw.ShortcutsItem {
+      title: C_("shortcut window", "Toggle Preview");
+      action-name: "app.toggle-preview";
+    }
+
+    Adw.ShortcutsItem {
+      title: C_("shortcut window", "Show Shortcuts");
+      action-name: "app.shortcuts";
+    }
+  }
+
+  Adw.ShortcutsSection {
+    title: _("Application");
+
+    Adw.ShortcutsItem {
+      title: C_("shortcut window", "Quit");
+      action-name: "app.quit";
+    }
+  }
+}

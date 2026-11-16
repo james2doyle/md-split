@@ -1,0 +1,187 @@
+using Gtk 4.0;
+using Adw 1;
+using GtkSource 5;
+
+template $MdSplitWindow: Adw.ApplicationWindow {
+  title: _("MD Split");
+  default-width: 1100;
+  default-height: 720;
+
+  content: Adw.ToolbarView {
+    [top]
+    Adw.HeaderBar {
+      [start]
+      Button button_open {
+        icon-name: "folder-open-symbolic";
+        tooltip-text: _("Open…");
+        action-name: "app.open";
+      }
+
+      [start]
+      Button button_save {
+        icon-name: "document-save-symbolic";
+        tooltip-text: _("Save");
+        action-name: "app.save";
+      }
+
+      title-widget: Adw.WindowTitle window_title {
+        title: _("Untitled.md");
+        subtitle: _("Not saved");
+      };
+
+      [end]
+      ToggleButton button_preview {
+        icon-name: "view-dual-symbolic";
+        tooltip-text: _("Toggle Preview");
+        action-name: "app.toggle-preview";
+      }
+
+      [end]
+      MenuButton button_menu {
+        primary: true;
+        icon-name: "open-menu-symbolic";
+        menu-model: main_menu;
+        tooltip-text: _("Main Menu");
+      }
+    }
+
+    content: Gtk.Paned paned {
+      position: 540;
+      resize-start-child: true;
+      shrink-start-child: false;
+      shrink-end-child: false;
+
+      start-child: Gtk.Overlay {
+        child: Gtk.ScrolledWindow editor_scroller {
+          hscrollbar-policy: never;
+          has-frame: false;
+
+          child: GtkSource.View editor_view {
+            wrap-mode: word;
+            monospace: true;
+            show-line-numbers: true;
+            highlight-current-line: true;
+            auto-indent: true;
+            indent-on-tab: true;
+            tab-width: 2;
+            indent-width: 2;
+            left-margin: 18;
+            right-margin: 18;
+            top-margin: 18;
+            bottom-margin: 18;
+          };
+        };
+
+        [overlay]
+        Label placeholder_label {
+          label: _("Start writing Markdown…");
+          halign: start;
+          valign: start;
+          margin-start: 76;
+          margin-top: 19;
+          can-target: false;
+          styles [
+            "dim-label",
+          ]
+        }
+      };
+
+      end-child: Adw.Bin preview_container {
+        hexpand: true;
+      };
+    };
+
+    [bottom]
+    Box status_bar {
+      orientation: horizontal;
+      spacing: 12;
+      margin-start: 12;
+      margin-end: 12;
+      margin-top: 4;
+      margin-bottom: 4;
+      styles [
+        "toolbar",
+      ]
+
+      Label label_cursor {
+        label: _("Ln 1, Col 1");
+        xalign: 0;
+        styles [
+          "caption",
+          "dim-label",
+        ]
+      }
+
+      Box {
+        hexpand: true;
+      }
+
+      Label label_stats {
+        label: _("0 words · 0 characters");
+        halign: end;
+        styles [
+          "caption",
+          "dim-label",
+        ]
+      }
+
+      Label label_engine {
+        label: _("GitHub Markdown");
+        halign: end;
+        styles [
+          "caption",
+          "dim-label",
+        ]
+      }
+    }
+  };
+}
+
+menu main_menu {
+  section {
+    item {
+      label: _("_New");
+      action: "app.new";
+    }
+    item {
+      label: _("_Open…");
+      action: "app.open";
+    }
+  }
+  section {
+    item {
+      label: _("_Save");
+      action: "app.save";
+    }
+    item {
+      label: _("Save _As…");
+      action: "app.save-as";
+    }
+  }
+  section {
+    item {
+      label: _("_Toggle Preview");
+      action: "app.toggle-preview";
+    }
+    item {
+      label: _("Load _Remote Images");
+      action: "app.remote-images";
+    }
+  }
+  section {
+    item {
+      label: _("Keyboard _Shortcuts");
+      action: "app.shortcuts";
+    }
+    item {
+      label: _("_About MD Split");
+      action: "app.about";
+    }
+  }
+  section {
+    item {
+      label: _("_Quit");
+      action: "app.quit";
+    }
+  }
+}

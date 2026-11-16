@@ -1,0 +1,94 @@
+pkgdatadir = get_option('prefix') / get_option('datadir') / meson.project_name()
+moduledir = pkgdatadir / 'md_split'
+gnome = import('gnome')
+
+blueprints = custom_target('blueprints',
+  input: files(
+    'shortcuts-dialog.blp',
+    'window.blp',
+  ),
+  output: '.',
+  command: [find_program('blueprint-compiler'), 'batch-compile', '@OUTPUT@', '@CURRENT_SOURCE_DIR@', '@INPUT@'],
+)
+
+md_split_resources = gnome.compile_resources('md_split',
+  'md_split.gresource.xml',
+  gresource_bundle: true,
+  install: true,
+  install_dir: pkgdatadir,
+  dependencies: blueprints,
+)
+
+python = import('python')
+
+conf = configuration_data()
+conf.set('PYTHON', python.find_installation('python3').full_path())
+conf.set('VERSION', meson.project_version())
+conf.set('localedir', get_option('prefix') / get_option('localedir'))
+conf.set('pkgdatadir', pkgdatadir)
+
+configure_file(
+  input: 'md_split.in',
+  output: 'md_split',
+  configuration: conf,
+  install: true,
+  install_dir: get_option('bindir'),
+  install_mode: 'rwxr-xr-x'
+)
+
+md_split_sources = [
+  '__init__.py',
+  'document.py',
+  'fileio.py',
+  'main.py',
+  'markdown_view.py',
+  'renderer.py',
+  'window.py',
+]
+
+install_data(md_split_sources, install_dir: moduledir)
+install_subdir('vendor',
+  install_dir: moduledir,
+  exclude_directories: ['**/__pycache__'],
+  exclude_files: ['**/*.pyc'],
+)
+
+python3 = python.find_installation('python3')
+
+test_env = [
+  'PYTHONPATH=' + meson.project_source_root(),
+  'APP_RESOURCE=' + md_split_resources[0].full_path(),
+  # Keep tests away from the host session bus, credentials and user dirs.
+  'DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent',
+  'LC_ALL=C',
+  'LANG=C',
+  'TERM=dumb',
+  'NO_AT_BRIDGE=1',
+  'PYTHONDONTWRITEBYTECODE=1',
+  'GTK_IM_MODULE=gtk-im-context-simple',
+  'HOME=' + (meson.current_build_dir() / 'test-home'),
+  'XDG_CONFIG_HOME=' + (meson.current_build_dir() / 'test-config'),
+  'XDG_STATE_HOME=' + (meson.current_build_dir() / 'test-state'),
+  'XDG_RUNTIME_DIR=' + (meson.current_build_dir() / 'test-runtime'),
+  'XDG_CACHE_HOME=' + (meson.current_build_dir() / 'test-cache'),
+  'XDG_DATA_HOME=' + (meson.current_build_dir() / 'test-data'),
+  'GSETTINGS_SCHEMA_DIR=' + (meson.project_build_root() / 'data'),
+  'GSETTINGS_BACKEND=memory',
+]
+
+test('Document model', python3, args: [files('../tests/test_document.py')],
+  env: test_env)
+test('Markdown markup', python3, args: [files('../tests/test_markdown.py')],
+  env: test_env)
+test('File I/O', python3, args: [files('../tests/test_fileio.py')],
+  env: test_env)
+test('Window smoke test', python3, args: [files('../tests/test_window.py')],
+  depends: test_schemas,
+  env: test_env)
+test('Native Markdown renderer', python3, args: [files('../tests/test_renderer.py')],
+  env: test_env)
+test('Application lifecycle', python3, args: [files('../tests/test_lifecycle.py')],
+  depends: test_schemas,
+  env: test_env)
+test('Remote image policy', python3, args: [files('../tests/test_images.py')],
+  env: test_env)

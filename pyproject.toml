@@ -1,0 +1,22 @@
+# PyGObject and the GTK/libadwaita runtime come from the system; Meson installs
+# the application itself. The Markdown parser is vendored under src/vendor, so
+# there are no runtime Python package dependencies beyond PyGObject.
+
+[project]
+name = "md_split"
+version = "0.1.0"
+description = "A native GNOME Markdown editor with a live GFM preview"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+authors = [
+    { name = "James Doyle", email = "james2doyle@gmail.com" }
+]
+
+[dependency-groups]
+dev = [
+    "pygobject-stubs>=2.20.0",
+]
+
+[tool.uv]
+package = false

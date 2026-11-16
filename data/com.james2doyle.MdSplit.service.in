@@ -1,0 +1,3 @@
+[D-BUS Service]
+Name=com.james2doyle.MdSplit
+Exec=@bindir@/md_split --gapplication-service

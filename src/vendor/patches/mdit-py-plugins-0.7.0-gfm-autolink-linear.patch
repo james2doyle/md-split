@@ -1,0 +1,241 @@
+Make GFM autolinking linear on adversarial input.
+
+The upstream 0.7.0 scanners search or copy the entire remaining paragraph at
+every `:`/`@` candidate. Apply from src/vendor with `patch -p1`.
+
+--- a/mdit_py_plugins/gfm_autolink/index.py
++++ b/mdit_py_plugins/gfm_autolink/index.py
+@@ -43,16 +43,13 @@
+ 
+ from __future__ import annotations
+ 
+-import re
+-
+ from markdown_it import MarkdownIt
+ from markdown_it.rules_inline import StateInline
+ 
+-from ._match import check_prev, match_any_email, match_http, match_www
++from ._match import check_prev, match_http, match_www
+ 
+-# Regex to back-scan pending text for a protocol name ending at the current
+-# position (the colon character).
+-_PROTO_RE = re.compile(r"(?:^|.)(https?|mailto|xmpp)$", re.DOTALL)
++_PROTOCOLS = ("https", "http", "mailto", "xmpp")
++_EMAIL_LOCAL_CHARS = frozenset(".+-_")
+ 
+ 
+ def gfm_autolink_plugin(md: MarkdownIt) -> None:
+@@ -122,6 +119,45 @@
+     return True
+ 
+ 
++def _is_email_local_char(ch: str) -> bool:
++    return ch.isascii() and (ch.isalnum() or ch in _EMAIL_LOCAL_CHARS)
++
++
++def _scan_email_domain(
++    src: str, start: int, end: int, protocol: str | None
++) -> int | None:
++    """Return the end of a valid email domain, or ``None``."""
++    link_end = start
++    periods = 0
++    slashes = 0
++    while link_end < end:
++        ch = src[link_end]
++        if ch.isascii() and ch.isalnum():
++            pass
++        elif ch == "@":
++            if protocol != "xmpp":
++                return None
++        elif (
++            ch == "."
++            and link_end + 1 < end
++            and src[link_end + 1].isascii()
++            and src[link_end + 1].isalnum()
++        ):
++            periods += 1
++        elif ch == "/" and protocol == "xmpp" and slashes == 0:
++            slashes += 1
++        elif ch != "-" and ch != "_":
++            break
++        link_end += 1
++
++    if link_end < start + 1 or periods == 0:
++        return None
++    last_ch = src[link_end - 1]
++    if not (last_ch.isascii() and last_ch.isalpha()) and last_ch != ".":
++        return None
++    return link_end
++
++
+ # ---------------------------------------------------------------------------
+ # www inline rule  (requires add_terminator_char("w") — markdown-it-py >= 4.1.0)
+ # ---------------------------------------------------------------------------
+@@ -194,36 +230,51 @@
+         return False
+ 
+     pos = state.pos
+-    remaining = state.src[pos : state.posMax]
+-
+-    # Must start with ':' and have at least 3 more characters.
+-    if len(remaining) < 4 or remaining[0] != ":":
++    end = state.posMax
++    if pos >= end or state.src[pos] != ":":
+         return False
+ 
+-    # Back-scan pending text for a known protocol name.
+-    m = _PROTO_RE.search(state.pending)
+-    if m is None:
++    # Check only the bounded suffix instead of searching all pending text at
++    # every colon; pending-text searches make colon-heavy input quadratic.
++    proto = next(
++        (name for name in _PROTOCOLS if state.pending.endswith(name)), None
++    )
++    if proto is None:
+         return False
+ 
+-    proto = m.group(1)
+     bscan_len = len(proto)
+-
+     if not _preceding_ok(state, bscan_len):
+         return False
+ 
+-    # Combine back-scanned protocol with the remaining text.
+-    combined = proto + remaining
+-
+     if proto in ("mailto", "xmpp"):
+-        result = match_any_email(combined, bscan_len + 1, proto)
++        local_start = pos + 1
++        local_end = local_start
++        while local_end < end and _is_email_local_char(state.src[local_end]):
++            local_end += 1
++        if (
++            local_end == local_start
++            or local_end >= end
++            or state.src[local_end] != "@"
++        ):
++            return False
++        domain_end = _scan_email_domain(state.src, local_end + 1, end, proto)
++        if domain_end is None:
++            return False
++        email_text = state.src[local_start:domain_end]
++        full_url = f"{proto}:{email_text}"
++        label = full_url
++        total_len = bscan_len + 1 + len(email_text)
+     else:
++        # Avoid copying the remaining paragraph unless this is a real protocol.
++        if pos + 3 > end or state.src[pos : pos + 3] != "://":
++            return False
++        remaining = state.src[pos:end]
++        combined = proto + remaining
+         result = match_http(combined)
+-
+-    if result is None:
+-        return False
+-
+-    full_url, total_len = result
+-    label = combined[:total_len]
++        if result is None:
++            return False
++        full_url, total_len = result
++        label = combined[:total_len]
+ 
+     if silent:
+         return False  # see _www_inline_rule
+@@ -247,50 +298,25 @@
+         return False
+ 
+     # Back-scan pending text for the local part of the email.
+-    local_rev: list[str] = []
+-    for ch in reversed(state.pending):
+-        if ch.isascii() and (ch.isalnum() or ch in ".+-_"):
+-            local_rev.append(ch)
+-        else:
+-            break
+-
+-    if not local_rev:
++    local_start = len(state.pending)
++    while (
++        local_start > 0
++        and _is_email_local_char(state.pending[local_start - 1])
++    ):
++        local_start -= 1
++    local_len = len(state.pending) - local_start
++    if local_len == 0:
+         return False
+-
+-    local_len = len(local_rev)
+     if not _preceding_ok(state, local_len):
+         return False
+ 
+-    # Forward-scan for the domain part.
+-    after_at = state.src[pos + 1 : state.posMax]
+-    domain_len = 0
+-    num_period = 0
+-    for i, ch in enumerate(after_at):
+-        if ch.isascii() and ch.isalnum():
+-            pass
+-        elif ch == "@":
+-            return False
+-        elif (
+-            ch == "."
+-            and i + 1 < len(after_at)
+-            and after_at[i + 1].isascii()
+-            and after_at[i + 1].isalnum()
+-        ):
+-            num_period += 1
+-        elif ch != "-" and ch != "_":
+-            break
+-        domain_len += 1
+-
+-    if domain_len == 0 or num_period == 0:
+-        return False
+-
+-    last_ch = after_at[domain_len - 1]
+-    if not (last_ch.isascii() and last_ch.isalnum()) and last_ch != ".":
++    domain_end = _scan_email_domain(state.src, pos + 1, state.posMax, None)
++    if domain_end is None:
+         return False
+ 
+-    local_part = "".join(reversed(local_rev))
+-    email_text = local_part + state.src[pos : pos + 1 + domain_len]
+-    total_len = local_len + 1 + domain_len
++    local_part = state.pending[local_start:]
++    email_text = local_part + state.src[pos:domain_end]
++    total_len = domain_end - pos + local_len
+     url = "mailto:" + email_text
+ 
+     if silent:
+--- a/mdit_py_plugins/gfm_autolink/_match.py
++++ b/mdit_py_plugins/gfm_autolink/_match.py
+@@ -47,11 +47,14 @@
+             link_end = i
+             break
+ 
++    # Count parentheses once. Re-counting a growing prefix for every trailing
++    # ')' makes URLs ending in many unmatched parentheses quadratic.
++    opening = data.count("(", 0, link_end)
++    closing = data.count(")", 0, link_end)
++
+     while link_end > 0:
+         cclose = data[link_end - 1]
+ 
+-        copen = "(" if cclose == ")" else None
+-
+         if cclose in _LINK_END_ASSORTMENT:
+             link_end -= 1
+         elif cclose == ";":
+@@ -62,11 +65,10 @@
+                 link_end = new_end
+             else:
+                 link_end -= 1
+-        elif copen is not None:
+-            opening = data[:link_end].count(copen)
+-            closing = data[:link_end].count(cclose)
++        elif cclose == ")":
+             if closing <= opening:
+                 break
++            closing -= 1
+             link_end -= 1
+         else:
+             break

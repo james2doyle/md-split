@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.james2doyle.MdSplit</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+
+  <name>MD Split</name>
+  <summary>Native Markdown editor with live GitHub-Flavored Markdown preview</summary>
+  <description>
+    <p>
+      MD Split is a native GNOME Markdown editor. It shows your document and a
+      live preview side by side, with the preview rendered as real GTK widgets
+      rather than in a web view.
+    </p>
+    <p>Features include:</p>
+    <ul>
+      <li>GitHub-Flavored Markdown tables, task lists, strikethrough, autolinks, alerts and footnotes</li>
+      <li>Syntax-highlighted editing with GtkSourceView</li>
+      <li>Native headings, lists, block quotes, code blocks, tables and images</li>
+      <li>Light and dark Adwaita themes</li>
+      <li>Open, edit and save Markdown files</li>
+    </ul>
+  </description>
+
+  <screenshots>
+    <screenshot type="default">
+      <image type="source" width="1150" height="770">https://raw.githubusercontent.com/james2doyle/md-split/v0.1.0/docs/screenshot.png</image>
+      <caption>Markdown source and rendered preview side by side</caption>
+    </screenshot>
+  </screenshots>
+
+  <developer id="com.james2doyle">
+    <name>James Doyle</name>
+  </developer>
+
+  <url type="homepage">https://github.com/james2doyle/md-split</url>
+  <url type="bugtracker">https://github.com/james2doyle/md-split/issues</url>
+  <url type="vcs-browser">https://github.com/james2doyle/md-split</url>
+
+  <translation type="gettext">md_split</translation>
+  <launchable type="desktop-id">com.james2doyle.MdSplit.desktop</launchable>
+
+  <categories>
+    <category>Utility</category>
+    <category>TextEditor</category>
+  </categories>
+
+  <keywords>
+    <keyword>markdown</keyword>
+    <keyword>editor</keyword>
+    <keyword>notes</keyword>
+    <keyword>text</keyword>
+  </keywords>
+
+  <provides>
+    <binary>md_split</binary>
+  </provides>
+
+  <content_rating type="oars-1.1" />
+
+  <branding>
+    <color type="primary" scheme_preference="light">#3584e4</color>
+    <color type="primary" scheme_preference="dark">#1c71d8</color>
+  </branding>
+
+  <releases>
+    <release version="0.1.0" date="2026-11-16">
+      <description translate="no">
+        <p>Initial development release.</p>
+      </description>
+    </release>
+  </releases>
+</component>

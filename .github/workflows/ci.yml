@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    container: fedora:45
+    steps:
+      - name: Install git
+        run: dnf install -y git
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install dependencies
+        run: |
+          dnf install -y \
+            appstream \
+            blueprint-compiler \
+            desktop-file-utils \
+            gettext \
+            glib2-devel \
+            gtk4-devel \
+            gtksourceview5 \
+            libadwaita-devel \
+            meson \
+            ninja-build \
+            python3-gobject \
+            xorg-x11-server-Xvfb
+
+      - name: Build
+        run: |
+          meson setup build --prefix="$PWD/build-install"
+          meson compile -C build
+
+      - name: Test
+        run: xvfb-run --auto-servernum python3 scripts/test.py
+
+      - name: Install
+        run: meson install -C build
+
+      - name: Smoke-test installed launcher
+        run: |
+          xvfb-run --auto-servernum timeout 5s \
+            ./build-install/bin/md_split examples/demo.md || test "$?" -eq 124
+
+  flatpak-lint:
+    name: Flatpak lint
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-51
+      options: --privileged
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build Flatpak repository
+        uses: flatpak/flatpak-github-actions/flatpak-builder@79327416609af08178ad73b352877e51450790b3 # v6.8
+        with:
+          manifest-path: com.james2doyle.MdSplit.json
+          bundle: md_split.flatpak
+          mirror-screenshots-url: https://dl.flathub.org/media
+          upload-artifact: false
+
+      - name: Lint manifest
+        run: flatpak-builder-lint manifest com.james2doyle.MdSplit.json
+
+      - name: Lint repository
+        run: flatpak-builder-lint repo repo

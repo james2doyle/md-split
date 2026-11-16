@@ -1,0 +1,56 @@
+{
+    "id": "com.james2doyle.MdSplit",
+    "runtime": "org.gnome.Platform",
+    "runtime-version": "51",
+    "sdk": "org.gnome.Sdk",
+    "command": "md_split",
+    "finish-args": [
+        "--share=ipc",
+        "--share=network",
+        "--socket=fallback-x11",
+        "--device=dri",
+        "--socket=wayland"
+    ],
+    "cleanup": [
+        "/include",
+        "/lib/pkgconfig",
+        "/man",
+        "/share/doc",
+        "/share/gtk-doc",
+        "/share/man",
+        "/share/pkgconfig",
+        "*.la",
+        "*.a"
+    ],
+    "modules": [
+        {
+            "name": "md_split",
+            "builddir": true,
+            "buildsystem": "meson",
+            "license-files": ["COPYING"],
+            "sources": [
+                {
+                    "type": "dir",
+                    "path": ".",
+                    "skip": [
+                        ".git",
+                        ".gitignore",
+                        "build",
+                        "build-install",
+                        "build-flatpak",
+                        ".flatpak-builder",
+                        ".venv",
+                        ".dex",
+                        "__pycache__",
+                        "*.pyc",
+                        "dist",
+                        "subprojects/blueprint-compiler"
+                    ]
+                }
+            ],
+            "config-opts": [
+                "--libdir=lib"
+            ]
+        }
+    ]
+}

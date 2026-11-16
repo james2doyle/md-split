@@ -1,0 +1,15 @@
+# List of source files containing translatable strings.
+# Please keep this file sorted alphabetically.
+# xgettext does not recognize .blp and falls back to C; Blueprint's _() and C_()
+# syntax is compatible with that parser, so the fallback is intentional.
+data/com.james2doyle.MdSplit.desktop.in
+data/com.james2doyle.MdSplit.gschema.xml
+data/com.james2doyle.MdSplit.metainfo.xml.in
+src/document.py
+src/fileio.py
+src/main.py
+src/markdown_view.py
+src/renderer.py
+src/shortcuts-dialog.blp
+src/window.blp
+src/window.py
