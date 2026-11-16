@@ -392,7 +392,7 @@ class MdSplitWindow(Adw.ApplicationWindow):
         if path:
             self._settings.set_string("last-folder", path)
 
-    def _on_open_finished(self, dialog: Gtk.FileDialog, result, _data) -> None:
+    def _on_open_finished(self, dialog: Gtk.FileDialog, result) -> None:
         try:
             file = dialog.open_finish(result)
         except GLib.Error as error:

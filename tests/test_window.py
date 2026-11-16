@@ -71,6 +71,16 @@ assert window.preview_container.get_visible()
 
 window.destroy()
 
+# Gtk.FileDialog invokes its callback with only (source_object, result).
+# A required user-data parameter raises TypeError before the dialog result is
+# handled, so guard the arity directly.
+import inspect
+
+open_parameters = list(
+    inspect.signature(MdSplitWindow._on_open_finished).parameters
+)
+assert open_parameters == ["self", "dialog", "result"], open_parameters
+
 # A save completing after newer edits must not mark those edits clean.
 from src import fileio
 
