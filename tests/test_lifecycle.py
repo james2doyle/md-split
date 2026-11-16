@@ -36,6 +36,12 @@ from src.window import MdSplitWindow
 app = MdSplitApplication("test")
 app.register(None)
 
+# Defaults: follow the system theme, load the demo, and enable both helpers.
+assert app.settings.get_string("appearance") == "system"
+assert app.settings.get_boolean("load-demo-on-startup") is True
+assert app.settings.get_boolean("sync-scroll") is True
+assert app.settings.get_boolean("autocomplete-links") is True
+
 # Quit must request a window close so the dirty-document guard runs.
 close_requests = []
 original_close_request = MdSplitWindow._on_close_request
@@ -158,5 +164,119 @@ finally:
     fileio.save_text_async = original_save
     window._force_close = True
     window.destroy()
+
+# Appearance changes apply immediately and default to the system preference.
+app.settings.set_string("appearance", "dark")
+assert (
+    Adw.StyleManager.get_default().get_color_scheme()
+    == Adw.ColorScheme.FORCE_DARK
+)
+app.settings.set_string("appearance", "light")
+assert (
+    Adw.StyleManager.get_default().get_color_scheme()
+    == Adw.ColorScheme.FORCE_LIGHT
+)
+app.settings.set_string("appearance", "system")
+assert (
+    Adw.StyleManager.get_default().get_color_scheme()
+    == Adw.ColorScheme.DEFAULT
+)
+
+# Formatting actions are registered with the documented accelerators.
+assert [value.lower() for value in app.get_accels_for_action("app.format-bold")] == [
+    "<control>b"
+]
+assert [
+    value.lower()
+    for value in app.get_accels_for_action("app.format-italic")
+] == ["<control>i"]
+assert [
+    value.lower()
+    for value in app.get_accels_for_action("app.format-underline")
+] == ["<control>u"]
+assert [
+    value.lower()
+    for value in app.get_accels_for_action("app.format-blockquote")
+] == ["<control>t"]
+assert [
+    value.lower()
+    for value in app.get_accels_for_action("app.format-code")
+] == ["<control>grave"]
+
+assert app.lookup_action("preferences") is not None
+assert app.lookup_action("export-html") is not None
+assert app.lookup_action("export-pdf") is not None
+assert app.lookup_action("format-bold") is not None
+
+# The preferences dialog reflects and updates the shared settings.
+from src.preferences import MdSplitPreferencesDialog
+
+parent = MdSplitWindow(application=app)
+parent.present()
+while GLib.MainContext.default().iteration(False):
+    pass
+
+dialog = MdSplitPreferencesDialog()
+dialog.present(parent)
+while GLib.MainContext.default().iteration(False):
+    pass
+assert dialog.appearance_row.get_selected() == 0, dialog.appearance_row.get_selected()
+assert dialog.switch_sync_scroll.get_active()
+assert dialog.switch_autocomplete_links.get_active()
+dialog.switch_sync_scroll.set_active(False)
+assert app.settings.get_boolean("sync-scroll") is False
+dialog.appearance_row.set_selected(1)
+assert app.settings.get_string("appearance") == "light"
+dialog.switch_remote_images.set_active(True)
+assert app.settings.get_boolean("remote-images") is True
+app.settings.set_boolean("remote-images", False)
+app.settings.set_string("appearance", "dark")
+dialog.close()
+while GLib.MainContext.default().iteration(False):
+    pass
+
+dialog = MdSplitPreferencesDialog()
+dialog.present(parent)
+while GLib.MainContext.default().iteration(False):
+    pass
+assert dialog.appearance_row.get_selected() == 2, dialog.appearance_row.get_selected()
+app.settings.set_string("appearance", "system")
+app.settings.set_boolean("sync-scroll", True)
+app.settings.set_boolean("autocomplete-links", True)
+dialog.close()
+while GLib.MainContext.default().iteration(False):
+    pass
+parent._force_close = True
+parent.destroy()
+while GLib.MainContext.default().iteration(False):
+    pass
+
+# Startup loads the bundled demo as clean untitled content when enabled.
+for existing in app.get_windows():
+    existing._force_close = True
+    existing.destroy()
+while GLib.MainContext.default().iteration(False):
+    pass
+
+app.settings.set_boolean("load-demo-on-startup", True)
+app.do_activate()
+window = app.props.active_window
+assert window is not None
+assert window.get_text().startswith("# MD Split"), window.get_text()[:40]
+assert not window.document.is_dirty
+assert window.document.file is None
+window._force_close = True
+window.destroy()
+while GLib.MainContext.default().iteration(False):
+    pass
+
+app.settings.set_boolean("load-demo-on-startup", False)
+app.do_activate()
+window = app.props.active_window
+assert window is not None
+assert window.get_text() == ""
+window._force_close = True
+window.destroy()
+app.settings.set_boolean("load-demo-on-startup", True)
 
 print("ok: application lifecycle")

@@ -98,5 +98,7 @@ test('Application lifecycle', python3, args: [files('../tests/test_lifecycle.py'
   env: test_env)
 test('Remote image policy', python3, args: [files('../tests/test_images.py')],
   env: test_env)
+test('Editing helpers', python3, args: [files('../tests/test_editing.py')],
+  env: test_env)
 test('HTML and PDF export', python3, args: [files('../tests/test_export.py')],
   env: test_env)

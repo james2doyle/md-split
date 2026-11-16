@@ -38,6 +38,13 @@ markup = renderer.inline_markup("![alt text](image.png)")
 assert "[alt text]" in markup
 assert "<img" not in markup
 
+markup = renderer.inline_markup("A <u>native underline</u>.")
+assert "<u>native underline</u>" in markup
+markup = renderer.inline_markup("An <u>unclosed tag")
+assert "&lt;u&gt;unclosed tag" in markup
+markup = renderer.inline_markup("`<u>code</u>`")
+assert "&lt;u&gt;code&lt;/u&gt;" in markup
+
 dark_markup = renderer.inline_markup("`code`", dark=True)
 assert 'background="#3d3f42"' in dark_markup
 

@@ -20,7 +20,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gdk, Gio, Gtk
+from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
 if not Gtk.init_check() or Gdk.Display.get_default() is None:
     print("SKIP: no display available")
@@ -140,6 +140,119 @@ window._preview.set_markdown = lambda *args, **kwargs: rendered.append(True)
 window.set_text("# Hidden")
 window._render_preview()
 assert not rendered
+window.destroy()
+
+# The editor owns keyboard focus once the window is mapped.
+window = MdSplitWindow()
+window.present()
+while GLib.MainContext.default().iteration(False):
+    pass
+assert window.get_focus() is window.editor_view, window.get_focus()
+window.destroy()
+
+# The bundled demo loads as clean, untitled scratch content.
+window = MdSplitWindow()
+window.load_demo_document()
+assert window.get_text().startswith("# MD Split"), window.get_text()[:40]
+assert not window.document.is_dirty
+assert window.document.file is None
+window.set_text(window.get_text() + "\nchanged")
+assert window.document.is_dirty
+window.destroy()
+
+# Scroll sync is bidirectional and can be disabled.
+window = MdSplitWindow()
+window._settings.set_boolean("sync-scroll", True)
+window.set_preview_visible(True)
+assert window._settings.get_boolean("sync-scroll")
+assert window.preview_container.get_visible()
+preview = window._preview
+preview_adjustment = preview.get_vadjustment()
+preview_adjustment.set_upper(2000)
+preview_adjustment.set_page_size(100)
+preview.set_scroll_fraction(0.5)
+assert abs(preview_adjustment.get_value() - 950) < 1
+
+class FakePreview:
+    def __init__(self):
+        self.fraction = None
+
+    def set_scroll_fraction(self, fraction):
+        self.fraction = fraction
+
+fake_preview = FakePreview()
+window._preview = fake_preview  # type: ignore[assignment]
+editor_adjustment = Gtk.Adjustment(
+    value=450, lower=0, upper=1000, step_increment=1, page_increment=10,
+    page_size=100,
+)
+window.editor_scroller.get_vadjustment = lambda: editor_adjustment
+window._on_editor_scrolled()
+assert fake_preview.fraction == 0.5, fake_preview.fraction
+editor_adjustment.set_value(0)
+window._on_preview_scrolled(preview, 0.25)
+assert abs(editor_adjustment.get_value() - 225) < 1
+window._settings.set_boolean("sync-scroll", False)
+fake_preview.fraction = None
+window._on_editor_scrolled()
+assert fake_preview.fraction is None
+window._preview = preview  # type: ignore[assignment]
+window.destroy()
+
+# Typing ] after an empty [ completes a link with the cursor inside ().
+window = MdSplitWindow()
+window.set_text("abc [")
+window._buffer.place_cursor(window._buffer.get_end_iter())
+assert window._on_key_pressed(None, Gdk.KEY_bracketright, 0, Gdk.ModifierType(0))
+assert window.get_text() == "abc []()", window.get_text()
+insert = window._buffer.get_iter_at_mark(window._buffer.get_insert())
+assert insert.get_offset() == 7, insert.get_offset()
+window._settings.set_boolean("autocomplete-links", False)
+window.set_text("abc [")
+window._buffer.place_cursor(window._buffer.get_end_iter())
+assert not window._on_key_pressed(None, Gdk.KEY_bracketright, 0, Gdk.ModifierType(0))
+window.destroy()
+
+# Selections can be surrounded with brackets, braces, backticks and quotes.
+window = MdSplitWindow()
+for keyval, expected in (
+    (Gdk.KEY_bracketleft, "h[ell]o"),
+    (Gdk.KEY_braceleft, "h{ell}o"),
+    (Gdk.KEY_grave, "h`ell`o"),
+    (Gdk.KEY_quotedbl, 'h"ell"o'),
+    (Gdk.KEY_apostrophe, "h'ell'o"),
+):
+    window.set_text("hello")
+    window._buffer.select_range(
+        window._buffer.get_iter_at_offset(1),
+        window._buffer.get_iter_at_offset(4),
+    )
+    assert window._on_key_pressed(None, keyval, 0, Gdk.ModifierType(0))
+    assert window.get_text() == expected, (keyval, window.get_text())
+window.destroy()
+
+# Formatting shortcuts operate on the current selection.
+window = MdSplitWindow()
+for kind, expected in (
+    ("bold", "h**ell**o"),
+    ("italic", "h*ell*o"),
+    ("underline", "h<u>ell</u>o"),
+    ("code", "h`ell`o"),
+):
+    window.set_text("hello")
+    window._buffer.select_range(
+        window._buffer.get_iter_at_offset(1),
+        window._buffer.get_iter_at_offset(4),
+    )
+    window.format_selection(kind)
+    assert window.get_text() == expected, (kind, window.get_text())
+window.set_text("one\ntwo")
+window._buffer.select_range(
+    window._buffer.get_iter_at_offset(0),
+    window._buffer.get_iter_at_offset(len("one\ntwo")),
+)
+window.format_selection("blockquote")
+assert window.get_text() == "> one\n> two", window.get_text()
 window.destroy()
 
 print("ok: native window")
