@@ -14,6 +14,7 @@ blueprints = custom_target('blueprints',
 
 md_split_resources = gnome.compile_resources('md_split',
   'md_split.gresource.xml',
+  source_dir: '..',
   gresource_bundle: true,
   install: true,
   install_dir: pkgdatadir,

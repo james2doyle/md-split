@@ -88,7 +88,11 @@ class MdSplitApplication(Adw.Application):
             )
 
     def do_activate(self):
-        win = self._ensure_window()
+        win = self.props.active_window
+        if win is None:
+            win = MdSplitWindow(application=self)
+            if self.settings.get_boolean("load-demo-on-startup"):
+                win.load_demo_document()
         win.present()
 
     def do_open(self, files, n_files, hint):

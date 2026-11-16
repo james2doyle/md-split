@@ -168,13 +168,20 @@ class MdSplitWindow(Adw.ApplicationWindow):
     def _on_map(self, *_args) -> None:
         if not self._focused_once:
             self._focused_once = True
-            self.editor_view.grab_focus()
+            self.focus_editor()
 
     # -- public API ------------------------------------------------------
 
     @property
     def document(self) -> Document:
         return self._document
+
+    @property
+    def settings(self) -> Gio.Settings:
+        return self._settings
+
+    def focus_editor(self) -> None:
+        self.editor_view.grab_focus()
 
     @property
     def preview(self) -> MarkdownView:
@@ -193,6 +200,25 @@ class MdSplitWindow(Adw.ApplicationWindow):
     def flush_preview(self) -> None:
         self._cancel_preview_timeout()
         self._render_preview()
+
+    def load_demo_document(self) -> None:
+        """Load the bundled demo as clean, untitled scratch content."""
+        try:
+            data = Gio.resources_lookup_data(
+                "/com/james2doyle/MdSplit/demo.md",
+                Gio.ResourceLookupFlags.NONE,
+            )
+            text = data.get_data().decode("utf-8")
+        except (GLib.Error, UnicodeDecodeError):
+            log.warning("Bundled demo document is unavailable")
+            return
+
+        self._invalidate_file_operations()
+        self._document.load_demo(text)
+        self._set_buffer_text(text)
+        self._update_ui(render_preview=True)
+        self._buffer.place_cursor(self._buffer.get_start_iter())
+        self.focus_editor()
 
     def new_document(self) -> None:
         self._confirm_discard(
@@ -354,7 +380,7 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self._document.reset()
         self._set_buffer_text("")
         self._update_ui(render_preview=True)
-        self.editor_view.grab_focus()
+        self.focus_editor()
 
     # -- file operations -------------------------------------------------
 
@@ -508,7 +534,7 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self.editor_view.scroll_to_iter(
             self._buffer.get_start_iter(), 0.0, False, 0.0, 0.0
         )
-        self.editor_view.grab_focus()
+        self.focus_editor()
         if on_loaded is not None:
             on_loaded()
 

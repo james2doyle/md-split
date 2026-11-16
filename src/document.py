@@ -86,6 +86,14 @@ class Document:
         self.saved_text = text
         self.revision += 1
 
+    def load_demo(self, text: str) -> None:
+        """Load bundled content as clean scratch text without a file."""
+        self.file = None
+        self.etag = None
+        self.text = text
+        self.saved_text = text
+        self.revision += 1
+
     def mark_saved(
         self,
         file: Gio.File | None = None,
