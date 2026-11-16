@@ -14,7 +14,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 gi.require_version("Gio", "2.0")
 
-from gi.repository import Adw, Gio, GLib, Gtk
+from gi.repository import Adw, Gio, GLib, GObject, Gtk
 
 from .renderer import MarkdownRenderer
 
@@ -29,6 +29,14 @@ class MarkdownView(Gtk.ScrolledWindow):
 
     __gtype_name__ = "MdSplitMarkdownView"
 
+    __gsignals__ = {
+        "scroll-fraction-changed": (
+            GObject.SignalFlags.RUN_FIRST,
+            None,
+            (float,),
+        )
+    }
+
     def __init__(self) -> None:
         super().__init__()
         self._renderer = MarkdownRenderer()
@@ -40,10 +48,14 @@ class MarkdownView(Gtk.ScrolledWindow):
         self._base_file: Gio.File | None = None
         self._render_cancellable: Gio.Cancellable | None = None
         self._restore_timeout = 0
+        self._syncing_scroll = False
 
         self.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         self.set_hexpand(True)
         self.set_vexpand(True)
+        adjustment = self.get_vadjustment()
+        if adjustment is not None:
+            adjustment.connect("value-changed", self._on_scroll_changed)
 
         self._stack = Gtk.Stack()
         self._stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
@@ -99,7 +111,7 @@ class MarkdownView(Gtk.ScrolledWindow):
             self._stack.set_visible_child_name("oversized")
             return
 
-        fraction = self._scroll_fraction()
+        fraction = self.get_scroll_fraction() or 0.0
         cancellable = Gio.Cancellable()
         self._render_cancellable = cancellable
         content = self._renderer.render(
@@ -166,24 +178,56 @@ class MarkdownView(Gtk.ScrolledWindow):
     def renderer(self) -> MarkdownRenderer:
         return self._renderer
 
-    def _scroll_fraction(self) -> float:
+    def _on_scroll_changed(self, _adjustment) -> None:
+        if not self._syncing_scroll and not self._paused:
+            fraction = self.get_scroll_fraction()
+            if fraction is not None:
+                self.emit("scroll-fraction-changed", fraction)
+
+    def get_scroll_fraction(self) -> float | None:
         adjustment = self.get_vadjustment()
         if adjustment is None:
-            return 0.0
+            return None
         maximum = adjustment.get_upper() - adjustment.get_page_size()
         if maximum <= 0:
-            return 0.0
-        return adjustment.get_value() / maximum
+            return None
+        return max(0.0, min(1.0, adjustment.get_value() / maximum))
+
+    def set_scroll_fraction(self, fraction: float) -> None:
+        """Set the vertical position without emitting a user-scroll signal."""
+        self._cancel_restore()
+        adjustment = self.get_vadjustment()
+        if adjustment is None:
+            return
+        maximum = adjustment.get_upper() - adjustment.get_page_size()
+        if maximum <= 0:
+            return
+        self._set_adjustment_value(
+            max(0.0, min(1.0, fraction)) * maximum
+        )
+
+    def _set_adjustment_value(self, value: float) -> None:
+        adjustment = self.get_vadjustment()
+        if adjustment is None:
+            return
+        self._syncing_scroll = True
+        try:
+            adjustment.set_value(value)
+        finally:
+            self._syncing_scroll = False
 
     def _restore_scroll(self, fraction: float) -> bool:
         self._restore_timeout = 0
+        self._set_adjustment_value_for_fraction(fraction)
+        return False
+
+    def _set_adjustment_value_for_fraction(self, fraction: float) -> None:
         adjustment = self.get_vadjustment()
         if adjustment is None:
-            return False
+            return
         maximum = adjustment.get_upper() - adjustment.get_page_size()
         if maximum > 0:
-            adjustment.set_value(fraction * maximum)
-        return False
+            self._set_adjustment_value(fraction * maximum)
 
     def _scroll_to_anchor(self, name: str) -> None:
         widget = self._renderer.get_anchor(name)
@@ -197,7 +241,7 @@ class MarkdownView(Gtk.ScrolledWindow):
             return
         adjustment = self.get_vadjustment()
         if adjustment is not None:
-            adjustment.set_value(max(0.0, rect.get_y() - 12))
+            self._set_adjustment_value(max(0.0, rect.get_y() - 12))
 
     def _open_external(self, uri: str) -> None:
         launcher = Gtk.UriLauncher.new(uri)

@@ -38,6 +38,13 @@ _MAX_WORD_COUNT_CHARS = 2_000_000
 _gtksource_types_ready = False
 
 
+def _adjustment_fraction(adjustment: Gtk.Adjustment) -> float | None:
+    maximum = adjustment.get_upper() - adjustment.get_page_size()
+    if maximum <= 0:
+        return None
+    return max(0.0, min(1.0, adjustment.get_value() / maximum))
+
+
 def _ensure_gtksource_types() -> None:
     """Force GtkSource GTypes to register before GtkBuilder parses the template.
 
@@ -57,6 +64,7 @@ class MdSplitWindow(Adw.ApplicationWindow):
 
     window_title = Gtk.Template.Child("window_title")
     button_preview = Gtk.Template.Child("button_preview")
+    editor_scroller = Gtk.Template.Child("editor_scroller")
     editor_view = Gtk.Template.Child("editor_view")
     paned = Gtk.Template.Child("paned")
     preview_container = Gtk.Template.Child("preview_container")
@@ -85,6 +93,7 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self._destroyed = False
         self._force_close = False
         self._focused_once = False
+        self._scroll_guard = False
         self._signal_handlers: list[tuple[object, int]] = []
 
         self.set_icon_name(APP_ID)
@@ -135,6 +144,9 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self._settings_handler = self._settings.connect(
             "changed::remote-images", self._on_remote_images_changed
         )
+        self._sync_scroll_handler = self._settings.connect(
+            "changed::sync-scroll", self._on_sync_scroll_changed
+        )
 
     def _connect_signals(self) -> None:
         self._signal_handlers.extend(
@@ -152,6 +164,18 @@ class MdSplitWindow(Adw.ApplicationWindow):
                 (self, self.connect("close-request", self._on_close_request)),
                 (self, self.connect("destroy", self._on_destroy)),
                 (self, self.connect("map", self._on_map)),
+                (
+                    self._preview,
+                    self._preview.connect(
+                        "scroll-fraction-changed", self._on_preview_scrolled
+                    ),
+                ),
+                (
+                    self.editor_scroller.get_vadjustment(),
+                    self.editor_scroller.get_vadjustment().connect(
+                        "value-changed", self._on_editor_scrolled
+                    ),
+                ),
             ]
         )
 
@@ -267,6 +291,7 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self._settings.set_boolean("show-preview", visible)
         if visible:
             self.flush_preview()
+            self._on_editor_scrolled()
         else:
             self._cancel_preview_timeout()
 
@@ -296,6 +321,49 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self._preview.set_remote_images(settings.get_boolean("remote-images"))
         if self.preview_container.get_visible():
             self.flush_preview()
+
+    def _on_sync_scroll_changed(self, _settings, _key) -> None:
+        self._on_editor_scrolled()
+
+    def _on_editor_scrolled(self, *_args) -> None:
+        if (
+            self._scroll_guard
+            or not self._settings.get_boolean("sync-scroll")
+            or not self.preview_container.get_visible()
+        ):
+            return
+        adjustment = self.editor_scroller.get_vadjustment()
+        if adjustment is None:
+            return
+        fraction = _adjustment_fraction(adjustment)
+        if fraction is None:
+            return
+        self._scroll_guard = True
+        try:
+            self._preview.set_scroll_fraction(fraction)
+        finally:
+            self._scroll_guard = False
+
+    def _on_preview_scrolled(self, _view, fraction: float) -> None:
+        if (
+            self._scroll_guard
+            or not self._settings.get_boolean("sync-scroll")
+            or not self.preview_container.get_visible()
+        ):
+            return
+        adjustment = self.editor_scroller.get_vadjustment()
+        if adjustment is None:
+            return
+        maximum = adjustment.get_upper() - adjustment.get_page_size()
+        if maximum <= 0:
+            return
+        self._scroll_guard = True
+        try:
+            adjustment.set_value(
+                max(0.0, min(1.0, fraction)) * maximum
+            )
+        finally:
+            self._scroll_guard = False
 
     # -- UI updates ------------------------------------------------------
 
@@ -686,6 +754,9 @@ class MdSplitWindow(Adw.ApplicationWindow):
         if getattr(self, "_settings_handler", 0):
             self._settings.disconnect(self._settings_handler)
             self._settings_handler = 0
+        if getattr(self, "_sync_scroll_handler", 0):
+            self._settings.disconnect(self._sync_scroll_handler)
+            self._sync_scroll_handler = 0
         self._preview.shutdown()
 
     def _on_close_request(self, *_args) -> bool:
