@@ -43,6 +43,7 @@ md_split_sources = [
   'document.py',
   'fileio.py',
   'main.py',
+  'markdown_parser.py',
   'markdown_view.py',
   'preferences.py',
   'renderer.py',

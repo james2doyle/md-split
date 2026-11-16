@@ -39,9 +39,9 @@ _VENDOR = Path(__file__).resolve().parent / "vendor"
 if str(_VENDOR) not in sys.path:
     sys.path.insert(0, str(_VENDOR))
 
-from markdown_it import MarkdownIt
 from markdown_it.token import Token
-from mdit_py_plugins.gfm import gfm_plugin
+
+from .markdown_parser import create_parser, has_valid_underline_markup
 
 log = logging.getLogger(__name__)
 
@@ -76,20 +76,28 @@ def _escape(text: str) -> str:
     return GLib.markup_escape_text(text)
 
 
+def _escape_text(text: str, *, underline: bool) -> str:
+    """Escape text, allowing balanced <u> tags through as Pango markup."""
+    if not underline:
+        return _escape(text)
+    parts = text.split("<u>")
+    escaped = []
+    for index, part in enumerate(parts):
+        if index:
+            escaped.append("<u>")
+        closing = part.split("</u>")
+        for close_index, segment in enumerate(closing):
+            if close_index:
+                escaped.append("</u>")
+            escaped.append(_escape(segment))
+    return "".join(escaped)
+
+
 class MarkdownRenderer:
     """Build a native widget tree from a Markdown string."""
 
     def __init__(self) -> None:
-        self._md = MarkdownIt(
-            "commonmark",
-            {
-                "html": False,
-                "linkify": False,
-                "typographer": False,
-                "breaks": False,
-            },
-        )
-        gfm_plugin(self._md, tasklists_editable=False)
+        self._md = create_parser()
 
         self._dark = False
         self._base_dir: Path | None = None
@@ -182,6 +190,17 @@ class MarkdownRenderer:
         if not tokens:
             return ""
         return self._render_inline(tokens[0])
+
+    def inline_token_markup(self, token: Token, *, dark: bool = False) -> str:
+        """Convert an existing inline token to Pango markup."""
+        self._dark = dark
+        self._base_dir = None
+        self._base_file = None
+        self._on_internal_link = None
+        self._on_external_link = None
+        self._code_background = "#3d3f42" if dark else "#eceff1"
+        self._muted_color = "#9a9a9a" if dark else "#77767b"
+        return self._render_inline(token)
 
     # -- block rendering -------------------------------------------------
 
@@ -1033,12 +1052,17 @@ class MarkdownRenderer:
         if token is None or not token.children:
             return ""
 
+        text_stream = "".join(
+            child.content for child in token.children if child.type == "text"
+        )
+        underline = has_valid_underline_markup(text_stream)
+
         parts: list[str] = []
         open_tags: list[str] = []
         for child in token.children:
             kind = child.type
             if kind == "text":
-                parts.append(_escape(child.content))
+                parts.append(_escape_text(child.content, underline=underline))
             elif kind in ("softbreak", "hardbreak"):
                 parts.append("\n")
             elif kind == "code_inline":
