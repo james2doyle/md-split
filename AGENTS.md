@@ -29,15 +29,20 @@ python3 scripts/test.py
 meson install -C build
 ./build-install/bin/md_split examples/demo.md
 blueprint-compiler compile src/window.blp
+blueprint-compiler compile src/preferences-dialog.blp
+blueprint-compiler compile src/shortcuts-dialog.blp
 blueprint-compiler lint src/window.blp
+blueprint-compiler lint src/preferences-dialog.blp
+blueprint-compiler lint src/shortcuts-dialog.blp
 ```
 
 Definition of done for a change: compile and lint touched `.blp` files,
 `python3 scripts/test.py` green, and full `meson compile -C build`. Tests do not
 launch a separate app process. Headless tests cover the document model,
-Markdown -> Pango markup and file I/O; two in-process GUI tests are skipped
-without a display. Launch `./build-install/bin/md_split examples/demo.md` only
-for visual checks after UI changes.
+Markdown -> Pango markup, editing helpers, export and file I/O; in-process GUI
+tests skip themselves without a display. Launch
+`./build-install/bin/md_split examples/demo.md` only for visual checks after UI
+changes.
 
 ## Hard boundaries
 
@@ -48,8 +53,18 @@ for visual checks after UI changes.
   system; pure-Python Markdown packages are vendored in `src/vendor/`.
 - Don't parse Markdown by hand in the UI layer. Extend the vendored parser or
   `src/renderer.py` tokens; keep the parser behavior GFM-compatible.
-- Raw HTML stays disabled (`html: False`). Do not inject Markdown text into a
-  widget without escaping it for Pango markup.
+- Raw HTML stays disabled (`html: False`). The only promoted inline tag is a
+  balanced `<u>`/`</u>` pair; code spans and unbalanced tags remain literal.
+  Escape every text fragment with `GLib.markup_escape_text` before putting it
+  in a `Gtk.Label`.
+- PDF export imports pycairo lazily so the editor still starts when the
+  optional Cairo binding is unavailable. Keep the import inside the export
+  paths and report an error dialog instead of failing application startup.
+- `Gtk.TextBuffer` has `select_range()`, not `select()`. Use `place_cursor()`
+  for an empty selection when applying a `src/editing.py` edit.
+- `Gtk.FileDialog.open()` invokes its callback with `(source_object, result)`
+  only; pass user data after the callback if the handler needs it, and declare
+  the matching parameter.
 - Don't leave user-visible strings unwrapped. Use `_()`/`ngettext()` in Python
   and `_()`/`C_()` in Blueprint, and add source files to `po/POTFILES.in`.
 - Call `gi.require_version` before importing any GI namespace.
@@ -119,14 +134,20 @@ settings.set_boolean('show-preview', True)
 ## File index
 
 ```text
-[UI] src/window.blp, src/shortcuts-dialog.blp; generated: build/src/*.ui
+[UI] src/window.blp, src/preferences-dialog.blp, src/shortcuts-dialog.blp;
+  generated: build/src/*.ui
 [App] src/main.py (application/actions/CSS), src/window.py (window/file I/O)
 [Model] src/document.py (text, file, dirty state), src/fileio.py (async I/O)
-[Preview] src/renderer.py (tokens -> widgets), src/markdown_view.py (scroll/theme)
+[Edit] src/editing.py (surround/link completion/formatting)
+[Preview] src/renderer.py (tokens -> widgets), src/markdown_view.py (scroll/theme),
+  src/markdown_parser.py (shared GFM parser)
+[Export] src/exporting.py (standalone HTML and styled PDF)
+[Prefs] src/preferences.py (settings-backed preferences dialog)
 [Data] data/*.gschema.xml, data/*.desktop.in, data/*.metainfo.xml.in
 [Vendor] src/vendor/markdown_it, mdit_py_plugins, mdurl, LICENSES
-[Tests] tests/test_document.py, test_markdown.py, test_fileio.py (headless);
-  test_renderer.py, test_window.py, test_lifecycle.py, test_images.py (display)
+[Tests] tests/test_document.py, test_markdown.py, test_fileio.py,
+  test_editing.py, test_export.py (headless); test_renderer.py, test_window.py,
+  test_lifecycle.py, test_images.py (display)
 [Scripts] scripts/test.py (sanitized test runner), dev.py, scripts/init.py
 [Packaging] meson.build, src/meson.build, com.james2doyle.MdSplit.json
 ```

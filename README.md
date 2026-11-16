@@ -20,19 +20,27 @@ has no runtime Python dependencies beyond PyGObject.
   alerts and footnotes
 - Native rendering for headings, paragraphs, links, lists, block quotes,
   fenced and indented code blocks, tables, images and horizontal rules
-- Follows the system light/dark preference
+- System, light and dark appearance with system as the default
+- Optional bundled demo document when opening without a file
+- Synchronized editor/preview scrolling
+- Selection wrapping for brackets, braces, backticks and quotes
+- Automatic `[]` to `[]()` completion for links
+- Bold, italic, underline, block quote and code formatting shortcuts
+- Standalone HTML and styled PDF export
 - Open, save and save-as with UTF-8 files
 - Unsaved-change prompts, window geometry and preview state persistence
 - Word and character counts plus cursor position in the status bar
 - Copy-code buttons in code block headers
 - Command-line file opening and `%f` desktop integration
-- Raw HTML is disabled by default for safe previewing
+- Raw HTML is disabled by default for safe previewing; `<u>...</u>` is the
+  only inline HTML tag rendered as formatting
 
 ## Requirements
 
 - Python 3.12+ and PyGObject (`Gtk-4.0`, `Adw-1`, `GtkSource-5` GIRs)
 - GTK 4 and libadwaita 1.8+ (the Flatpak runtime provides 1.10)
 - GtkSourceView 5
+- Pycairo for PDF export
 - `meson`, `ninja`, `blueprint-compiler`
 - `gettext` (`msgfmt`); optional validators: `desktop-file-validate`,
   `appstreamcli`, `glib-compile-schemas`
@@ -70,6 +78,12 @@ without extra environment setup.
 | Ctrl+S | Save |
 | Ctrl+Shift+S | Save As |
 | F9 | Toggle preview |
+| Ctrl+B | Bold |
+| Ctrl+I | Italic |
+| Ctrl+U | Underline |
+| Ctrl+T | Block quote |
+| Ctrl+` | Code |
+| Ctrl+, | Preferences |
 | Ctrl+? | Show shortcuts |
 | Ctrl+Q | Quit |
 
@@ -87,12 +101,22 @@ The preview uses the composite GFM plugin from `mdit-py-plugins`:
 - Footnotes and block quotes
 - Fenced code blocks with language labels and copy buttons
 - Local and remote images
+- Underline with `<u>...</u>` (the only inline raw HTML tag interpreted)
 
 Relative links and images are resolved against the open document's directory.
 Local images are decoded asynchronously with size and pixel limits. Remote
 images are disabled by default: enable **Load Remote Images** in the main menu
-to fetch public HTTP(S) images, subject to byte, pixel, timeout, and cache
-limits.
+or Preferences to fetch public HTTP(S) images, subject to byte, pixel, timeout,
+and cache limits.
+
+## Export
+
+**Export HTML…** writes a standalone HTML document with embedded CSS. Local
+images are embedded as bounded data URIs, remote images keep their URLs, and
+relative links are resolved against the source document. **Export PDF…** uses
+Cairo and Pango to write a styled A4 PDF with headings, lists, quotes, code,
+tables, local images and footnotes. Export uses the current editor contents,
+including unsaved changes.
 
 ## Architecture
 
@@ -101,8 +125,13 @@ src/main.py             Adw.Application, actions, CSS loading, file activation
 src/window.py           split-view window, file I/O, dialogs, settings
 src/document.py         headless document model (text, file, dirty state)
 src/fileio.py           headless async UTF-8 load/save helpers
+src/editing.py          selection wrapping, link completion, formatting edits
+src/exporting.py        standalone HTML and styled PDF export
+src/markdown_parser.py  shared GFM parser configuration
 src/renderer.py         Markdown tokens -> native GTK widgets
 src/markdown_view.py    scrollable preview, empty state, theme rerendering
+src/preferences.py      settings-backed preferences dialog
+src/preferences-dialog.blp  preferences UI
 src/window.blp          Blueprint UI
 src/style.css           preview table, code block, alert, quote styling
 src/vendor/             vendored markdown-it-py, mdit-py-plugins and mdurl
@@ -126,11 +155,14 @@ No app process is needed. Most tests run completely headless:
 - document model and dirty-state logic
 - Markdown parsing and Pango markup generation
 - asynchronous UTF-8 file loading and saving
+- editing helpers, selection wrapping, and link completion
+- HTML and PDF export, including pagination
 - desktop/AppStream/schema validators
 
 GUI tests construct widgets and application actions in-process (not a running
-app) to inspect the preview tree, window lifecycle, and remote-image policy.
-They skip themselves when no display is available; CI runs them under Xvfb.
+app) to inspect the preview tree, window lifecycle, keyboard focus, scroll
+sync, formatting, preferences, and remote-image policy. They skip themselves
+when no display is available; CI runs them under Xvfb.
 
 ## Flatpak
 
