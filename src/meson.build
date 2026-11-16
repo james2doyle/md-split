@@ -42,6 +42,7 @@ md_split_sources = [
   '__init__.py',
   'document.py',
   'editing.py',
+  'exporting.py',
   'fileio.py',
   'main.py',
   'markdown_parser.py',
@@ -96,4 +97,6 @@ test('Application lifecycle', python3, args: [files('../tests/test_lifecycle.py'
   depends: test_schemas,
   env: test_env)
 test('Remote image policy', python3, args: [files('../tests/test_images.py')],
+  env: test_env)
+test('HTML and PDF export', python3, args: [files('../tests/test_export.py')],
   env: test_env)

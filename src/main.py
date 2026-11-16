@@ -42,6 +42,8 @@ class MdSplitApplication(Adw.Application):
         self.create_action(
             "save-as", self.on_save_as_action, ["<control><shift>s"]
         )
+        self.create_action("export-html", self.on_export_html_action)
+        self.create_action("export-pdf", self.on_export_pdf_action)
         for name, shortcut in (
             ("format-bold", "<control>b"),
             ("format-italic", "<control>i"),
@@ -145,6 +147,16 @@ class MdSplitApplication(Adw.Application):
         win = self.props.active_window
         if win is not None:
             win.save_as_document()
+
+    def on_export_html_action(self, *_args):
+        win = self.props.active_window
+        if win is not None:
+            win.export_html()
+
+    def on_export_pdf_action(self, *_args):
+        win = self.props.active_window
+        if win is not None:
+            win.export_pdf()
 
     def on_format_action(self, action, _parameter):
         win = self.props.active_window

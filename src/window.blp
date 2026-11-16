@@ -7,9 +7,10 @@ template $MdSplitWindow: Adw.ApplicationWindow {
   default-width: 1100;
   default-height: 720;
 
-  content: Adw.ToolbarView {
-    [top]
-    Adw.HeaderBar {
+  content: Adw.ToastOverlay toast_overlay {
+    child: Adw.ToolbarView {
+      [top]
+      Adw.HeaderBar {
       [start]
       Button button_open {
         icon-name: "folder-open-symbolic";
@@ -134,6 +135,7 @@ template $MdSplitWindow: Adw.ApplicationWindow {
         ]
       }
     }
+    };
   };
 }
 
@@ -156,6 +158,16 @@ menu main_menu {
     item {
       label: _("Save _As…");
       action: "app.save-as";
+    }
+  }
+  section {
+    item {
+      label: _("Export _HTML…");
+      action: "app.export-html";
+    }
+    item {
+      label: _("Export _PDF…");
+      action: "app.export-pdf";
     }
   }
   section {

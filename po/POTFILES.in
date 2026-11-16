@@ -6,6 +6,7 @@ data/com.james2doyle.MdSplit.desktop.in
 data/com.james2doyle.MdSplit.gschema.xml
 data/com.james2doyle.MdSplit.metainfo.xml.in
 src/document.py
+src/exporting.py
 src/fileio.py
 src/main.py
 src/markdown_view.py

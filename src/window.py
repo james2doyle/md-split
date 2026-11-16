@@ -72,6 +72,7 @@ class MdSplitWindow(Adw.ApplicationWindow):
     placeholder_label = Gtk.Template.Child("placeholder_label")
     label_cursor = Gtk.Template.Child("label_cursor")
     label_stats = Gtk.Template.Child("label_stats")
+    toast_overlay = Gtk.Template.Child("toast_overlay")
 
     def __init__(self, **kwargs):
         _ensure_gtksource_types()
@@ -617,6 +618,138 @@ class MdSplitWindow(Adw.ApplicationWindow):
             return
         if file is not None:
             self._write_file(file, callback)
+
+    def export_html(self) -> None:
+        self._open_export_dialog(
+            _("Export HTML"),
+            "html",
+            _("HTML files"),
+            "*.html",
+            "text/html",
+            self._on_export_html_finished,
+        )
+
+    def export_pdf(self) -> None:
+        self._open_export_dialog(
+            _("Export PDF"),
+            "pdf",
+            _("PDF files"),
+            "*.pdf",
+            "application/pdf",
+            self._on_export_pdf_finished,
+        )
+
+    def _open_export_dialog(
+        self,
+        title: str,
+        extension: str,
+        filter_name: str,
+        pattern: str,
+        mime_type: str,
+        callback,
+    ) -> None:
+        file_filter = Gtk.FileFilter()
+        file_filter.set_name(filter_name)
+        file_filter.add_pattern(pattern)
+        file_filter.add_mime_type(mime_type)
+        all_filter = Gtk.FileFilter()
+        all_filter.set_name(_("All files"))
+        all_filter.add_pattern("*")
+        filters = Gio.ListStore.new(Gtk.FileFilter)
+        filters.append(file_filter)
+        filters.append(all_filter)
+
+        dialog = Gtk.FileDialog()
+        dialog.set_title(title)
+        dialog.set_accept_label(_("Export"))
+        dialog.set_filters(filters)
+        dialog.set_default_filter(file_filter)
+        stem = Path(self._document.display_name).stem
+        dialog.set_initial_name(f"{stem}.{extension}")
+        folder = self._initial_folder()
+        if folder is not None:
+            dialog.set_initial_folder(folder)
+        self._file_dialog = dialog
+        dialog.save(self, None, callback)
+
+    def _finish_export_dialog(
+        self, dialog: Gtk.FileDialog, result, heading: str
+    ) -> Gio.File | None:
+        try:
+            return dialog.save_finish(result)
+        except GLib.Error as error:
+            if not self._is_dismissed(error):
+                self._show_error(heading, error.message)
+            return None
+
+    def _on_export_html_finished(
+        self, dialog: Gtk.FileDialog, result
+    ) -> None:
+        file = self._finish_export_dialog(
+            dialog, result, _("Could not export HTML")
+        )
+        if file is None:
+            return
+        try:
+            from . import exporting
+
+            content = exporting.render_html(
+                self.get_text(),
+                title=Path(self._document.display_name).stem,
+                base_dir=self._document.directory,
+                base_file=self._document.file,
+            )
+        except Exception as error:  # pragma: no cover - reported to the user
+            self._show_error(_("Could not export HTML"), str(error))
+            return
+        fileio.save_text_async(
+            file,
+            content,
+            lambda error, _etag: self._on_export_written("HTML", error),
+        )
+
+    def _on_export_pdf_finished(
+        self, dialog: Gtk.FileDialog, result
+    ) -> None:
+        file = self._finish_export_dialog(
+            dialog, result, _("Could not export PDF")
+        )
+        if file is None:
+            return
+        path = file.get_path()
+        if path is None:
+            self._show_error(
+                _("Could not export PDF"),
+                _("Choose a local file for the PDF export."),
+            )
+            return
+        try:
+            from . import exporting
+
+            exporting.write_pdf(
+                self.get_text(),
+                path,
+                title=Path(self._document.display_name).stem,
+                base_dir=self._document.directory,
+                base_file=self._document.file,
+            )
+        except Exception as error:  # pragma: no cover - reported to the user
+            self._show_error(_("Could not export PDF"), str(error))
+            return
+        self._show_toast(_("Exported PDF"))
+
+    def _on_export_written(self, kind: str, error: Exception | None) -> None:
+        if error is not None:
+            self._show_error(
+                _("Could not export {kind}").format(kind=kind), str(error)
+            )
+            return
+        self._show_toast(_("Exported {kind}").format(kind=kind))
+
+    def _show_toast(self, message: str) -> None:
+        toast = Adw.Toast.new(message)
+        toast.set_timeout(2)
+        self.toast_overlay.add_toast(toast)
 
     def _cancel_load(self) -> None:
         if self._load_cancellable is not None:

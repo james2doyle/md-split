@@ -30,6 +30,7 @@ jobs:
             libadwaita-devel \
             meson \
             ninja-build \
+            python3-cairo \
             python3-gobject \
             xorg-x11-server-Xvfb
 
