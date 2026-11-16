@@ -21,6 +21,31 @@
 			<description>Fetch HTTP and HTTPS images referenced by the current document. Disabled by default to prevent tracking and requests to local network services.</description>
 			<default>false</default>
 		</key>
+		<key name="appearance" type="s">
+			<summary>Application appearance</summary>
+			<description>Follow the system preference or force light or dark mode.</description>
+			<choices>
+				<choice value="system"/>
+				<choice value="light"/>
+				<choice value="dark"/>
+			</choices>
+			<default>'system'</default>
+		</key>
+		<key name="load-demo-on-startup" type="b">
+			<summary>Load the demo document on startup</summary>
+			<description>Show the bundled Markdown demo as an untitled document when the application opens without a file.</description>
+			<default>true</default>
+		</key>
+		<key name="sync-scroll" type="b">
+			<summary>Sync editor and preview scrolling</summary>
+			<description>Keep the editor and preview panes at the same relative scroll position.</description>
+			<default>true</default>
+		</key>
+		<key name="autocomplete-links" type="b">
+			<summary>Complete empty Markdown links</summary>
+			<description>Turn a typed [] into []() and place the cursor inside the parentheses.</description>
+			<default>true</default>
+		</key>
 		<key name="last-folder" type="s">
 			<default>''</default>
 		</key>

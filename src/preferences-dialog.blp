@@ -1,0 +1,49 @@
+using Gtk 4.0;
+using Adw 1;
+
+template $MdSplitPreferencesDialog: Adw.PreferencesDialog {
+  title: _("Preferences");
+  search-enabled: true;
+
+  child: Adw.PreferencesPage {
+    title: _("General");
+
+    Adw.PreferencesGroup {
+      title: _("Appearance");
+      description: _("Choose how MD Split follows or overrides the system theme.");
+
+      Adw.ComboRow appearance_row {
+        title: _("Theme");
+        subtitle: _("System, light, or dark");
+      }
+    }
+
+    Adw.PreferencesGroup {
+      title: _("Documents");
+
+      Adw.SwitchRow switch_load_demo {
+        title: _("Load demo document on startup");
+        subtitle: _("Show the bundled Markdown demo when no file is opened");
+      }
+
+      Adw.SwitchRow switch_autocomplete_links {
+        title: _("Complete empty links");
+        subtitle: _("Turn [] into []() and place the cursor inside the parentheses");
+      }
+    }
+
+    Adw.PreferencesGroup {
+      title: _("Preview");
+
+      Adw.SwitchRow switch_sync_scroll {
+        title: _("Sync scrolling");
+        subtitle: _("Keep the editor and preview at the same relative position");
+      }
+
+      Adw.SwitchRow switch_remote_images {
+        title: _("Load remote images");
+        subtitle: _("Fetch HTTP and HTTPS images referenced by the document");
+      }
+    }
+  };
+}

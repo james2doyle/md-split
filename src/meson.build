@@ -4,6 +4,7 @@ gnome = import('gnome')
 
 blueprints = custom_target('blueprints',
   input: files(
+    'preferences-dialog.blp',
     'shortcuts-dialog.blp',
     'window.blp',
   ),
@@ -42,6 +43,7 @@ md_split_sources = [
   'fileio.py',
   'main.py',
   'markdown_view.py',
+  'preferences.py',
   'renderer.py',
   'window.py',
 ]

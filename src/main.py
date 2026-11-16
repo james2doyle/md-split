@@ -13,11 +13,12 @@ gi.require_version("Adw", "1")
 
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
+from . import APP_ID
+from .preferences import MdSplitPreferencesDialog
 from .window import MdSplitWindow
 
 log = logging.getLogger(__name__)
 
-APP_ID = "com.james2doyle.MdSplit"
 STYLE_RESOURCE = "/com/james2doyle/MdSplit/style.css"
 
 
@@ -32,6 +33,9 @@ class MdSplitApplication(Adw.Application):
         )
         self.version = version
         self.settings = Gio.Settings(schema_id=APP_ID)
+        self._preferences_dialog = None
+        self._apply_appearance()
+        self.settings.connect("changed::appearance", self._on_appearance_changed)
         self.create_action("new", self.on_new_action, ["<control>n"])
         self.create_action("open", self.on_open_action, ["<control>o"])
         self.create_action("save", self.on_save_action, ["<control>s"])
@@ -51,9 +55,25 @@ class MdSplitApplication(Adw.Application):
                 self.settings.get_boolean("remote-images")
             ),
         )
+        self.create_action(
+            "preferences", self.on_preferences_action, ["<control>comma"]
+        )
         self.create_action("quit", self.on_quit_action, ["<control>q"])
         self.create_action("about", self.on_about_action)
         self.settings.connect("changed::remote-images", self._sync_remote_action)
+
+    def _apply_appearance(self) -> None:
+        value = self.settings.get_string("appearance")
+        schemes = {
+            "light": Adw.ColorScheme.FORCE_LIGHT,
+            "dark": Adw.ColorScheme.FORCE_DARK,
+        }
+        Adw.StyleManager.get_default().set_color_scheme(
+            schemes.get(value, Adw.ColorScheme.DEFAULT)
+        )
+
+    def _on_appearance_changed(self, _settings, _key) -> None:
+        self._apply_appearance()
 
     def do_startup(self):
         Adw.Application.do_startup(self)
@@ -113,6 +133,19 @@ class MdSplitApplication(Adw.Application):
         win = self.props.active_window
         if win is not None:
             win.save_as_document()
+
+    def on_preferences_action(self, *_args):
+        if self._preferences_dialog is not None:
+            self._preferences_dialog.present(self.props.active_window)
+            return
+        dialog = MdSplitPreferencesDialog()
+        dialog.connect("closed", self._on_preferences_closed)
+        self._preferences_dialog = dialog
+        dialog.present(self.props.active_window)
+
+    def _on_preferences_closed(self, dialog) -> None:
+        if self._preferences_dialog is dialog:
+            self._preferences_dialog = None
 
     def on_toggle_preview_action(self, action, _parameter):
         visible = not action.get_state().get_boolean()

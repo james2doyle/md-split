@@ -20,13 +20,11 @@ gi.require_version("GtkSource", "5")
 
 from gi.repository import Adw, Gio, GLib, Gtk, GtkSource
 
-from . import fileio
+from . import APP_ID, fileio
 from .document import Document
 from .markdown_view import MarkdownView
 
 log = logging.getLogger(__name__)
-
-APP_ID = "com.james2doyle.MdSplit"
 
 
 def _io_error_matches(error: Exception, code: Gio.IOErrorEnum) -> bool:
