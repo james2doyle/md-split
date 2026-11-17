@@ -35,6 +35,12 @@ def _io_error_matches(error: Exception, code: Gio.IOErrorEnum) -> bool:
     )
 
 _MAX_WORD_COUNT_CHARS = 2_000_000
+_LARGE_PREVIEW_CHARS = 100_000
+
+
+def _preview_interval(length: int) -> int:
+    """Debounce shorter updates for large documents."""
+    return 400 if length > _LARGE_PREVIEW_CHARS else 180
 
 _gtksource_types_ready = False
 
@@ -83,6 +89,7 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self._loading = False
         self._preview_timeout = 0
         self._stats_timeout = 0
+        self._preview_text: str | None = None
         self._file_dialog = None
         self._confirm_dialog = None
         self._error_dialog = None
@@ -325,13 +332,16 @@ class MdSplitWindow(Adw.ApplicationWindow):
 
         source_visible = mode in ("both", "source")
         preview_visible = mode in ("both", "preview")
+        preview_was_visible = previous in ("both", "preview")
         self.editor_pane.set_visible(source_visible)
         self.preview_container.set_visible(preview_visible)
         self._preview.set_paused(not preview_visible)
         if preview_visible:
-            self.flush_preview()
+            if not preview_was_visible:
+                self.flush_preview()
             self._on_editor_scrolled()
         else:
+            self._preview_text = None
             self._cancel_preview_timeout()
 
         if mode == "both" and previous != "both":
@@ -577,7 +587,10 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self._cancel_preview_timeout()
         if not self.preview_container.get_visible():
             return
-        self._preview_timeout = GLib.timeout_add(180, self._render_preview)
+        # Full re-renders block the main thread, so large documents debounce
+        # longer instead of rebuilding on nearly every keystroke.
+        interval = _preview_interval(len(self._document.text))
+        self._preview_timeout = GLib.timeout_add(interval, self._render_preview)
 
     def _cancel_preview_timeout(self) -> None:
         if self._preview_timeout:
@@ -586,12 +599,17 @@ class MdSplitWindow(Adw.ApplicationWindow):
 
     def _render_preview(self) -> bool:
         self._preview_timeout = 0
-        if self.preview_container.get_visible() and not self._destroyed:
-            self._preview.set_markdown(
-                self.get_text(),
-                self._document.directory,
-                base_file=self._document.file,
-            )
+        if not self.preview_container.get_visible() or self._destroyed:
+            return False
+        text = self._document.text
+        if text == self._preview_text:
+            return False
+        self._preview_text = text
+        self._preview.set_markdown(
+            text,
+            self._document.directory,
+            base_file=self._document.file,
+        )
         return False
 
     def _set_buffer_text(self, text: str) -> None:

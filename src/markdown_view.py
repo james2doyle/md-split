@@ -143,8 +143,6 @@ class MarkdownView(Gtk.ScrolledWindow):
             self._cancel_restore()
             self._clamp.set_child(None)
             self._stack.set_visible_child_name("empty")
-        elif self._text.strip():
-            self.set_markdown(self._text, self._base_dir, self._base_file)
 
     def set_remote_images(self, enabled: bool) -> None:
         if enabled == self._remote_images:

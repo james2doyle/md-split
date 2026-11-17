@@ -77,6 +77,27 @@ assert window.view_mode == "both"
 app.lookup_action("cycle-view").activate()
 assert window.view_mode == "source"
 
+# Resuming the preview renders exactly once, with current text.
+window.set_text("# Preview\n\nBody")
+renders = []
+original_set_markdown = window.preview.set_markdown
+
+
+def counting_set_markdown(*args, **kwargs):
+    renders.append(args[0] if args else kwargs.get("text"))
+    return original_set_markdown(*args, **kwargs)
+
+
+window.preview.set_markdown = counting_set_markdown
+try:
+    window.set_view_mode("source")
+    window.set_view_mode("preview")
+    window.set_view_mode("source")
+    window.set_view_mode("preview")
+finally:
+    window.preview.set_markdown = original_set_markdown
+assert len(renders) == 2, renders
+
 # A launch-time override applies without changing the saved setting.
 window.set_view_mode("both")
 override = MdSplitWindow(application=app, initial_view_mode="preview")

@@ -31,7 +31,11 @@ Adw.init()
 resource = Gio.Resource.load(RESOURCE)
 resource._register()
 
-from src.window import MdSplitWindow
+from src.window import MdSplitWindow, _preview_interval
+
+assert _preview_interval(0) == 180
+assert _preview_interval(100_000) == 180
+assert _preview_interval(100_001) == 400
 
 
 def walk(widget):
