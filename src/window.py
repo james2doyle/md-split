@@ -354,7 +354,7 @@ class MdSplitWindow(Adw.ApplicationWindow):
     def _on_buffer_changed(self, *_args) -> None:
         if self._loading:
             return
-        self._document.set_text(self.get_text())
+        self._document.set_text(self.get_text(), changed=True)
         self._update_ui(update_stats=False)
         self._schedule_stats()
         self._schedule_preview()
@@ -379,7 +379,6 @@ class MdSplitWindow(Adw.ApplicationWindow):
         if modifiers & blocked:
             return False
 
-        text = self.get_text()
         bounds = self._buffer.get_selection_bounds()
         if (
             not bounds
@@ -387,19 +386,20 @@ class MdSplitWindow(Adw.ApplicationWindow):
             and not (state & Gdk.ModifierType.SHIFT_MASK)
         ):
             insert = self._buffer.get_iter_at_mark(self._buffer.get_insert())
-            edit = editing.continue_list(text, insert.get_offset())
+            edit = editing.continue_list(self.get_text(), insert.get_offset())
             if edit is not None:
                 self._apply_text_edit(edit)
                 return True
         if bounds:
             start_iter, end_iter = bounds
             codepoint = Gdk.keyval_to_unicode(keyval)
-            if codepoint:
+            character = chr(codepoint) if codepoint else ""
+            if character in editing.SURROUND_PAIRS:
                 edit = editing.surround_selection(
-                    text,
+                    self.get_text(),
                     start_iter.get_offset(),
                     end_iter.get_offset(),
-                    chr(codepoint),
+                    character,
                 )
                 if edit is not None:
                     self._apply_text_edit(edit)
@@ -411,7 +411,9 @@ class MdSplitWindow(Adw.ApplicationWindow):
             and self._settings.get_boolean("autocomplete-links")
         ):
             insert = self._buffer.get_iter_at_mark(self._buffer.get_insert())
-            edit = editing.complete_link(text, insert.get_offset())
+            edit = editing.complete_link(
+                self.get_text(), insert.get_offset()
+            )
             if edit is not None:
                 self._apply_text_edit(edit)
                 return True

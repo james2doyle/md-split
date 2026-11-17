@@ -67,10 +67,19 @@ class Document:
     def character_count(self) -> int:
         return len(self.text)
 
-    def set_text(self, text: str) -> None:
-        if text != self.text:
-            self.text = text
-            self.revision += 1
+    def set_text(self, text: str, *, changed: bool = False) -> None:
+        """Mirror the editor text.
+
+        ``changed`` lets a caller that already knows the content changed (the
+        buffer "changed" signal) skip the full-text comparison.
+        """
+        if not changed:
+            # A length change proves the content differs, so only compare the
+            # full text when the lengths match (for example a replacement).
+            if len(text) == len(self.text) and text == self.text:
+                return
+        self.text = text
+        self.revision += 1
 
     def reset(self) -> None:
         self.file = None

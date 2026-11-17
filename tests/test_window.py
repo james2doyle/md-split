@@ -181,6 +181,33 @@ window._buffer.place_cursor(window._buffer.get_end_iter())
 assert not window._on_key_pressed(None, Gdk.KEY_bracketright, 0, Gdk.ModifierType(0))
 window.destroy()
 
+# Cursor-only keys must not copy the whole buffer.
+window = MdSplitWindow()
+window.set_text("plain text")
+window._buffer.place_cursor(window._buffer.get_start_iter())
+text_reads = []
+original_get_text = window.get_text
+
+
+def counting_get_text():
+    text_reads.append(True)
+    return original_get_text()
+
+
+window.get_text = counting_get_text
+for keyval in (Gdk.KEY_Left, Gdk.KEY_Right, Gdk.KEY_Home, Gdk.KEY_End):
+    assert not window._on_key_pressed(
+        None, keyval, 0, Gdk.ModifierType(0)
+    )
+window._buffer.select_range(
+    window._buffer.get_iter_at_offset(1),
+    window._buffer.get_iter_at_offset(4),
+)
+assert not window._on_key_pressed(None, Gdk.KEY_Left, 0, Gdk.ModifierType(0))
+assert not text_reads, text_reads
+window.get_text = original_get_text
+window.destroy()
+
 # Selections can be surrounded with brackets, braces, backticks and quotes.
 window = MdSplitWindow()
 for keyval, expected in (
