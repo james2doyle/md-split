@@ -48,6 +48,7 @@ class MarkdownView(Gtk.ScrolledWindow):
         self._base_file: Gio.File | None = None
         self._render_cancellable: Gio.Cancellable | None = None
         self._restore_handler = 0
+        self._restore_timeout = 0
         self._restore_fraction = 0.0
         self._syncing_scroll = False
 
@@ -100,6 +101,8 @@ class MarkdownView(Gtk.ScrolledWindow):
         self._base_dir = base_dir
         self._base_file = base_file
         self._cancel_render()
+        fraction = self.get_scroll_fraction() or 0.0
+        self._release_content_focus()
 
         if self._paused or not text.strip():
             self._cancel_restore()
@@ -112,7 +115,6 @@ class MarkdownView(Gtk.ScrolledWindow):
             self._stack.set_visible_child_name("oversized")
             return
 
-        fraction = self.get_scroll_fraction() or 0.0
         cancellable = Gio.Cancellable()
         self._render_cancellable = cancellable
         content = self._renderer.render(
@@ -125,9 +127,11 @@ class MarkdownView(Gtk.ScrolledWindow):
             on_internal_link=self._scroll_to_anchor,
             on_external_link=self._open_external,
         )
+        # Arm the restore before swapping children so allocation changes
+        # emitted during the swap cannot be missed.
+        self._wait_for_scroll_restore(fraction)
         self._clamp.set_child(content)
         self._stack.set_visible_child_name("content")
-        self._wait_for_scroll_restore(fraction)
 
     def set_paused(self, paused: bool) -> None:
         """Stop rendering and release the widget tree while hidden.
@@ -141,6 +145,7 @@ class MarkdownView(Gtk.ScrolledWindow):
         if paused:
             self._cancel_render()
             self._cancel_restore()
+            self._release_content_focus()
             self._clamp.set_child(None)
             self._stack.set_visible_child_name("empty")
 
@@ -156,6 +161,7 @@ class MarkdownView(Gtk.ScrolledWindow):
         self._text = ""
         self._cancel_render()
         self._cancel_restore()
+        self._release_content_focus()
         self._clamp.set_child(None)
         self._renderer.shutdown()
 
@@ -164,7 +170,22 @@ class MarkdownView(Gtk.ScrolledWindow):
             self._render_cancellable.cancel()
             self._render_cancellable = None
 
+    def _release_content_focus(self) -> None:
+        """Move focus out before replacing the rendered widget tree."""
+        root = self.get_root()
+        focus = root.get_focus() if root is not None else None
+        if focus is not None and focus is not self and focus.is_ancestor(self):
+            adjustment = self.get_vadjustment()
+            value = adjustment.get_value() if adjustment is not None else 0.0
+            self.grab_focus()
+            # Focus changes can scroll the view; keep the reader's position.
+            if adjustment is not None:
+                self._set_adjustment_value(value)
+
     def _cancel_restore(self) -> None:
+        if self._restore_timeout:
+            GLib.source_remove(self._restore_timeout)
+            self._restore_timeout = 0
         if self._restore_handler:
             adjustment = self.get_vadjustment()
             if adjustment is not None:
@@ -228,12 +249,24 @@ class MarkdownView(Gtk.ScrolledWindow):
         if adjustment is None:
             return
         self._restore_handler = adjustment.connect(
-            "changed", self._restore_scroll_after_allocation
+            "changed", self._on_restore_adjustment_changed
         )
 
-    def _restore_scroll_after_allocation(self, _adjustment) -> None:
+    def _on_restore_adjustment_changed(self, _adjustment) -> None:
+        if not self._restore_handler:
+            return
+        # Wait for the adjustment to stop changing before restoring.
+        if self._restore_timeout:
+            GLib.source_remove(self._restore_timeout)
+        self._restore_timeout = GLib.timeout_add(
+            50, self._restore_scroll_after_allocation
+        )
+
+    def _restore_scroll_after_allocation(self) -> bool:
+        self._restore_timeout = 0
         self._cancel_restore()
         self._set_adjustment_value_for_fraction(self._restore_fraction)
+        return False
 
     def _set_adjustment_value_for_fraction(self, fraction: float) -> None:
         adjustment = self.get_vadjustment()

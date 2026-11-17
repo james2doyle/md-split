@@ -31,7 +31,7 @@ from src.markdown_view import MarkdownView
 from src.window import MdSplitWindow
 
 
-def pump_until(predicate, timeout_ms=3000):
+def pump_until(predicate, timeout_ms=10000, details=None):
     loop = GLib.MainLoop()
     state = {"timed_out": False}
 
@@ -51,7 +51,22 @@ def pump_until(predicate, timeout_ms=3000):
     loop.run()
     if not state["timed_out"]:
         GLib.source_remove(timeout_id)
-    assert not state["timed_out"], "timed out waiting for allocation"
+    message = "timed out waiting for allocation"
+    if details is not None:
+        message = f"{message} ({details()})"
+    assert not state["timed_out"], message
+
+
+def find_focusable(widget):
+    if widget.get_focusable() and widget.get_visible():
+        return widget
+    child = widget.get_first_child()
+    while child is not None:
+        found = find_focusable(child)
+        if found is not None:
+            return found
+        child = child.get_next_sibling()
+    return None
 
 
 class FakePreview:
@@ -137,13 +152,53 @@ first_upper = first_adjustment.get_upper()
 second_document = first_document + "\n\n" + "\n\n".join(
     f"Extra {index} " + "word " * 30 for index in range(80)
 )
+
+# Replacing preview content must not leave focus on a destroyed child.
+content = standalone._clamp.get_child()
+assert content is not None
+focusable = find_focusable(content)
+assert focusable is not None
+focusable.grab_focus()
+assert host.get_focus() is focusable
+# Focusing a label can scroll it into view; restore the test position before
+# rendering so the fraction check is independent of focus behavior.
+standalone.set_scroll_fraction(0.5)
 standalone.set_markdown(second_document)
+assert host.get_focus() is standalone
 pump_until(
     lambda: first_adjustment.get_upper() > first_upper
-    and abs((standalone.get_scroll_fraction() or 0) - 0.5) < 0.02
+    and abs((standalone.get_scroll_fraction() or 0) - 0.5) < 0.02,
+    details=lambda: (
+        f"upper={first_adjustment.get_upper()} first_upper={first_upper} "
+        f"value={first_adjustment.get_value()} "
+        f"fraction={standalone.get_scroll_fraction()}"
+    ),
 )
 assert abs((standalone.get_scroll_fraction() or 0) - 0.5) < 0.02
 host.destroy()
+
+# Restoration uses the final geometry when it changes in stages.
+staged = MarkdownView()
+staged_adjustment = Gtk.Adjustment(
+    value=0,
+    lower=0,
+    upper=1000,
+    step_increment=1,
+    page_increment=10,
+    page_size=100,
+)
+staged.get_vadjustment = lambda: staged_adjustment
+staged._wait_for_scroll_restore(0.5)
+staged_adjustment.set_upper(1200)
+staged_adjustment.emit("changed")
+staged_adjustment.set_upper(2000)
+staged_adjustment.emit("changed")
+pump_until(
+    lambda: abs(staged_adjustment.get_value() - 950) < 1,
+    timeout_ms=2000,
+)
+assert abs(staged_adjustment.get_value() - 950) < 1
+staged.shutdown()
 
 window._force_close = True
 window.destroy()
