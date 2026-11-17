@@ -27,7 +27,8 @@ has no runtime Python dependencies beyond PyGObject.
 - Selection wrapping for brackets, braces, backticks and quotes
 - Automatic list continuation on Return and `[]` to `[]()` completion
 - Bold, italic, underline, block quote and code formatting shortcuts
-- Standalone HTML and styled PDF export
+- Standalone HTML and styled PDF export, with extension enforcement and
+  overwrite confirmation
 - Command-line view and appearance overrides
 - Open, save and save-as with UTF-8 files
 - Unsaved-change prompts, window geometry and preview state persistence

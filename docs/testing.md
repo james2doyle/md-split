@@ -75,11 +75,13 @@ directly, do not do it from a shell containing secrets.
 Headless tests cover pure logic and file/resource behavior:
 
 - `Document` state, dirty tracking, counts, and file association
-- async UTF-8 load/save limits, ETags, and stale callback handling
+- async UTF-8 load/save limits, ETags, worker-thread decoding, and stale
+  callback handling
 - editing helpers: wrapping, link completion, list continuation, formatting
-- parser output and escaped Pango markup
-- standalone HTML and PDF export, including cleanup on failure
-- packaged GResource content, icons, demo, and UI files
+- parser output, escaped Pango markup, path containment and underline nesting
+- standalone HTML and PDF export, extension handling, PDF page-spanning quote
+  bars, and cleanup on failure
+- packaged GResource content, icons, demo, UI files, and the Meson source list
 - desktop, AppStream, and schema validation
 
 They must not require a display, a session bus, or a running app.
@@ -88,12 +90,13 @@ They must not require a display, a session bus, or a running app.
 
 Display tests construct GTK widgets in-process and inspect:
 
-- preview widget trees, links, images, and theme changes
-- window lifecycle, focus, view modes, and paned positions
+- preview widget trees, links, images, theme changes, and nested list indentation
+- window lifecycle, focus, view modes, preview render counts, and paned positions
 - preferences bindings and dialog dismissal
 - CLI parsing and application action state
-- scroll synchronization and feedback suppression
-- remote-image policy and cancellation
+- scroll synchronization, allocation-time restore, and feedback suppression
+- local and remote image cancellation, remote-image policy, and export threading
+- export overwrite confirmation and geometry clamping
 
 They run under Xvfb in CI. On X11/Xwayland, ibus can crash on
 `gdk_x11_surface_get_xid`; use:

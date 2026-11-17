@@ -64,7 +64,10 @@ launch the app do.
 - Don't parse Markdown by hand in the UI layer. Extend the vendored parser or
   `src/renderer.py` tokens; keep the parser behavior GFM-compatible.
 - Raw HTML stays disabled (`html: False`). The only promoted inline tag is a
-  balanced `<u>`/`</u>` pair; code spans and unbalanced tags remain literal.
+  balanced, correctly nested `<u>`/`</u>` pair; code spans, unbalanced tags and
+  pairs that cross emphasis or link boundaries remain literal.
+- Resolve document-relative links and images through `src/paths.py`; never
+  open or embed a path that resolves outside the document directory.
   Escape every text fragment with `GLib.markup_escape_text` before putting it
   in a `Gtk.Label`.
 - PDF export imports pycairo lazily so the editor still starts when the
@@ -146,9 +149,10 @@ settings.set_string('view-mode', 'source')
 ```text
 [UI] src/window.blp, src/preferences-dialog.blp, src/shortcuts-dialog.blp;
   generated: build/src/*.ui
-[App] src/main.py (application/actions/CSS), src/window.py (window/file I/O),
+[App] src/main.py (application/actions/icons), src/window.py (window/file I/O),
   src/logging_utils.py (known GTK warning filter)
 [Model] src/document.py (text, file, dirty state), src/fileio.py (async I/O)
+[Paths] src/paths.py (document-directory containment, export extensions)
 [Edit] src/editing.py (surround/link completion/formatting)
 [Preview] src/renderer.py (tokens -> widgets), src/markdown_view.py (scroll/theme),
   src/markdown_parser.py (shared GFM parser)
@@ -197,5 +201,10 @@ settings.set_string('view-mode', 'source')
 - Under X11/Xwayland, ibus can segfault on `gdk_x11_surface_get_xid` in this
   environment. Use `GTK_IM_MODULE=gtk-im-context-simple` for X11 test runs;
   this is an input-method/environment issue, not app code.
+- HTML/PDF export and document decode run on daemon threads. Do not touch GTK
+  from those workers; marshal results back with `GLib.idle_add` and start file
+  writes on the main loop.
+- Python debug logging is enabled with `MD_SPLIT_DEBUG=1`. `G_MESSAGES_DEBUG`
+  belongs to GLib and does not change the app's log level.
 - If a UI change does not show up, touch the `.blp` or remove stale
   `build/src/*.ui`; `ninja -C build -d explain` shows why.
