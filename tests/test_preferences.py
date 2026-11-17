@@ -2,6 +2,7 @@
 
 import os
 import sys
+import time
 
 SOURCE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RESOURCE = os.environ.get("APP_RESOURCE")
@@ -26,6 +27,17 @@ if not Gtk.init_check() or Gdk.Display.get_default() is None:
 Adw.init()
 resource = Gio.Resource.load(RESOURCE)
 resource._register()
+
+
+def wait_for(predicate, timeout=2.0):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        while GLib.MainContext.default().iteration(False):
+            pass
+        if predicate():
+            return True
+        time.sleep(0.01)
+    return False
 
 from src.main import MdSplitApplication
 from src.window import MdSplitWindow
@@ -118,7 +130,7 @@ outside_y = (
     else content_bounds.get_y() + content_bounds.get_height() + 2
 )
 dialog._click_controller.emit("pressed", 1, outside_x, outside_y)
-assert not dialog.get_mapped()
+assert wait_for(lambda: not dialog.get_mapped()), "dialog stayed mapped"
 while GLib.MainContext.default().iteration(False):
     pass
 assert app._preferences_dialog is None
@@ -126,7 +138,7 @@ assert app._preferences_dialog is None
 # Escape closes the dialog and clears the application reference.
 dialog = open_preferences()
 assert dialog._on_key_pressed(None, Gdk.KEY_Escape, 0, Gdk.ModifierType(0))
-assert not dialog.get_mapped()
+assert wait_for(lambda: not dialog.get_mapped()), "dialog stayed mapped"
 while GLib.MainContext.default().iteration(False):
     pass
 assert app._preferences_dialog is None
@@ -137,7 +149,7 @@ assert dialog.appearance_row.get_selected() == 1
 app.settings.set_string("appearance", "system")
 app.settings.set_boolean("sync-scroll", True)
 dialog.close_button.emit("clicked")
-assert not dialog.get_mapped()
+assert wait_for(lambda: not dialog.get_mapped()), "dialog stayed mapped"
 while GLib.MainContext.default().iteration(False):
     pass
 assert app._preferences_dialog is None

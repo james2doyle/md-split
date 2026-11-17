@@ -58,6 +58,9 @@ finally:
     spellcheck.log.removeHandler(handler)
 assert len(messages) == 1, messages
 assert "Spell checking disabled" in messages[0], messages
-assert "dictionary" in messages[0].lower(), messages
+if spellcheck.Spelling is None:
+    assert "libspelling" in messages[0].lower(), messages
+else:
+    assert "dictionary" in messages[0].lower(), messages
 
 print("ok: spell checking helpers")
