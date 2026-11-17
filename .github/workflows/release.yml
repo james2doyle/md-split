@@ -66,6 +66,9 @@ jobs:
           VERSION="${TAG#v}"
           test -n "$VERSION"
 
+          # The Flatpak container can leave the checkout owned by a different
+          # user than the job, which makes git reject the repository.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git fetch --tags --force origin
           if ! git tag --points-at HEAD | grep -Fxq "$TAG"; then
             echo "::error::CI run for $TAG does not point at a tag"
