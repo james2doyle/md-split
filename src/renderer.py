@@ -11,6 +11,7 @@ images. No web view is involved.
 
 from __future__ import annotations
 
+import html
 import logging
 import re
 import sys
@@ -26,8 +27,9 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
+gi.require_version("Pango", "1.0")
 
-from gi.repository import Gdk, Gio, GLib, Gtk
+from gi.repository import Gdk, Gio, GLib, Gtk, Pango
 
 try:
     gi.require_version("GdkPixbuf", "2.0")
@@ -55,6 +57,7 @@ _HEADING_CLASSES = {
 }
 
 _UNSAFE_SCHEMES = {"javascript", "vbscript", "data"}
+_ANCHOR_TAG = re.compile(r"<(/?)a\b[^>]*>")
 _MAX_IMAGE_BYTES = 10 * 1024 * 1024
 _MAX_IMAGE_PIXELS = 20_000_000
 _MAX_REMOTE_IMAGES = 32
@@ -247,10 +250,6 @@ class MarkdownRenderer:
             elif kind == "footnote_block_open":
                 widget, i = self._render_footnotes(tokens, i)
                 widgets.append(widget)
-            elif kind == "html_block":
-                # HTML is disabled for safety; show a raw HTML block verbatim.
-                widgets.append(self._render_code_block(token, language="html"))
-                i += 1
             elif kind == "inline":
                 widget = self._render_paragraph(token, token)
                 if widget is not None:
@@ -292,6 +291,11 @@ class MarkdownRenderer:
         image = self._sole_image(inline_token)
         if image is not None:
             return self._render_image(image)
+
+        linked_image = self._sole_link_image(inline_token)
+        if linked_image is not None:
+            image_token, href = linked_image
+            return self._render_linked_image(image_token, href)
 
         markup = self._render_inline(inline_token)
         if not markup.strip():
@@ -662,6 +666,22 @@ class MarkdownRenderer:
             caption.add_css_class("dim-label")
             box.append(caption)
         return box
+
+    def _render_linked_image(self, image: Token, href: str) -> Gtk.Widget:
+        widget = self._render_image(image)
+        resolved = self._resolve_link(href)
+        if resolved is None:
+            return widget
+        button = Gtk.Button()
+        button.set_child(widget)
+        button.set_has_frame(False)
+        button.add_css_class("flat")
+        button.set_tooltip_text(image.content or resolved)
+        button.connect("clicked", self._on_image_clicked, resolved)
+        return button
+
+    def _on_image_clicked(self, _button: Gtk.Button, uri: str) -> None:
+        self._dispatch_link(uri)
 
     def _image_fallback(self, alt: str, detail: str | None = None) -> Gtk.Widget:
         text = _("[Image: {alt}]").format(alt=alt) if alt else _("[Image]")
@@ -1123,52 +1143,70 @@ class MarkdownRenderer:
                 )
             elif kind == "footnote_anchor":
                 continue
-            elif kind == "html_inline":
-                content = child.content
-                if content.lower() in ("<br>", "<br/>", "<br />"):
-                    parts.append("\n")
-                else:
-                    parts.append(_escape(content))
             elif child.content:
                 parts.append(_escape(child.content))
 
         return "".join(parts)
 
     def _sole_image(self, token: Token) -> Token | None:
-        if not token.children:
-            return None
-        meaningful = [
-            child
-            for child in token.children
-            if not (child.type == "text" and not child.content.strip())
-        ]
+        meaningful = self._inline_children(token)
         if len(meaningful) == 1 and meaningful[0].type == "image":
             return meaningful[0]
         return None
 
+    def _sole_link_image(self, token: Token) -> tuple[Token, str] | None:
+        children = self._inline_children(token)
+        if (
+            len(children) == 3
+            and children[0].type == "link_open"
+            and children[1].type == "image"
+            and children[2].type == "link_close"
+        ):
+            return children[1], children[0].attrs.get("href", "")
+        return None
+
+    def _inline_children(self, token: Token) -> list[Token]:
+        return [
+            child
+            for child in token.children or []
+            if not (child.type == "text" and not child.content.strip())
+        ]
+
     def _make_label(self, markup: str) -> Gtk.Label:
         label = Gtk.Label()
-        label.set_use_markup(True)
         label.set_wrap(True)
         label.set_selectable(True)
         label.set_xalign(0.0)
         try:
-            label.set_markup(markup)
+            # Gtk.Label.set_markup only warns on invalid markup and leaves the
+            # label empty, so validate with Pango to reach the plain fallback.
+            # Pango itself does not know GTK's <a> tag; validate it as a span.
+            probe = _ANCHOR_TAG.sub(
+                lambda match: "</span>" if match.group(1) else "<span>",
+                markup,
+            )
+            Pango.parse_markup(probe, -1, "\x00")
         except GLib.Error:
             log.warning("Invalid Pango markup; falling back to plain text")
-            label.set_use_markup(False)
-            label.set_text(re.sub(r"<[^>]+>", "", markup))
+            label.set_text(
+                html.unescape(re.sub(r"<[^>]+>", "", markup))
+            )
+        else:
+            label.set_use_markup(True)
+            label.set_markup(markup)
         label.connect("activate-link", self._on_activate_link)
         return label
 
     def _on_activate_link(self, _label: Gtk.Label, uri: str) -> bool:
+        self._dispatch_link(uri)
+        return True
+
+    def _dispatch_link(self, uri: str) -> None:
         if uri.startswith("#"):
             if self._on_internal_link is not None:
                 self._on_internal_link(uri[1:])
-            return True
-        if self._on_external_link is not None:
+        elif self._on_external_link is not None:
             self._on_external_link(uri)
-        return True
 
     # -- helpers ---------------------------------------------------------
 
@@ -1289,7 +1327,7 @@ class MarkdownRenderer:
         slug = re.sub(r"[\s_-]+", "-", slug).strip("-") or "section"
         count = self._heading_slugs.get(slug, 0) + 1
         self._heading_slugs[slug] = count
-        return slug if count == 1 else f"{slug}-{count}"
+        return slug if count == 1 else f"{slug}-{count - 1}"
 
     def _copy_to_clipboard(self, button: Gtk.Button, text: str) -> None:
         clipboard = button.get_clipboard()

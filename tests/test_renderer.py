@@ -212,6 +212,63 @@ with tempfile.TemporaryDirectory() as tmp:
     assert 'href="#fn-0"' in markups
     assert "<s>strike</s>" in markups
 
+    # A link whose only content is an image renders the image, clickable.
+    opened = []
+    linked_renderer = MarkdownRenderer()
+    linked = linked_renderer.render(
+        "[![Linked dot](dot.png)](https://example.com)",
+        base_dir=Path(tmp),
+        on_external_link=opened.append,
+    )
+    wait_for(lambda: not linked_renderer._local_pending)
+    linked_pictures = [
+        widget for widget in walk(linked) if isinstance(widget, Gtk.Picture)
+    ]
+    assert len(linked_pictures) == 1, linked_pictures
+    assert linked_pictures[0].get_size_request()[1] == 24
+    linked_buttons = [
+        widget for widget in walk(linked) if isinstance(widget, Gtk.Button)
+    ]
+    assert len(linked_buttons) == 1, linked_buttons
+    assert linked_buttons[0].get_child() is not None
+    linked_buttons[0].emit("clicked")
+    assert opened == ["https://example.com"], opened
+
+    # GitHub numbers duplicate heading anchors from -1, not -2.
+    slugs = MarkdownRenderer()
+    slugs_root = slugs.render("## Foo\n\n## Foo\n\n## Foo")
+    for name in ("foo", "foo-1", "foo-2"):
+        assert slugs.get_anchor(name) is not None, name
+    assert slugs.get_anchor("foo-3") is None
+    assert slugs_root.get_first_child() is not None
+
+    # Nested list items are indented relative to their parent item.
+    nested = MarkdownRenderer().render("- parent\n  - child\n    - grandchild")
+    list_boxes = [
+        widget
+        for widget in walk(nested)
+        if "md-list" in widget.get_css_classes()
+    ]
+    assert len(list_boxes) == 3, list_boxes
+
+    def indent(box):
+        total = box.get_margin_start()
+        parent = box.get_parent()
+        while parent is not None:
+            if "md-list" in parent.get_css_classes():
+                total += parent.get_margin_start()
+            parent = parent.get_parent()
+        return total
+
+    indents = [indent(box) for box in list_boxes]
+    assert indents[0] == 0, indents
+    assert indents[1] > indents[0], indents
+    assert indents[2] > indents[1], indents
+
+    # The plain-text markup fallback decodes escaped entities.
+    fallback = MarkdownRenderer()._make_label("Tom &amp; Jerry < U")
+    assert fallback.get_text() == "Tom & Jerry < U", fallback.get_text()
+
     assert "WebKit" not in sys.modules, "renderer must not use WebKit"
 
     from src.markdown_view import MarkdownView
