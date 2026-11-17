@@ -1,0 +1,160 @@
+# Build release artifacts only after CI succeeds for a v* tag. Keeping this
+# separate from ci.yml leaves the CI workflow read-only and prevents releases
+# from pull requests or main-branch pushes.
+name: Release
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: release-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      startsWith(github.event.workflow_run.head_branch, 'v')
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-51
+      options: --privileged
+      volumes:
+        # Keep Flatpak's system installation on a volume so runtime updates
+        # rename within one filesystem instead of hitting overlayfs EXDEV.
+        - flatpak-installation:/var/lib/flatpak
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Prepare release source
+        env:
+          TAG: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+          test -n "$VERSION"
+
+          git fetch --tags --force origin
+          if ! git tag --points-at HEAD | grep -Fxq "$TAG"; then
+            echo "::error::CI run for $TAG does not point at a tag"
+            exit 1
+          fi
+
+          mkdir -p dist
+          git archive --format=tar.gz --prefix="md-split-$VERSION/" \
+            -o "dist/md-split-$VERSION.tar.gz" HEAD
+
+          export VERSION
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          version = os.environ["VERSION"]
+          archive = Path(f"dist/md-split-{version}.tar.gz")
+          digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+          manifest = json.loads(
+              Path("com.james2doyle.MdSplit.json").read_text()
+          )
+          module = manifest["modules"][0]
+          module["sources"] = [
+              {
+                  "type": "archive",
+                  "path": archive.name,
+                  "sha256": digest,
+              }
+          ]
+          module["config-opts"] = ["--libdir=lib", "--buildtype=release"]
+          Path("dist/com.james2doyle.MdSplit.release.json").write_text(
+              json.dumps(manifest, indent=4) + "\n"
+          )
+          PY
+
+      - name: Build release bundle
+        uses: flatpak/flatpak-github-actions/flatpak-builder@79327416609af08178ad73b352877e51450790b3 # v6.8
+        env:
+          # The action uses GITHUB_SHA for the Flatpak subject. A workflow_run
+          # event points at the default branch, so override it with the tag
+          # commit being released.
+          GITHUB_SHA: ${{ github.event.workflow_run.head_sha }}
+        with:
+          manifest-path: dist/com.james2doyle.MdSplit.release.json
+          bundle: md_split.flatpak
+          branch: stable
+          mirror-screenshots-url: https://dl.flathub.org/media
+          upload-artifact: false
+
+      - name: Collect release artifacts
+        env:
+          TAG: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+          bundle=$(find . -maxdepth 2 -name md_split.flatpak -type f -print -quit)
+          if [ -z "$bundle" ]; then
+            echo "::error::Flatpak bundle was not produced"
+            exit 1
+          fi
+          mv "$bundle" "dist/md_split-$VERSION.flatpak"
+          (
+            cd dist
+            sha256sum "md-split-$VERSION.tar.gz" \
+              "md_split-$VERSION.flatpak" > SHA256SUMS
+          )
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-artifacts
+          path: |
+            dist/md-split-*.tar.gz
+            dist/md_split-*.flatpak
+            dist/com.james2doyle.MdSplit.release.json
+            dist/SHA256SUMS
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-artifacts
+          path: dist
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+          mapfile -t assets < <(find dist -maxdepth 1 -type f -print | sort)
+          if [ "${#assets[@]}" -eq 0 ]; then
+            echo "::error::No release assets found"
+            exit 1
+          fi
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${assets[@]}" \
+              --repo "$GITHUB_REPOSITORY" \
+              --clobber
+          else
+            gh release create "$TAG" "${assets[@]}" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "MD Split $VERSION" \
+              --generate-notes \
+              --verify-tag
+          fi

@@ -44,6 +44,7 @@ md_split_sources = [
   'editing.py',
   'exporting.py',
   'fileio.py',
+  'logging_utils.py',
   'main.py',
   'markdown_parser.py',
   'markdown_view.py',
@@ -117,4 +118,6 @@ test('Remote image policy', python3, args: [files('../tests/test_images.py')],
 test('Editing helpers', python3, args: [files('../tests/test_editing.py')],
   env: test_env)
 test('HTML and PDF export', python3, args: [files('../tests/test_export.py')],
+  env: test_env)
+test('GTK warning filters', python3, args: [files('../tests/test_logging.py')],
   env: test_env)

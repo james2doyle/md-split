@@ -14,6 +14,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
 from . import APP_ID, VIEW_MODES
+from .logging_utils import install_known_gtk_warning_filter
 from .preferences import MdSplitPreferencesDialog
 from .window import MdSplitWindow
 
@@ -335,6 +336,7 @@ class MdSplitApplication(Adw.Application):
 
 def main(version):
     """The application's entry point."""
+    install_known_gtk_warning_filter()
     configured_level = os.environ.get("G_MESSAGES_DEBUG", "")
     level = logging.DEBUG if configured_level else logging.INFO
     logging.basicConfig(level=level, format="%(name)s: %(message)s")
