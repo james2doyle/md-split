@@ -24,7 +24,7 @@
 
   <screenshots>
     <screenshot type="default">
-      <image type="source" width="1150" height="770">https://raw.githubusercontent.com/james2doyle/md-split/v1.0.0/docs/screenshot.png</image>
+      <image type="source" width="1150" height="770">https://raw.githubusercontent.com/james2doyle/md-split/v1.1.0/docs/screenshot.png</image>
       <caption>Markdown source and rendered preview side by side</caption>
     </screenshot>
   </screenshots>
@@ -64,6 +64,17 @@
   </branding>
 
   <releases>
+    <release version="1.1.0" date="2026-11-17">
+      <description translate="no">
+        <p>Writing and packaging update.</p>
+        <ul>
+          <li>Find and replace, selection statistics and reading time.</li>
+          <li>Autosave recovery, session restore and external-change prompts.</li>
+          <li>Markdown formatting with optional format-on-save.</li>
+          <li>Optional spell checking and AppImage builds.</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.0.0" date="2026-11-16">
       <description translate="no">
         <p>First stable release.</p>
