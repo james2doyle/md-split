@@ -30,6 +30,47 @@ SURROUND_PAIRS = {
 
 
 @dataclass(frozen=True)
+class SearchQuery:
+    """Options for an in-document text search."""
+
+    text: str
+    match_case: bool = False
+    whole_word: bool = False
+    regex: bool = False
+
+
+def compile_search(query: SearchQuery) -> re.Pattern[str] | None:
+    """Compile a query, returning ``None`` for empty or invalid patterns."""
+    if not query.text:
+        return None
+    pattern = query.text if query.regex else re.escape(query.text)
+    if query.whole_word:
+        pattern = rf"\b(?:{pattern})\b"
+    flags = 0 if query.match_case else re.IGNORECASE
+    try:
+        return re.compile(pattern, flags)
+    except re.error:
+        return None
+
+
+def count_matches(text: str, query: SearchQuery) -> int:
+    pattern = compile_search(query)
+    if pattern is None:
+        return 0
+    return sum(1 for _match in pattern.finditer(text))
+
+
+def replace_all_text(
+    text: str, query: SearchQuery, replacement: str
+) -> tuple[str, int]:
+    """Replace all matches and return the new text and match count."""
+    pattern = compile_search(query)
+    if pattern is None:
+        return text, 0
+    return pattern.subn(replacement, text)
+
+
+@dataclass(frozen=True)
 class TextEdit:
     """A replacement range and the selection to restore afterward."""
 

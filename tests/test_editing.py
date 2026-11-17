@@ -7,10 +7,13 @@ SOURCE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, SOURCE_ROOT)
 
 from src.editing import (
+    SearchQuery,
     TextEdit,
     complete_link,
+    count_matches,
     format_code,
     format_inline,
+    replace_all_text,
     surround_selection,
     toggle_blockquote,
 )
@@ -91,6 +94,55 @@ assert (edit.selection_start, edit.selection_end) == (7, 7)
 assert complete_link("abc", 3) is None
 assert complete_link("abc [x", 6) is None
 assert complete_link("abc  [", 6) is not None
+
+# Search matching handles case, whole words, regex and empty patterns.
+assert count_matches("One one ONE", SearchQuery("one")) == 3
+assert (
+    count_matches(
+        "One one ONE", SearchQuery("one", match_case=True)
+    )
+    == 1
+)
+assert (
+    count_matches(
+        "one stone one", SearchQuery("one", whole_word=True)
+    )
+    == 2
+)
+assert (
+    count_matches(
+        r"item 1, item 22",
+        SearchQuery(r"\d+", regex=True),
+    )
+    == 2
+)
+assert (
+    count_matches(
+        "One stone",
+        SearchQuery("one", match_case=True, whole_word=True),
+    )
+    == 0
+)
+assert count_matches("anything", SearchQuery("", regex=True)) == 0
+assert count_matches("anything", SearchQuery("[", regex=True)) == 0
+
+# Replace-all is safe for zero-width matches and reports the count.
+replaced, matches = replace_all_text(
+    "a a a", SearchQuery("a"), "b"
+)
+assert (replaced, matches) == ("b b b", 3)
+replaced, matches = replace_all_text(
+    "abc", SearchQuery("^", regex=True), "-"
+)
+assert (replaced, matches) == ("-abc", 1)
+replaced, matches = replace_all_text(
+    "abc", SearchQuery("$", regex=True), "!"
+)
+assert (replaced, matches) == ("abc!", 1)
+replaced, matches = replace_all_text(
+    "abc", SearchQuery("[", regex=True), "-"
+)
+assert (replaced, matches) == ("abc", 0)
 
 # Edits are immutable and carry an explicit replacement range.
 edit = TextEdit(1, 2, "X", 2, 2)

@@ -11,7 +11,32 @@ import gi
 gi.require_version("Gio", "2.0")
 from gi.repository import Gio
 
-from src.document import Document
+from src.document import (
+    Document,
+    count_words,
+    reading_time_minutes,
+    reading_time_minutes_for_words,
+    text_statistics,
+)
+
+# Counts treat punctuation separately and count CJK characters as words.
+assert count_words("") == 0
+assert count_words("Hello world") == 2
+assert count_words("Hello, world!") == 2
+assert count_words("don't stop") == 2
+assert count_words("你好 世界") == 4
+assert count_words("Hello, 世界!") == 3
+
+# Reading time is predictable and empty text takes no time.
+assert reading_time_minutes("") == 0
+assert reading_time_minutes("word " * 199) == 1
+assert reading_time_minutes("word " * 200) == 1
+assert reading_time_minutes("word " * 201) == 2
+assert reading_time_minutes_for_words(0) == 0
+assert reading_time_minutes_for_words(1) == 1
+
+words, characters, minutes = text_statistics("Hello, 世界!")
+assert (words, characters, minutes) == (3, 10, 1)
 
 doc = Document()
 assert doc.display_name == "Untitled.md"

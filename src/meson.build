@@ -43,6 +43,7 @@ md_split_sources = [
   'document.py',
   'editing.py',
   'exporting.py',
+  'filechanges.py',
   'fileio.py',
   'logging_utils.py',
   'main.py',
@@ -50,7 +51,10 @@ md_split_sources = [
   'markdown_view.py',
   'paths.py',
   'preferences.py',
+  'recovery.py',
   'renderer.py',
+  'session.py',
+  'spellcheck.py',
   'window.py',
 ]
 
@@ -89,6 +93,14 @@ test('Document model', python3, args: [files('../tests/test_document.py')],
 test('Markdown markup', python3, args: [files('../tests/test_markdown.py')],
   env: test_env)
 test('File I/O', python3, args: [files('../tests/test_fileio.py')],
+  env: test_env)
+test('External file changes', python3, args: [files('../tests/test_filechanges.py')],
+  env: test_env)
+test('Session helpers', python3, args: [files('../tests/test_session.py')],
+  env: test_env)
+test('Recovery helpers', python3, args: [files('../tests/test_recovery.py')],
+  env: test_env)
+test('Spell-check helpers', python3, args: [files('../tests/test_spellcheck.py')],
   env: test_env)
 test('Window smoke test', python3, args: [files('../tests/test_window.py')],
   depends: test_schemas,

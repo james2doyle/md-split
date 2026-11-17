@@ -56,5 +56,57 @@
 		<key name="last-folder" type="s">
 			<default>''</default>
 		</key>
+		<key name="restore-session" type="b">
+			<summary>Restore the previous session</summary>
+			<description>Reopen file windows from the previous session when the application starts without a file.</description>
+			<default>true</default>
+		</key>
+		<key name="session-files" type="as">
+			<summary>Files in the previous session</summary>
+			<description>Absolute paths of file-backed windows that were open when the application last exited.</description>
+			<default>[]</default>
+		</key>
+		<key name="session-active" type="s">
+			<summary>Active file in the previous session</summary>
+			<description>Path of the window that had focus when the application last exited.</description>
+			<default>''</default>
+		</key>
+		<key name="recent-files" type="as">
+			<summary>Recently opened files</summary>
+			<description>Most recently opened or saved file paths, newest first.</description>
+			<default>[]</default>
+		</key>
+		<key name="autosave" type="b">
+			<summary>Autosave recovery drafts</summary>
+			<description>Write unsaved document text to the recovery directory at the configured interval.</description>
+			<default>true</default>
+		</key>
+		<key name="autosave-interval" type="i">
+			<summary>Autosave interval</summary>
+			<description>Seconds between recovery drafts for dirty documents.</description>
+			<range min="5" max="300"/>
+			<default>30</default>
+		</key>
+		<key name="backup-files" type="b">
+			<summary>Keep timestamped backups</summary>
+			<description>Write a timestamped copy of the previous text when saving a file.</description>
+			<default>false</default>
+		</key>
+		<key name="backup-retention" type="i">
+			<summary>Backup retention</summary>
+			<description>Number of timestamped backups to keep for each file.</description>
+			<range min="1" max="50"/>
+			<default>5</default>
+		</key>
+		<key name="spell-check" type="b">
+			<summary>Check spelling while typing</summary>
+			<description>Underline words that are not in the selected dictionary.</description>
+			<default>true</default>
+		</key>
+		<key name="spell-language" type="s">
+			<summary>Spell-check language</summary>
+			<description>Language code for the dictionary. An empty value uses the provider default.</description>
+			<default>''</default>
+		</key>
 	</schema>
 </schemalist>

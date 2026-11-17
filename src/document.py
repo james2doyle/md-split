@@ -8,6 +8,7 @@ headlessly. The window owns the GtkSource.Buffer and mirrors its text here.
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass
 from gettext import gettext as _
@@ -18,6 +19,40 @@ import gi
 gi.require_version("Gio", "2.0")
 
 from gi.repository import Gio
+
+READING_WORDS_PER_MINUTE = 200
+
+# CJK text has no word separators, so count ideographs and kana individually.
+_CJK_PATTERN = re.compile(
+    r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\u3040-\u30ff\uac00-\ud7af]"
+)
+_WORD_PATTERN = re.compile(r"[^\W_]+(?:['’][^\W_]+)*")
+
+
+def count_words(text: str) -> int:
+    """Count words, treating each CJK character as a word."""
+    if not text:
+        return 0
+    cjk = len(_CJK_PATTERN.findall(text))
+    remaining = _CJK_PATTERN.sub(" ", text)
+    return cjk + sum(1 for _match in _WORD_PATTERN.finditer(remaining))
+
+
+def reading_time_minutes_for_words(words: int) -> int:
+    """Round a word count up to whole minutes at 200 words per minute."""
+    if words <= 0:
+        return 0
+    return max(1, math.ceil(words / READING_WORDS_PER_MINUTE))
+
+
+def reading_time_minutes(text: str) -> int:
+    return reading_time_minutes_for_words(count_words(text))
+
+
+def text_statistics(text: str) -> tuple[int, int, int]:
+    """Return (words, characters, reading minutes) for a text slice."""
+    words = count_words(text)
+    return words, len(text), reading_time_minutes_for_words(words)
 
 
 @dataclass
@@ -61,7 +96,7 @@ class Document:
 
     @property
     def word_count(self) -> int:
-        return sum(1 for _match in re.finditer(r"\S+", self.text))
+        return count_words(self.text)
 
     @property
     def character_count(self) -> int:
