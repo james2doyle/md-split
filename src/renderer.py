@@ -1108,7 +1108,9 @@ class MarkdownRenderer:
             kind = child.type
             if kind == "text":
                 parts.append(_escape_text(child.content, underline=underline))
-            elif kind in ("softbreak", "hardbreak"):
+            elif kind == "softbreak":
+                parts.append(" ")
+            elif kind == "hardbreak":
                 parts.append("\n")
             elif kind == "code_inline":
                 parts.append(

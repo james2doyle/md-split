@@ -74,6 +74,13 @@ assert "<b>&lt;u&gt;bold</b>&lt;/u&gt;" in markup, markup
 dark_markup = renderer.inline_markup("`code`", dark=True)
 assert 'background="#3d3f42"' in dark_markup
 
+# A soft line break flows like HTML; two trailing spaces force a newline.
+soft = renderer.inline_markup("first line\nsecond line")
+assert "\n" not in soft, soft
+assert "first line second line" in soft, soft
+hard = renderer.inline_markup("first line  \nsecond line")
+assert "first line\nsecond line" in hard, hard
+
 # Pathological autolink inputs must stay fast enough for the UI thread. The
 # generous ceiling still catches the former multi-second quadratic behavior.
 adversarial = {
