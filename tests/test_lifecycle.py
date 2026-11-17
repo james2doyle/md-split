@@ -337,10 +337,11 @@ with tempfile.TemporaryDirectory() as tmp:
         app.props.active_window.document.file.get_path()
         == str(second_path)
     )
-    assert app.settings.get_strv("session-files") == [
-        str(first_path),
-        str(second_path),
-    ], app.settings.get_strv("session-files")
+    # File loads complete in any order, so the session list is a set of
+    # windows rather than a required ordering.
+    assert sorted(app.settings.get_strv("session-files")) == sorted(
+        [str(first_path), str(second_path)]
+    ), app.settings.get_strv("session-files")
     assert app._missing_dialog is not None
     assert (
         app._missing_dialog.get_heading()
