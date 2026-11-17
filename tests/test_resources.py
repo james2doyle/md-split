@@ -2,6 +2,7 @@
 
 import os
 import sys
+from pathlib import Path
 
 RESOURCE = os.environ.get("APP_RESOURCE")
 
@@ -48,5 +49,13 @@ symbolic = contents(
 ).decode("utf-8")
 assert "<svg" in symbolic
 assert 'fill="#2e3436"' in symbolic
+
+# Every source module must be installed by the explicit Meson file list.
+source_root = Path(__file__).resolve().parent.parent
+meson_file = (source_root / "src" / "meson.build").read_text(encoding="utf-8")
+for module in sorted((source_root / "src").glob("*.py")):
+    assert f"'{module.name}'" in meson_file, (
+        f"{module.name} is missing from src/meson.build"
+    )
 
 print("ok: packaged resources")

@@ -11,7 +11,19 @@ from pathlib import Path
 SOURCE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, SOURCE_ROOT)
 
+from src import exporting as exporting_module
 from src.exporting import render_html, write_pdf
+from src.paths import ensure_file_extension
+
+assert ensure_file_extension(Path("/tmp/report"), ".pdf") == Path(
+    "/tmp/report.pdf"
+)
+assert ensure_file_extension(Path("/tmp/report.HTML"), ".html") == Path(
+    "/tmp/report.HTML"
+)
+assert ensure_file_extension(Path("/tmp/report.md"), ".pdf") == Path(
+    "/tmp/report.md.pdf"
+)
 
 markdown_it_file = sys.modules["markdown_it"].__file__
 assert markdown_it_file is not None

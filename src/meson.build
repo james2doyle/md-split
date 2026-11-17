@@ -48,6 +48,7 @@ md_split_sources = [
   'main.py',
   'markdown_parser.py',
   'markdown_view.py',
+  'paths.py',
   'preferences.py',
   'renderer.py',
   'window.py',
