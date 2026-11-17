@@ -161,6 +161,52 @@ with tempfile.TemporaryDirectory() as tmp:
     assert long_pages > 1, long_pages
     assert long_pdf.read_bytes().startswith(b"%PDF")
     assert not (root / ".long.pdf.tmp").exists()
+    assert not list(root.glob(".long.pdf.*.tmp"))
+
+    # A blockquote that crosses a page break keeps its bar on every page.
+    bars = []
+    original_bar = exporting_module._PdfWriter._draw_bar
+
+    def record_bar(self, indent, start_y, end_y):
+        bars.append((self.page, start_y, end_y))
+        return original_bar(self, indent, start_y, end_y)
+
+    exporting_module._PdfWriter._draw_bar = record_bar
+    try:
+        quote_pdf = root / "quote.pdf"
+        quote_pages = write_pdf(
+            "\n".join(
+                "> " + "quoted text " * 12 + "\n>" for _ in range(120)
+            ),
+            quote_pdf,
+            title="Quote",
+        )
+    finally:
+        exporting_module._PdfWriter._draw_bar = original_bar
+    assert quote_pages > 1, quote_pages
+    segments = [
+        (page, start_y, end_y)
+        for page, start_y, end_y in bars
+        if end_y > start_y
+    ]
+    assert len(segments) >= 2, bars
+    assert len({page for page, _start, _end in segments}) >= 2, segments
+
+    # A planted .<name>.tmp symlink is never followed or overwritten.
+    victim = root / "victim.txt"
+    victim.write_text("keep me", encoding="utf-8")
+    planted = root / ".planted.pdf.tmp"
+    planted.symlink_to(victim)
+    planted_pdf = root / "planted.pdf"
+    write_pdf("# Planted", planted_pdf, title="Planted")
+    assert victim.read_text(encoding="utf-8") == "keep me"
+    assert planted_pdf.read_bytes().startswith(b"%PDF")
+    assert planted.is_symlink() and planted.resolve() == victim
+
+    # The exported file keeps the permissions a normal file creation gets.
+    umask = os.umask(0)
+    os.umask(umask)
+    assert stat.S_IMODE(pdf.stat().st_mode) == 0o666 & ~umask
 
     # A failed write removes its temporary file and leaves no target.
     from src import exporting

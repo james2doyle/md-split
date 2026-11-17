@@ -24,6 +24,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk, GtkSource
 from . import APP_ID, VIEW_MODES, editing, fileio
 from .document import Document
 from .markdown_view import MarkdownView
+from .paths import ensure_file_extension
 
 log = logging.getLogger(__name__)
 
@@ -746,20 +747,71 @@ class MdSplitWindow(Adw.ApplicationWindow):
         dialog.save(self, None, callback)
 
     def _finish_export_dialog(
-        self, dialog: Gtk.FileDialog, result, heading: str
+        self, dialog: Gtk.FileDialog, result, heading: str, extension: str
     ) -> Gio.File | None:
         try:
-            return dialog.save_finish(result)
+            file = dialog.save_finish(result)
         except GLib.Error as error:
             if not self._is_dismissed(error):
                 self._show_error(heading, error.message)
             return None
+        if file is None:
+            return None
+        path = file.get_path()
+        if path is None:
+            self._show_error(
+                heading, _("Choose a local file for the export.")
+            )
+            return None
+        target = ensure_file_extension(Path(path), extension)
+        return Gio.File.new_for_path(str(target))
+
+    def _confirm_export_overwrite(
+        self, file: Gio.File, on_accept
+    ) -> None:
+        """Run ``on_accept`` after confirming an existing target is replaced."""
+        if not file.query_exists(None):
+            on_accept(file)
+            return
+
+        dialog = Adw.AlertDialog()
+        dialog.set_heading(_("Replace existing file?"))
+        source = self._document.file
+        if source is not None and source.equal(file):
+            dialog.set_body(
+                _("This will replace the document you are editing.")
+            )
+        else:
+            dialog.set_body(
+                _("“{name}” already exists.").format(
+                    name=file.get_basename() or file.get_parse_name()
+                )
+            )
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("replace", _("Replace"))
+        dialog.set_response_appearance(
+            "replace", Adw.ResponseAppearance.DESTRUCTIVE
+        )
+        dialog.set_default_response("cancel")
+        dialog.set_close_response("cancel")
+
+        def on_response(_dialog, response: str) -> None:
+            self._confirm_dialog = None
+            if response == "replace":
+                on_accept(file)
+
+        dialog.connect("response", on_response)
+        self._confirm_dialog = dialog
+        dialog.present(self)
 
     def _on_export_html_finished(
         self, dialog: Gtk.FileDialog, result
     ) -> None:
         file = self._finish_export_dialog(
-            dialog, result, _("Could not export HTML")
+            dialog,
+            result,
+            _("Could not export HTML"),
+            "html",
         )
         if file is None:
             return
@@ -785,10 +837,19 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self, dialog: Gtk.FileDialog, result
     ) -> None:
         file = self._finish_export_dialog(
-            dialog, result, _("Could not export PDF")
+            dialog,
+            result,
+            _("Could not export PDF"),
+            "pdf",
         )
         if file is None:
             return
+        self._confirm_export_overwrite(
+            file,
+            self._export_pdf_to,
+        )
+
+    def _export_pdf_to(self, file: Gio.File) -> None:
         path = file.get_path()
         if path is None:
             self._show_error(

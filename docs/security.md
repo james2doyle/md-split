@@ -85,9 +85,14 @@ oversized document. Large-document word counting is also paused.
 
 HTML export produces a standalone document with embedded CSS. Local images are
 embedded as bounded data URIs; remote URLs are left as URLs. PDF export uses
-Cairo/Pango and writes to a temporary file beside the target, replacing the
-target only after a successful finish. A failed PDF write removes the
-temporary file.
+Cairo/Pango and writes to a temporary file created in the target directory with
+`tempfile.mkstemp`, so the temporary name is unpredictable and cannot be
+pre-planted. The finished file is moved over the target with `os.replace`; a
+failed PDF write removes the temporary file. Rendering runs on a worker thread
+and the result is delivered back on the main loop, so a large export does not
+block the window. Export targets get the expected `.html`/`.pdf` extension
+appended, and replacing an existing file, including the open source document,
+requires an explicit confirmation.
 
 PDF export requires the optional Cairo binding. The app still starts without
 it; the export action reports an error instead of failing application startup.

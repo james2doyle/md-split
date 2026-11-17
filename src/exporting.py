@@ -314,6 +314,7 @@ class _PdfWriter:
         self.started = False
         self.y = _PAGE_MARGIN
         self.content_width = _PAGE_WIDTH - 2 * _PAGE_MARGIN
+        self._bars: list[dict[str, float]] = []
 
     # -- page management -------------------------------------------------
 
@@ -325,11 +326,14 @@ class _PdfWriter:
 
     def _new_page(self) -> None:
         if self.started:
+            self._finish_page_bars()
             self._draw_footer()
             self.cr.show_page()
         self.started = True
         self.page += 1
         self.y = _PAGE_MARGIN
+        for bar in self._bars:
+            bar["start_y"] = self.y
         self._set_color(_TEXT_COLOR)
 
     def _draw_footer(self) -> None:
@@ -510,9 +514,9 @@ class _PdfWriter:
                 close = _find_close(
                     tokens, index, "blockquote_open", "blockquote_close"
                 )
-                start_y = self.y
+                self._start_bar(indent + 3)
                 self.blocks(tokens, index + 1, close, indent=indent + 14)
-                self._draw_bar(indent + 3, start_y, self.y)
+                self._end_bar()
                 index = close + 1
                 first_prefix = None
             elif kind == "alert_open":
@@ -536,11 +540,11 @@ class _PdfWriter:
                     and tokens[index + 1].type == "alert_title_open"
                 ):
                     content_start = index + 4
-                start_y = self.y
+                self._start_bar(indent + 3)
                 self.blocks(
                     tokens, content_start, close, indent=indent + 10
                 )
-                self._draw_bar(indent + 3, start_y, self.y)
+                self._end_bar()
                 index = close + 1
                 first_prefix = None
             elif kind in ("fence", "code_block"):
@@ -786,6 +790,18 @@ class _PdfWriter:
         self.cr.paint()
         self.cr.restore()
         self.y += image_height + 8
+
+    def _start_bar(self, indent: float) -> None:
+        self._bars.append({"indent": indent, "start_y": self.y})
+
+    def _end_bar(self) -> None:
+        bar = self._bars.pop()
+        self._draw_bar(bar["indent"], bar["start_y"], self.y)
+
+    def _finish_page_bars(self) -> None:
+        bottom = _PAGE_HEIGHT - _PAGE_MARGIN
+        for bar in self._bars:
+            self._draw_bar(bar["indent"], bar["start_y"], bottom)
 
     def _draw_bar(self, indent: float, start_y: float, end_y: float) -> None:
         if end_y <= start_y:
