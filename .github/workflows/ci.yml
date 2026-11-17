@@ -56,6 +56,10 @@ jobs:
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-51
       options: --privileged
+      volumes:
+        # Keep Flatpak's system installation on a volume so runtime updates
+        # rename within one filesystem instead of hitting overlayfs EXDEV.
+        - flatpak-installation:/var/lib/flatpak
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
