@@ -1230,10 +1230,23 @@ class MdSplitWindow(Adw.ApplicationWindow):
         width = self.get_width()
         height = self.get_height()
         if width > 0:
-            self._settings.set_int("window-width", width)
+            self._settings.set_int(
+                "window-width", self._clamped_setting("window-width", width)
+            )
         if height > 0:
-            self._settings.set_int("window-height", height)
+            self._settings.set_int(
+                "window-height", self._clamped_setting("window-height", height)
+            )
         if self._view_mode == "both":
             self._settings.set_int(
-                "paned-position", self.paned.get_position()
+                "paned-position",
+                self._clamped_setting(
+                    "paned-position", self.paned.get_position()
+                ),
             )
+
+    def _clamped_setting(self, key: str, value: int) -> int:
+        """Clamp a value to the range declared in the GSettings schema."""
+        key_range = self._settings.props.settings_schema.get_key(key)
+        _kind, (minimum, maximum) = key_range.get_range().unpack()
+        return max(minimum, min(value, maximum))

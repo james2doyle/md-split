@@ -73,6 +73,17 @@ The filter matches only those exact messages in the `Gtk` log domain; other GTK
 warnings still appear. Set `MD_SPLIT_SHOW_GTK_WARNINGS=1` to disable the filter
 while debugging.
 
+## Collect Python debug logs
+
+Run the app with `MD_SPLIT_DEBUG=1` to enable Python `DEBUG` logging:
+
+```sh
+MD_SPLIT_DEBUG=1 ./build-install/bin/md_split examples/demo.md
+```
+
+`G_MESSAGES_DEBUG` controls GLib's own log domains and does not change the
+app's log level.
+
 ## Flatpak build fails with `Invalid cross-device link`
 
 In a container whose `/var/lib/flatpak` is an overlayfs layer, updating a

@@ -1,6 +1,7 @@
 """In-process tests for application actions and pending file operations."""
 
 import gc
+import logging
 import os
 import sys
 import weakref
@@ -30,6 +31,7 @@ resource = Gio.Resource.load(RESOURCE)
 resource._register()
 
 from src import APP_ID, fileio
+from src import main as main_module
 from src.main import MdSplitApplication
 from src.window import MdSplitWindow
 
@@ -271,5 +273,28 @@ assert window.get_text() == ""
 window._force_close = True
 window.destroy()
 app.settings.set_boolean("load-demo-on-startup", True)
+
+# An older libadwaita is reported instead of failing silently at the menu.
+messages = []
+
+
+class CaptureHandler(logging.Handler):
+    def emit(self, record: logging.LogRecord) -> None:
+        messages.append(record)
+
+
+handler = CaptureHandler()
+logger = logging.getLogger("src.main")
+logger.addHandler(handler)
+original_minimum = main_module.MINIMUM_ADW
+main_module.MINIMUM_ADW = (99, 0)
+try:
+    main_module.MdSplitApplication("test")
+finally:
+    main_module.MINIMUM_ADW = original_minimum
+    logger.removeHandler(handler)
+assert any(
+    "libadwaita 1.9" in record.getMessage() for record in messages
+), messages
 
 print("ok: application lifecycle")

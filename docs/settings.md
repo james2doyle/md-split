@@ -27,8 +27,10 @@ Settings use the GSettings schema `com.james2doyle.MdSplit` with path
 - `sync-scroll`, `autocomplete-links`, `load-demo-on-startup`, and
   `appearance` are bound in the preferences dialog.
 - `window-width`, `window-height`, and `paned-position` are written when the
-  window receives a close request. `paned-position` is only stored while both
-  panes are visible.
+  window receives a close request. Values are clamped to the ranges above
+  before they are stored, so a display larger than the schema maximum still
+  persists the maximum. `paned-position` is only stored while both panes are
+  visible.
 - `last-folder` is updated after a file is opened or saved.
 
 ## Command-line overrides

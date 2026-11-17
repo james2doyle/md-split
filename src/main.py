@@ -20,8 +20,8 @@ from .window import MdSplitWindow
 
 log = logging.getLogger(__name__)
 
-STYLE_RESOURCE = "/com/james2doyle/MdSplit/style.css"
 ICON_RESOURCE_PATH = "/com/james2doyle/MdSplit/icons"
+MINIMUM_ADW = (1, 9)
 
 
 class MdSplitApplication(Adw.Application):
@@ -35,6 +35,10 @@ class MdSplitApplication(Adw.Application):
         )
         self.version = version
         self.settings = Gio.Settings(schema_id=APP_ID)
+        if (Adw.MAJOR_VERSION, Adw.MINOR_VERSION) < MINIMUM_ADW:
+            log.warning(
+                "libadwaita 1.9 or newer is required for the shortcuts dialog"
+            )
         self._preferences_dialog = None
         self._cli_view_mode = None
         self._cli_color_scheme = None
@@ -158,13 +162,6 @@ class MdSplitApplication(Adw.Application):
         if display is not None:
             icon_theme = Gtk.IconTheme.get_for_display(display)
             icon_theme.add_resource_path(ICON_RESOURCE_PATH)
-            provider = Gtk.CssProvider()
-            provider.load_from_resource(STYLE_RESOURCE)
-            Gtk.StyleContext.add_provider_for_display(
-                display,
-                provider,
-                Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
-            )
 
     def do_activate(self):
         win = self.props.active_window
@@ -337,8 +334,8 @@ class MdSplitApplication(Adw.Application):
 def main(version):
     """The application's entry point."""
     install_known_gtk_warning_filter()
-    configured_level = os.environ.get("G_MESSAGES_DEBUG", "")
-    level = logging.DEBUG if configured_level else logging.INFO
+    debug = os.environ.get("MD_SPLIT_DEBUG", "")
+    level = logging.DEBUG if debug else logging.INFO
     logging.basicConfig(level=level, format="%(name)s: %(message)s")
     log.info("MD Split %s", version)
     app = MdSplitApplication(version)

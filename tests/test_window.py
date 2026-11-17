@@ -278,4 +278,95 @@ window.format_selection("blockquote")
 assert window.get_text() == "> one\n> two", window.get_text()
 window.destroy()
 
+# Export overwrites are confirmed, and a missing file is accepted directly.
+import tempfile
+from pathlib import Path
+
+window = MdSplitWindow()
+with tempfile.TemporaryDirectory() as export_dir:
+    target = Gio.File.new_for_path(str(Path(export_dir) / "report.html"))
+    Path(export_dir, "report.html").write_text("old", encoding="utf-8")
+    accepted = []
+    window._confirm_export_overwrite(target, accepted.append)
+    assert window._confirm_dialog is not None
+    assert not accepted, accepted
+    window._confirm_dialog.emit("response", "replace")
+    assert accepted == [target], accepted
+    window._confirm_dialog = None
+
+    missing = Gio.File.new_for_path(str(Path(export_dir) / "new.html"))
+    accepted = []
+    window._confirm_export_overwrite(missing, accepted.append)
+    assert accepted == [missing], accepted
+window.destroy()
+
+# Exports run in a worker thread and finish on the main loop.
+window = MdSplitWindow()
+window.set_text("# Export")
+rendered_threads = []
+saved = []
+from src import exporting
+
+original_render = exporting.render_html
+original_save = fileio.save_text_async
+
+
+def threaded_render(*args, **kwargs):
+    rendered_threads.append(threading.get_ident())
+    return original_render(*args, **kwargs)
+
+
+def capture_save(file, text, callback, cancellable=None, etag=None):
+    saved.append((file.get_path(), text))
+    callback(None, None)
+
+
+exporting.render_html = threaded_render
+fileio.save_text_async = capture_save
+try:
+    html_target = Gio.File.new_for_path("/tmp/opencode/threaded.html")
+    window._export_html_to(html_target)
+    assert saved == [], "HTML export blocked the caller"
+    wait_until(lambda: bool(saved))
+finally:
+    exporting.render_html = original_render
+    fileio.save_text_async = original_save
+assert rendered_threads and rendered_threads[0] != threading.get_ident()
+assert saved[0][0] == html_target.get_path()
+assert saved[0][1].startswith("<!doctype html>")
+window.destroy()
+
+window = MdSplitWindow()
+window.set_text("# PDF")
+pdf_threads = []
+original_pdf = exporting.write_pdf
+
+
+def threaded_pdf(*args, **kwargs):
+    pdf_threads.append(threading.get_ident())
+
+
+exporting.write_pdf = threaded_pdf
+try:
+    window._export_pdf_to(
+        Gio.File.new_for_path("/tmp/opencode/threaded.pdf")
+    )
+    wait_until(lambda: bool(pdf_threads))
+finally:
+    exporting.write_pdf = original_pdf
+assert pdf_threads[0] != threading.get_ident()
+window.destroy()
+
+# Window geometry is clamped to the schema ranges before it is persisted.
+window = MdSplitWindow()
+assert window._clamped_setting("window-width", 5000) == 4000
+assert window._clamped_setting("window-height", 100) == 400
+assert window._clamped_setting("paned-position", 9000) == 4000
+window.get_width = lambda: 5000
+window.get_height = lambda: 3500
+window._save_settings()
+assert window.settings.get_int("window-width") == 4000
+assert window.settings.get_int("window-height") == 3000
+window.destroy()
+
 print("ok: native window")

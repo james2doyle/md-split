@@ -61,14 +61,14 @@ class MdSplitPreferencesDialog(Adw.PreferencesDialog):
         self.add_controller(key)
         self._key_controller = key
 
-        for key, row in (
+        for setting, row in (
             ("load-demo-on-startup", self.switch_load_demo),
             ("sync-scroll", self.switch_sync_scroll),
             ("autocomplete-links", self.switch_autocomplete_links),
             ("remote-images", self.switch_remote_images),
         ):
             self._settings.bind(
-                key, row, "active", Gio.SettingsBindFlags.DEFAULT
+                setting, row, "active", Gio.SettingsBindFlags.DEFAULT
             )
             self._bindings.append((row, "active"))
         self.connect("closed", self._on_closed)

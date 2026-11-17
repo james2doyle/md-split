@@ -54,7 +54,7 @@ has no runtime Python dependencies beyond PyGObject.
 ## Requirements
 
 - Python 3.12+ and PyGObject (`Gtk-4.0`, `Adw-1`, `GtkSource-5` GIRs)
-- GTK 4 and libadwaita 1.8+ (the Flatpak runtime provides 1.10)
+- GTK 4 and libadwaita 1.9+ (the Flatpak runtime provides 1.10)
 - GtkSourceView 5
 - Pycairo for PDF export
 - `meson`, `ninja`, `blueprint-compiler`
