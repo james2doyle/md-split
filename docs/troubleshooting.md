@@ -105,8 +105,7 @@ See [releasing.md](releasing.md).
 PDF export uses the optional Cairo/Pango bindings. If pycairo is unavailable,
 the app still starts, but the export action reports an error. Install the
 system package (for example `python3-cairo` on Fedora) or use the Flatpak
-runtime, which includes it. A failed write removes its temporary
-`.name.tmp` file.
+runtime, which includes it. A failed write removes its temporary file.
 
 ## Remote images do not load
 

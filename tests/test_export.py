@@ -1,6 +1,7 @@
 """Headless tests for HTML and PDF export."""
 
 import os
+import stat
 import struct
 import sys
 import tempfile
@@ -135,6 +136,7 @@ with tempfile.TemporaryDirectory() as tmp:
     finally:
         exporting._PdfWriter.blocks = original_blocks
     assert not (root / ".failed.pdf.tmp").exists()
+    assert not list(root.glob(".failed.pdf.*.tmp"))
     assert not failed.exists()
 
 print("ok: HTML and PDF export")

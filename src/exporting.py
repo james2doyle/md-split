@@ -8,7 +8,9 @@ import base64
 import html
 import io
 import mimetypes
+import os
 import re
+import tempfile
 from gettext import gettext as _
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -808,6 +810,13 @@ class _PdfWriter:
         return None
 
 
+def _new_file_mode() -> int:
+    """Return the mode a regular file created in this process would get."""
+    current = os.umask(0)
+    os.umask(current)
+    return 0o666 & ~current
+
+
 def write_pdf(
     text: str,
     path: str | Path,
@@ -818,7 +827,11 @@ def write_pdf(
 ) -> int:
     """Write a styled PDF and return the number of pages."""
     target = Path(path)
-    temporary = target.with_name(f".{target.name}.tmp")
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{target.name}.", suffix=".tmp", dir=target.parent
+    )
+    os.close(descriptor)
+    temporary = Path(temporary_name)
     try:
         surface = cairo.PDFSurface(
             str(temporary), _PAGE_WIDTH, _PAGE_HEIGHT
@@ -830,7 +843,9 @@ def write_pdf(
         writer.blocks(tokens, 0, len(tokens))
         writer.finish()
         surface.finish()
-        temporary.replace(target)
+        # mkstemp creates 0600; give the exported file normal permissions.
+        os.chmod(temporary, _new_file_mode())
+        os.replace(temporary, target)
     except Exception:
         temporary.unlink(missing_ok=True)
         raise
