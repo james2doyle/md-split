@@ -151,6 +151,7 @@ class MarkdownRenderer:
         self._allow_remote_images = allow_remote_images
         self._render_cancellable = cancellable
         self._remote_pending.clear()
+        self._local_pending.clear()
         self._remote_started = 0
         self._local_images = 0
         self._code_background = "#3d3f42" if dark else "#eceff1"
@@ -962,9 +963,14 @@ class MarkdownRenderer:
             )
         ]
         self._local_pending[cache_key] = callbacks
+        request_cancellable = Gio.Cancellable()
+        if self._render_cancellable is not None:
+            self._render_cancellable.connect(
+                lambda *_args: request_cancellable.cancel()
+            )
         thread = threading.Thread(
             target=self._read_local_worker,
-            args=(cache_key, path, callbacks),
+            args=(cache_key, path, callbacks, request_cancellable),
             daemon=True,
             name="md-split-local-image",
         )
@@ -975,26 +981,33 @@ class MarkdownRenderer:
         cache_key: str,
         path: Path,
         callbacks: list[Callable[[Gdk.Texture | None], None]],
+        cancellable: Gio.Cancellable,
     ) -> None:
         pixbuf = None
         error: Exception | None = None
         pixbuf_api = GdkPixbuf
-        try:
-            if pixbuf_api is None:
-                raise ValueError("GdkPixbuf is unavailable")
-            if path.stat().st_size > _MAX_IMAGE_BYTES:
-                raise ValueError("Image exceeds byte limit")
-            _fmt, width, height = pixbuf_api.Pixbuf.get_file_info(str(path))
-            if width <= 0 or height <= 0 or width * height > _MAX_IMAGE_PIXELS:
-                raise ValueError("Image exceeds pixel limit")
-            scale = min(1.0, 360 / height)
-            target_width = max(1, int(width * scale))
-            target_height = max(1, int(height * scale))
-            pixbuf = pixbuf_api.Pixbuf.new_from_file_at_scale(
-                str(path), target_width, target_height, True
-            )
-        except (GLib.Error, OSError, ValueError) as caught:
-            error = caught
+        if not cancellable.is_cancelled():
+            try:
+                if pixbuf_api is None:
+                    raise ValueError("GdkPixbuf is unavailable")
+                if path.stat().st_size > _MAX_IMAGE_BYTES:
+                    raise ValueError("Image exceeds byte limit")
+                _fmt, width, height = pixbuf_api.Pixbuf.get_file_info(str(path))
+                if (
+                    width <= 0
+                    or height <= 0
+                    or width * height > _MAX_IMAGE_PIXELS
+                ):
+                    raise ValueError("Image exceeds pixel limit")
+                scale = min(1.0, 360 / height)
+                target_width = max(1, int(width * scale))
+                target_height = max(1, int(height * scale))
+                if not cancellable.is_cancelled():
+                    pixbuf = pixbuf_api.Pixbuf.new_from_file_at_scale(
+                        str(path), target_width, target_height, True
+                    )
+            except (GLib.Error, OSError, ValueError) as caught:
+                error = caught
 
         GLib.idle_add(
             self._finish_local_read,
@@ -1002,6 +1015,7 @@ class MarkdownRenderer:
             callbacks,
             pixbuf,
             error,
+            cancellable,
         )
 
     def _finish_local_read(
@@ -1010,10 +1024,13 @@ class MarkdownRenderer:
         callbacks: list[Callable[[Gdk.Texture | None], None]],
         pixbuf,
         error: Exception | None,
+        cancellable: Gio.Cancellable,
     ) -> bool:
         if self._local_pending.get(cache_key) is not callbacks:
             return False
         self._local_pending.pop(cache_key, None)
+        if cancellable.is_cancelled():
+            return False
         texture = None
         if pixbuf is not None and error is None:
             try:

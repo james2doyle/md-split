@@ -19,7 +19,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gdk, GLib, Gtk
+from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
 if not Gtk.init_check() or Gdk.Display.get_default() is None:
     print("SKIP: no display available")
@@ -153,6 +153,32 @@ try:
         renderer_module._IMAGE_TIMEOUT_SECONDS = original_timeout
     assert "/slow.png" in requests
     assert f"{base_url}/slow.png" not in view.renderer._remote_images
+
+    # A re-render cancels in-flight local image reads and drops stale widgets.
+    import tempfile
+    from pathlib import Path
+
+    local = MarkdownView()
+    started = []
+
+    def fake_worker(cache_key, path, callbacks, cancellable):
+        started.append(cancellable)
+
+    local.renderer._read_local_worker = fake_worker
+    with tempfile.TemporaryDirectory() as local_dir:
+        (Path(local_dir) / "local.png").write_bytes(make_png())
+        local.set_markdown("![Local](local.png)", base_dir=Path(local_dir))
+        assert len(started) == 1, started
+        first_request = started[0]
+        assert isinstance(first_request, Gio.Cancellable), first_request
+        assert not first_request.is_cancelled()
+        local.set_markdown("![Local](local.png)", base_dir=Path(local_dir))
+        assert len(started) == 2, started
+        assert first_request.is_cancelled(), (
+            "superseded local image read was not cancelled"
+        )
+        assert not started[1].is_cancelled()
+    local.shutdown()
 
     view.shutdown()
 finally:

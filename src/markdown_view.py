@@ -47,7 +47,8 @@ class MarkdownView(Gtk.ScrolledWindow):
         self._base_dir: Path | None = None
         self._base_file: Gio.File | None = None
         self._render_cancellable: Gio.Cancellable | None = None
-        self._restore_timeout = 0
+        self._restore_handler = 0
+        self._restore_fraction = 0.0
         self._syncing_scroll = False
 
         self.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
@@ -126,11 +127,14 @@ class MarkdownView(Gtk.ScrolledWindow):
         )
         self._clamp.set_child(content)
         self._stack.set_visible_child_name("content")
-        self._cancel_restore()
-        self._restore_timeout = GLib.timeout_add(40, self._restore_scroll, fraction)
+        self._wait_for_scroll_restore(fraction)
 
     def set_paused(self, paused: bool) -> None:
-        """Stop rendering and release the widget tree while hidden."""
+        """Stop rendering and release the widget tree while hidden.
+
+        Resuming only clears the paused flag; the owner must call
+        :meth:`set_markdown` with current text to rebuild the preview.
+        """
         if paused == self._paused:
             return
         self._paused = paused
@@ -163,9 +167,11 @@ class MarkdownView(Gtk.ScrolledWindow):
             self._render_cancellable = None
 
     def _cancel_restore(self) -> None:
-        if self._restore_timeout:
-            GLib.source_remove(self._restore_timeout)
-            self._restore_timeout = 0
+        if self._restore_handler:
+            adjustment = self.get_vadjustment()
+            if adjustment is not None:
+                adjustment.disconnect(self._restore_handler)
+            self._restore_handler = 0
 
     def set_dark(self, dark: bool) -> None:
         if dark == self._dark:
@@ -216,10 +222,20 @@ class MarkdownView(Gtk.ScrolledWindow):
         finally:
             self._syncing_scroll = False
 
-    def _restore_scroll(self, fraction: float) -> bool:
-        self._restore_timeout = 0
-        self._set_adjustment_value_for_fraction(fraction)
-        return False
+    def _wait_for_scroll_restore(self, fraction: float) -> None:
+        """Restore the scroll fraction once the new content is allocated."""
+        self._cancel_restore()
+        self._restore_fraction = fraction
+        adjustment = self.get_vadjustment()
+        if adjustment is None:
+            return
+        self._restore_handler = adjustment.connect(
+            "changed", self._restore_scroll_after_allocation
+        )
+
+    def _restore_scroll_after_allocation(self, _adjustment) -> None:
+        self._cancel_restore()
+        self._set_adjustment_value_for_fraction(self._restore_fraction)
 
     def _set_adjustment_value_for_fraction(self, fraction: float) -> None:
         adjustment = self.get_vadjustment()

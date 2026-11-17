@@ -27,7 +27,31 @@ Adw.init()
 resource = Gio.Resource.load(RESOURCE)
 resource._register()
 
+from src.markdown_view import MarkdownView
 from src.window import MdSplitWindow
+
+
+def pump_until(predicate, timeout_ms=3000):
+    loop = GLib.MainLoop()
+    state = {"timed_out": False}
+
+    def poll():
+        if predicate():
+            loop.quit()
+            return False
+        return True
+
+    def timeout():
+        state["timed_out"] = True
+        loop.quit()
+        return False
+
+    GLib.timeout_add(10, poll)
+    timeout_id = GLib.timeout_add(timeout_ms, timeout)
+    loop.run()
+    if not state["timed_out"]:
+        GLib.source_remove(timeout_id)
+    assert not state["timed_out"], "timed out waiting for allocation"
 
 
 class FakePreview:
@@ -91,6 +115,35 @@ window._preview = preview  # type: ignore[assignment]
 editor_adjustment.set_value(225)
 preview.set_scroll_fraction(0.75)
 assert abs(editor_adjustment.get_value() - 225) < 1
+
+# Scroll restoration waits for the new preview content to be allocated.
+host = Gtk.Window()
+host.set_default_size(480, 360)
+standalone = MarkdownView()
+host.set_child(standalone)
+host.present()
+first_document = "\n\n".join(
+    f"Paragraph {index} " + "word " * 30 for index in range(80)
+)
+standalone.set_markdown(first_document)
+first_adjustment = standalone.get_vadjustment()
+pump_until(
+    lambda: first_adjustment.get_upper() > first_adjustment.get_page_size()
+)
+standalone.set_scroll_fraction(0.5)
+assert abs((standalone.get_scroll_fraction() or 0) - 0.5) < 0.02
+first_upper = first_adjustment.get_upper()
+
+second_document = first_document + "\n\n" + "\n\n".join(
+    f"Extra {index} " + "word " * 30 for index in range(80)
+)
+standalone.set_markdown(second_document)
+pump_until(
+    lambda: first_adjustment.get_upper() > first_upper
+    and abs((standalone.get_scroll_fraction() or 0) - 0.5) < 0.02
+)
+assert abs((standalone.get_scroll_fraction() or 0) - 0.5) < 0.02
+host.destroy()
 
 window._force_close = True
 window.destroy()
