@@ -163,8 +163,76 @@ jobs:
             dist/SHA256SUMS
           if-no-files-found: error
 
+  appimage:
+    needs: validate
+    if: >
+      needs.validate.outputs.release == 'true' &&
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    container: ubuntu:26.04
+    steps:
+      - name: Install git
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            --no-install-recommends ca-certificates git
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Build AppImage
+        env:
+          TAG: ${{ github.event.workflow_run.head_branch }}
+          MD_SPLIT_APPIMAGE_BUILD: "1"
+        run: |
+          set -euo pipefail
+          export APPIMAGE_VERSION="${TAG#v}"
+          ./scripts/build-appimage.sh
+
+      - name: Smoke-test AppImage
+        env:
+          TAG: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+          apt-get install -y --no-install-recommends \
+            libegl1 libgl1 libwayland-client0 libx11-6 xauth xvfb
+          appimage="dist/md_split-$VERSION-x86_64.AppImage"
+          test -x "$appimage"
+          "$appimage" --appimage-extract >/dev/null
+          test -f squashfs-root/AppRun
+          test -f squashfs-root/usr/share/applications/com.james2doyle.MdSplit.desktop
+          test -f squashfs-root/usr/share/icons/hicolor/scalable/apps/com.james2doyle.MdSplit.svg
+          ./squashfs-root/AppRun --help >/tmp/appimage-help.txt 2>&1
+          grep -q "MD Split" /tmp/appimage-help.txt
+
+          export HOME=$(mktemp -d)
+          export XDG_RUNTIME_DIR=$(mktemp -d)
+          chmod 0700 "$XDG_RUNTIME_DIR"
+          set +e
+          DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent \
+            GDK_BACKEND=x11 GTK_IM_MODULE=gtk-im-context-simple \
+            NO_AT_BRIDGE=1 \
+            timeout 10s xvfb-run --auto-servernum \
+            ./squashfs-root/AppRun examples/demo.md \
+            >/tmp/appimage-gui.log 2>&1
+          status=$?
+          set -e
+          # The editor stays open until closed; timeout means startup succeeded.
+          test "$status" -eq 124
+          ! grep -q "Traceback" /tmp/appimage-gui.log
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: appimage-artifact
+          path: dist/md_split-*-x86_64.AppImage
+          if-no-files-found: error
+
   publish:
-    needs: build
+    needs: [build, appimage]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -175,6 +243,20 @@ jobs:
         with:
           name: release-artifacts
           path: dist
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: appimage-artifact
+          path: dist
+
+      - name: Refresh checksums
+        run: |
+          set -euo pipefail
+          (
+            cd dist
+            sha256sum md-split-*.tar.gz md_split-*.flatpak \
+              md_split-*.AppImage > SHA256SUMS
+          )
 
       - name: Publish GitHub release
         env:
