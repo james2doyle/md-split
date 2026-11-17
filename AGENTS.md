@@ -217,6 +217,9 @@ settings.set_string('view-mode', 'source')
 - `PangoCairo.show_layout_line()` puts the current point on the line baseline,
   not its top. Offset by `-line.get_pixel_extents()[1].y` when paginating or
   drawing table cells, or text is clipped and rows overlap.
+- `Pango.LayoutLine` objects are owned by their `Pango.Layout`. Keep the layout
+  referenced while storing lines for later page breaks, or Pango raises
+  `LINE_IS_VALID` criticals when the line is finally drawn.
 - Python debug logging is enabled with `MD_SPLIT_DEBUG=1`. `G_MESSAGES_DEBUG`
   belongs to GLib and does not change the app's log level.
 - Spell checking is optional. Check the provider's language count, not only the

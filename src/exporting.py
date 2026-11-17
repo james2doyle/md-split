@@ -547,6 +547,10 @@ class _CellLines:
     cell: _TableCell
     width: float
     lines: list[tuple[Any, int, int, int]]
+    # Pango layout lines are owned by their layout and become invalid when it
+    # is finalized. Table rows retain lines across page breaks, so keep the
+    # layout alive alongside them.
+    layout: Any
 
 
 class _PdfWriter:
@@ -1028,7 +1032,7 @@ class _PdfWriter:
                         -logical.y,
                     )
                 )
-            result.append(_CellLines(cell, width, lines))
+            result.append(_CellLines(cell, width, lines, layout))
         return result
 
     def _table_slice_height(

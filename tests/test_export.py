@@ -1,5 +1,6 @@
 """Headless tests for HTML and PDF export."""
 
+import gc
 import os
 import stat
 import struct
@@ -11,8 +12,15 @@ from pathlib import Path
 SOURCE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, SOURCE_ROOT)
 
+import cairo
+import gi
+
+gi.require_version("GLib", "2.0")
+from gi.repository import GLib
+
 from src import exporting as exporting_module
 from src.exporting import render_html, write_pdf
+from src.markdown_parser import create_parser
 from src.paths import ensure_file_extension
 
 assert ensure_file_extension(Path("/tmp/report"), ".pdf") == Path(
@@ -331,5 +339,52 @@ with tempfile.TemporaryDirectory() as tmp:
     assert not (root / ".failed.pdf.tmp").exists()
     assert not list(root.glob(".failed.pdf.*.tmp"))
     assert not failed.exists()
+
+    # Pango layout lines are only valid while their layout stays alive. Table
+    # rows keep lines for later page breaks, so the layout must be retained.
+    surface = cairo.PDFSurface(
+        str(root / "cell-layout.pdf"), 595.276, 841.89
+    )
+    writer = exporting_module._PdfWriter(
+        surface, base_dir=None, base_file=None, title="Layout"
+    )
+    tokens = create_parser().parse(
+        "| Code | Value |\n| :--- | ---: |\n| `x` | 1 |\n"
+    )
+    table_start = next(
+        index
+        for index, token in enumerate(tokens)
+        if token.type == "table_open"
+    )
+    table_close = next(
+        index
+        for index, token in enumerate(tokens)
+        if token.type == "table_close"
+    )
+    rows = writer._table_rows(tokens, table_start, table_close)
+    widths = writer._table_column_widths(
+        rows, len(rows[0].cells), writer.content_width
+    )
+    cells = writer._table_row_layouts(rows[1], widths)
+    gc.collect()
+    messages = []
+
+    def capture(_domain, _level, message):
+        messages.append(message)
+
+    handler = GLib.log_set_handler(
+        "Pango",
+        GLib.LogLevelFlags.LEVEL_WARNING
+        | GLib.LogLevelFlags.LEVEL_CRITICAL,
+        capture,
+    )
+    try:
+        for cell in cells:
+            for line, _height, _width, _top in cell.lines:
+                line.get_pixel_extents()
+    finally:
+        GLib.log_remove_handler("Pango", handler)
+    assert not messages, messages
+    surface.finish()
 
 print("ok: HTML and PDF export")
