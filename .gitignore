@@ -5,6 +5,14 @@
 /build-release/
 /build-release-install/
 /build-flatpak/
+/build-appimage/
+/AppDir/
+/appimage-build/
+/packaging/appimage/AppDir/
+/packaging/appimage/AppDir.squashfs
+/packaging/appimage/appimage-build/
+/packaging/appimage/md_split-*.AppImage
+/squashfs-root/
 /dist/
 /.flatpak-builder/
 /.venv/

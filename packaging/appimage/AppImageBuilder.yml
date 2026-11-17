@@ -1,0 +1,89 @@
+version: 1
+
+script:
+  - cd "$SOURCE_DIR/../.."
+  - rm -rf build-appimage
+  - meson setup build-appimage --buildtype=release --prefix=/usr
+  - meson compile -C build-appimage
+  - rm -rf "$TARGET_APPDIR"
+  - DESTDIR="$TARGET_APPDIR" meson install -C build-appimage
+  - rm -rf build-appimage
+  - find "$TARGET_APPDIR" -type d -name __pycache__ -prune -exec rm -rf {} +
+
+AppDir:
+  path: ./AppDir
+
+  app_info:
+    id: com.james2doyle.MdSplit
+    name: md_split
+    icon: com.james2doyle.MdSplit
+    version: '{{APPIMAGE_VERSION}}'
+    exec: usr/bin/python3
+    exec_args: $APPDIR/usr/bin/md_split $@
+
+  apt:
+    arch: amd64
+    sources:
+      - sourceline: 'deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ resolute main restricted universe multiverse'
+        key_url: 'https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x871920D1991BC93C'
+    include:
+      - python3
+      - python3-gi
+      - python3-gi-cairo
+      - python3-cairo
+      - gir1.2-gtk-4.0
+      - gir1.2-adw-1
+      - gir1.2-gtksource-5
+      - gir1.2-spelling-1
+      - libspelling-1-2
+      - hunspell-en-us
+      - libgtk-4-1
+      - libadwaita-1-0
+      - libgtksourceview-5-0
+      - librsvg2-common
+      - adwaita-icon-theme
+      - hicolor-icon-theme
+      - gsettings-desktop-schemas
+      # Bundle the X11/Wayland client libraries. appimage-builder excludes
+      # graphics packages by default, but the GTK typelib needs these before a
+      # display is opened and older hosts may not provide matching versions.
+      - libwayland-client0
+      - libwayland-egl1
+      - libx11-6
+      - libx11-xcb1
+      - libxcb1
+      - libxcb-render0
+      - libxcb-shm0
+      - libxcb-shape0
+      - libxcb-xfixes0
+      - libxkbcommon0
+    exclude:
+      - usr/share/doc
+      - usr/share/doc-base
+      - usr/share/gtk-doc
+      - usr/share/man
+      - usr/share/bug
+      - usr/share/lintian
+      - usr/include
+      - usr/lib/*/pkgconfig
+
+  after_runtime: |
+    # Ubuntu keeps ld-linux under /usr/lib/x86_64-linux-gnu, while AppRun
+    # looks for the compat linker at runtime/compat/lib64.
+    mkdir -p "$TARGET_APPDIR/runtime/compat/lib64"
+    ln -sf ../usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 \
+      "$TARGET_APPDIR/runtime/compat/lib64/ld-linux-x86-64.so.2"
+
+  runtime:
+    env:
+      PATH: '${APPDIR}/usr/bin:${PATH}'
+      PYTHONHOME: '${APPDIR}/usr'
+      PYTHONPATH: '${APPDIR}/usr/lib/python3/dist-packages'
+      PYTHONNOUSERSITE: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+      DICPATH: '${APPDIR}/usr/share/hunspell:${APPDIR}/usr/share/myspell'
+      MD_SPLIT_SPELLCHECK: '1'
+
+AppImage:
+  arch: x86_64
+  file_name: md_split-{{APPIMAGE_VERSION}}-x86_64.AppImage
