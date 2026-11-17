@@ -72,6 +72,12 @@ quoted = apply("one\ntwo", edit)
 edit = toggle_blockquote(quoted, 0, len(quoted))
 assert apply(quoted, edit) == "one\ntwo"
 
+# A selection ending on a line break only quotes the line it ends in.
+edit = toggle_blockquote("first\nsecond\nthird", 0, 6)
+assert apply("first\nsecond\nthird", edit) == "> first\nsecond\nthird"
+edit = toggle_blockquote("first\nsecond\nthird", 0, 7)
+assert apply("first\nsecond\nthird", edit) == "> first\n> second\nthird"
+
 # Ctrl+` uses a fence when the selection already spans multiple lines.
 edit = format_code("a\nb", 0, 3)
 assert apply("a\nb", edit).startswith("```\n")

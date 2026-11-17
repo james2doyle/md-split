@@ -71,6 +71,17 @@ edit = continue_list("\t- item", 7)
 assert edit is not None
 assert apply("\t- item", edit) == "\t- item\n\t- "
 
+# CRLF documents continue and exit items with CRLF line endings.
+for source, cursor, expected in (
+    ("- one\r\n- two\r\n", 5, "- one\r\n- \r\n- two\r\n"),
+    ("- \r\n", 2, "\r\n"),
+    ("- one\r\n- \r\nnext", 9, "- one\r\n\r\nnext"),
+    ("1. one\r\n", 6, "1. one\r\n2. \r\n"),
+):
+    edit = continue_list(source, cursor)
+    assert edit is not None, source
+    assert apply(source, edit) == expected, (source, apply(source, edit))
+
 edit = continue_list("10. item", 8)
 assert edit is not None
 assert apply("10. item", edit) == "10. item\n11. "

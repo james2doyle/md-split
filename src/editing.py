@@ -113,6 +113,11 @@ def format_code(text: str, start: int, end: int) -> TextEdit:
 def toggle_blockquote(text: str, start: int, end: int) -> TextEdit:
     """Toggle a ``> `` prefix on the lines touched by the selection."""
     start, end = sorted((start, end))
+    end = min(end, len(text))
+    # A selection that ends exactly on a line break belongs to the line before
+    # it (the triple-click gesture); do not quote the following line.
+    if start < end and text[end - 1] == "\n":
+        end -= 1
     line_start = text.rfind("\n", 0, start) + 1
     line_end = text.find("\n", end)
     if line_end == -1:
@@ -145,17 +150,31 @@ _TASK_MARKER = re.compile(r"^(\[[ xX]\][ \t]+)(.*)$")
 _ORDERED_ITEM = re.compile(r"^([ \t]*)(\d+)([.)])([ \t]+)(.*)$")
 
 
+def _line_ending(text: str, line_end: int) -> str:
+    """Return the line ending that terminates (or precedes) a line."""
+    if line_end < len(text) and text[line_end] == "\n":
+        return "\r\n" if line_end > 0 and text[line_end - 1] == "\r" else "\n"
+    previous = text.rfind("\n", 0, line_end)
+    if previous > 0 and text[previous - 1] == "\r":
+        return "\r\n"
+    return "\n"
+
+
 def continue_list(text: str, cursor: int) -> TextEdit | None:
     """Continue a list item, or exit an empty item, when Return is pressed."""
     if cursor < 0 or cursor > len(text):
         return None
 
     line_start = text.rfind("\n", 0, cursor) + 1
-    line_end = text.find("\n", cursor)
-    if line_end == -1:
-        line_end = len(text)
-    line = text[line_start:line_end]
-    relative = cursor - line_start
+    newline = text.find("\n", cursor)
+    line_end = len(text) if newline == -1 else newline
+    eol = _line_ending(text, line_end)
+    content_end = line_end
+    if content_end > line_start and text[content_end - 1] == "\r":
+        content_end -= 1
+    line = text[line_start:content_end]
+    relative = min(cursor - line_start, len(line))
+    insert_at = line_start + relative
 
     bullet = _BULLET_ITEM.match(line)
     ordered = _ORDERED_ITEM.match(line)
@@ -187,24 +206,20 @@ def continue_list(text: str, cursor: int) -> TextEdit | None:
         return None
 
     if not content.strip():
-        end = (
-            line_end + 1
-            if line_end < len(text) and text[line_end] == "\n"
-            else line_end
-        )
+        end = newline + 1 if newline != -1 else line_end
         return TextEdit(
             start=line_start,
             end=end,
-            replacement="\n",
-            selection_start=line_start + 1,
-            selection_end=line_start + 1,
+            replacement=eol,
+            selection_start=line_start + len(eol),
+            selection_end=line_start + len(eol),
         )
 
-    replacement = "\n" + next_marker
+    replacement = eol + next_marker
     return TextEdit(
-        start=cursor,
-        end=cursor,
+        start=insert_at,
+        end=insert_at,
         replacement=replacement,
-        selection_start=cursor + len(replacement),
-        selection_end=cursor + len(replacement),
+        selection_start=insert_at + len(replacement),
+        selection_end=insert_at + len(replacement),
     )
