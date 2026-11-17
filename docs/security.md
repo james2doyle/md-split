@@ -7,8 +7,9 @@ browser, execute JavaScript, or run shell commands from document content.
 ## Document parsing
 
 - Raw HTML is disabled in the parser (`html: False`).
-- The only promoted inline HTML is a balanced `<u>`/`</u>` pair. Code spans and
-  unbalanced tags remain literal text.
+- The only promoted inline HTML is a balanced, correctly nested `<u>`/`</u>`
+  pair. Code spans, unbalanced tags and pairs that cross emphasis or link
+  boundaries remain literal text.
 - All text placed into `Gtk.Label` Pango markup is escaped with
   `GLib.markup_escape_text`. Pango markup is not HTML.
 - Markdown parsing uses the vendored markdown-it-py + GFM parser. No runtime

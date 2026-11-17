@@ -45,6 +45,29 @@ assert "&lt;u&gt;unclosed tag" in markup
 markup = renderer.inline_markup("`<u>code</u>`")
 assert "&lt;u&gt;code&lt;/u&gt;" in markup
 
+# Duplicate heading anchors follow GitHub's -1, -2 numbering.
+renderer._heading_slugs = {}
+assert [renderer._unique_slug("Foo") for _ in range(3)] == [
+    "foo",
+    "foo-1",
+    "foo-2",
+]
+
+# Underline tags are promoted only when they nest with the surrounding markup.
+markup = renderer.inline_markup("**<u>bold</u>**")
+assert "<b><u>bold</u></b>" in markup, markup
+markup = renderer.inline_markup("<u>**bold**</u>")
+assert "<u><b>bold</b></u>" in markup, markup
+
+# A pair that crosses emphasis or link boundaries is not promoted.
+crossed = "[<u>link](https://example.com) outside</u>"
+markup = renderer.inline_markup(crossed)
+assert '<a href="https://example.com">' in markup, markup
+assert "&lt;u&gt;link" in markup, markup
+assert "<u>" not in markup, markup
+markup = renderer.inline_markup("**<u>bold**</u>")
+assert "<b>&lt;u&gt;bold</b>&lt;/u&gt;" in markup, markup
+
 dark_markup = renderer.inline_markup("`code`", dark=True)
 assert 'background="#3d3f42"' in dark_markup
 

@@ -43,7 +43,8 @@ if str(_VENDOR) not in sys.path:
 
 from markdown_it.token import Token
 
-from .markdown_parser import create_parser, has_valid_underline_markup
+from .markdown_parser import create_parser, has_valid_underline_inline
+from .paths import contained_file, document_root
 
 log = logging.getLogger(__name__)
 
@@ -1079,10 +1080,10 @@ class MarkdownRenderer:
         if token is None or not token.children:
             return ""
 
-        text_stream = "".join(
-            child.content for child in token.children if child.type == "text"
+        underline = has_valid_underline_inline(
+            token,
+            link_allowed=lambda href: self._resolve_link(href) is not None,
         )
-        underline = has_valid_underline_markup(text_stream)
 
         parts: list[str] = []
         open_tags: list[str] = []

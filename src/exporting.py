@@ -32,7 +32,8 @@ except (ImportError, ValueError):
 
 import cairo
 
-from .markdown_parser import create_parser, has_valid_underline_markup
+from .markdown_parser import create_parser, has_valid_underline_inline
+from .paths import contained_file, document_root
 from .renderer import MarkdownRenderer
 
 if TYPE_CHECKING:
@@ -145,17 +146,20 @@ def _image_source(
     return f"data:{mime};base64,{encoded}"
 
 
-def _underline_chunks(tokens: list[Token]):
+def _underline_inlines(tokens: list[Token], link_allowed) -> None:
+    """Mark text tokens whose inline block can promote <u> tags."""
     for token in tokens:
-        if token.type == "text":
-            yield token.content
-        for child in token.children or []:
-            yield from _underline_chunks([child])
+        if token.type == "inline" and has_valid_underline_inline(
+            token, link_allowed=link_allowed
+        ):
+            for child in token.children or []:
+                if child.type == "text":
+                    child.meta["underline"] = True
 
 
-def _text_rule(tokens, idx, options, env):
+def _text_rule(tokens, idx, options, _env):
     content = html.escape(tokens[idx].content, quote=True)
-    if env.get("underline"):
+    if tokens[idx].meta.get("underline"):
         content = content.replace("&lt;u&gt;", "<u>").replace(
             "&lt;/u&gt;", "</u>"
         )
@@ -201,10 +205,12 @@ def render_html(
     parser.renderer.rules["text"] = _text_rule
 
     tokens = parser.parse(text)
-    underline = has_valid_underline_markup(
-        "".join(_underline_chunks(tokens))
-    )
-    body = parser.renderer.render(tokens, parser.options, {"underline": underline})
+
+    def link_allowed(href: str) -> bool:
+        return _resolve_link(href, base_dir, base_file) is not None
+
+    _underline_inlines(tokens, link_allowed)
+    body = parser.renderer.render(tokens, parser.options, {})
 
     escaped_title = html.escape(title, quote=True)
     return f"""<!doctype html>
