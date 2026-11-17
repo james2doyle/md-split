@@ -125,4 +125,6 @@ See [architecture.md](architecture.md) for where each behavior belongs.
 - **Flatpak lint** on the GNOME 51 Flatpak image: builds the manifest and runs
   `flatpak-builder-lint` on the manifest and local repository.
 
-The release workflow is separate; see [releasing.md](releasing.md).
+Branch pushes run CI on `main` only, so internal pull requests are tested once;
+`v*.*.*` tag pushes also run CI and feed the release workflow. The release
+workflow is separate; see [releasing.md](releasing.md).

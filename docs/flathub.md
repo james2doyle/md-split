@@ -66,9 +66,13 @@ Current finish arguments:
 | `--socket=wayland` | Wayland |
 | `--device=dri` | GTK rendering |
 
-Remote images are disabled by default and only load HTTP(S) URLs after the user
-enables them. Files are opened through the file chooser/portal; the app does not
-request host filesystem access.
+`--share=network` applies to the whole sandbox because Flatpak has no
+per-feature network permission. It is kept for optional remote images, which
+are disabled by default and only load HTTP(S) URLs after the user enables them;
+the app runs no background networking. The manifest is plain JSON with no
+comment syntax, so permissions are justified here instead. Files are opened
+through the file chooser/portal; the app does not request host filesystem
+access.
 
 ## Validate before submitting
 

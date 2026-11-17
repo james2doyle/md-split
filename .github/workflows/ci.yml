@@ -2,6 +2,10 @@ name: CI
 
 on:
   push:
+    # Branch pushes only run on main so internal pull requests are tested once.
+    # Release tags still run CI because release.yml reacts to the workflow run.
+    branches: [main]
+    tags: ["v*.*.*"]
   pull_request:
 
 permissions:
@@ -10,6 +14,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     container: fedora:45
     steps:
       - name: Install git
@@ -53,6 +58,7 @@ jobs:
   flatpak-lint:
     name: Flatpak lint
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-51
       options: --privileged

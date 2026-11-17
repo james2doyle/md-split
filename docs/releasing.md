@@ -113,19 +113,25 @@ FLATPAK_USER_DIR="$tmp" flatpak run com.james2doyle.MdSplit --help
 rm -rf "$tmp"
 ```
 
+The release workflow runs the same install-and-help check on the bundle it
+publishes.
+
 ## Automated GitHub release
 
 `.github/workflows/release.yml` runs after the **CI** workflow succeeds for a
-`v*` tag. It is deliberately separate from `ci.yml` so CI stays read-only and
-releases cannot be published from pull requests or `main` pushes.
+`v*.*.*` tag push. It is deliberately separate from `ci.yml` so CI stays
+read-only and releases cannot be published from pull requests or `main` pushes.
+CI runs on pull requests, `main` pushes, and `v*.*.*` tag pushes.
 
 The workflow:
 
-- checks out the tagged commit and rejects branch runs that merely start with
-  `v`;
-- creates the same prefixed source archive and pinned release manifest shown
-  above;
+- skips anything that is not a `v*.*.*` tag push, including branches and pull
+  requests, before the build job starts;
+- checks out the tagged commit and creates the same prefixed source archive and
+  pinned release manifest shown above;
 - builds the Flatpak with `--buildtype=release`;
+- installs the built bundle into a temporary `FLATPAK_USER_DIR` and smoke-runs
+  `flatpak run com.james2doyle.MdSplit --help`;
 - uploads the source archive, release manifest, bundle, and `SHA256SUMS` to a
   GitHub Release;
 - updates assets with `--clobber` if the release already exists, making

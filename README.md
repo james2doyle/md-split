@@ -33,9 +33,10 @@ has no runtime Python dependencies beyond PyGObject.
 - Unsaved-change prompts, window geometry and preview state persistence
 - Word and character counts plus cursor position in the status bar
 - Copy-code buttons in code block headers
-- Command-line file opening and `%f` desktop integration
-- Raw HTML is disabled by default for safe previewing; `<u>...</u>` is the
-  only inline HTML tag rendered as formatting
+- Command-line file opening and `%F` desktop integration
+- Raw HTML is disabled by default for safe previewing; a balanced,
+  correctly nested `<u>...</u>` pair is the only inline HTML rendered as
+  formatting
 
 ## Documentation
 

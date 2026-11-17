@@ -1,7 +1,7 @@
 [Desktop Entry]
 Name=MD Split
 Comment=Native Markdown editor with live GitHub-Flavored Markdown preview
-Exec=md_split %f
+Exec=md_split %F
 Icon=com.james2doyle.MdSplit
 Terminal=false
 Type=Application

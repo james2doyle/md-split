@@ -1,6 +1,6 @@
-# Build release artifacts only after CI succeeds for a v* tag. Keeping this
-# separate from ci.yml leaves the CI workflow read-only and prevents releases
-# from pull requests or main-branch pushes.
+# Build release artifacts only after CI succeeds for a v*.*.* tag push. Keeping
+# this separate from ci.yml leaves the CI workflow read-only and prevents
+# releases from pull requests or main-branch pushes.
 name: Release
 
 on:
@@ -17,11 +17,34 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
-    if: >
-      github.event.workflow_run.conclusion == 'success' &&
-      startsWith(github.event.workflow_run.head_branch, 'v')
+  validate:
+    name: Require a release tag
+    if: github.event.workflow_run.event == 'push'
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      release: ${{ steps.tag.outputs.release }}
+    steps:
+      - name: Check for a v*.*.* tag
+        id: tag
+        env:
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          set -euo pipefail
+          if [[ "$HEAD_BRANCH" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]]; then
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping $HEAD_BRANCH: not a v*.*.* release tag"
+          fi
+
+  build:
+    needs: validate
+    if: >
+      needs.validate.outputs.release == 'true' &&
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-51
       options: --privileged
@@ -94,6 +117,24 @@ jobs:
           mirror-screenshots-url: https://dl.flathub.org/media
           upload-artifact: false
 
+      - name: Smoke-test release bundle
+        run: |
+          set -euo pipefail
+          bundle=$(find . -maxdepth 2 -name md_split.flatpak -type f -print -quit)
+          if [ -z "$bundle" ]; then
+            echo "::error::Flatpak bundle was not produced"
+            exit 1
+          fi
+
+          # Install into a throwaway user installation (docs/releasing.md) and
+          # check that the bundle runs before it is published.
+          tmp=$(mktemp -d)
+          trap 'rm -rf "$tmp"' EXIT
+          export FLATPAK_USER_DIR="$tmp"
+          flatpak install --user --noninteractive "$bundle"
+          flatpak info --user com.james2doyle.MdSplit
+          timeout 60 flatpak run com.james2doyle.MdSplit --help
+
       - name: Collect release artifacts
         env:
           TAG: ${{ github.event.workflow_run.head_branch }}
@@ -125,6 +166,7 @@ jobs:
   publish:
     needs: build
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     permissions:
       contents: write
       actions: read
