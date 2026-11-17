@@ -94,8 +94,10 @@ buttons, pictures, and code-block headers. Text is escaped with
 `GLib.markup_escape_text` before Pango markup. The only promoted inline HTML
 tag is a balanced `<u>`/`</u>` pair, and it is promoted only when it nests
 correctly with emphasis, strikethrough and resolved links; code spans,
-unbalanced tags and crossing pairs remain literal. Nested list boxes get an
-increasing start margin, so child items are indented under their parent.
+unbalanced tags and crossing pairs remain literal. A soft line break becomes a
+space, while two trailing spaces or a backslash force a line break. Nested list
+boxes get an increasing start margin, so child items are indented under their
+parent.
 
 Links, preview images and export images resolve through `src/paths.py`.
 Targets are resolved (including `..`, percent-encoding and symlinks) and must
@@ -137,13 +139,26 @@ See [security.md](security.md) for the full policy.
 ## Export
 
 HTML export builds a standalone document with embedded local images; PDF export
-lays the same tokens out with Pango and Cairo. `MdSplitWindow` captures the text
-and base location on the main thread and runs the render in a daemon worker,
-then marshals the result or error back with `GLib.idle_add`. HTML is written
-through `fileio.save_text_async()`; PDF writes to a `tempfile.mkstemp` file and
-atomically replaces the target. Export targets get the expected `.html`/`.pdf`
-extension appended, and existing files (including the open document) require
-confirmation before replacement.
+lays the same tokens out with Pango and Cairo. Both read one palette and
+type-scale block in `src/exporting.py`, so the CSS and the PDF drawing constants
+cannot drift. Exported files are light-themed; the appearance setting
+only changes the native preview. HTML gets measure-limited typography, bordered and
+zebra-striped tables, figures with captions, callout styling and print rules
+(`@page`, widows/orphans, break avoidance, wrapped code). PDF uses the same
+palette for headings, code boxes, tables and quote bars.
+
+`_PdfWriter` gives tables a real cell grid: columns fill the content width,
+narrow columns keep their natural size while wide ones are capped, alignment
+comes from the GFM column style, and the header row repeats after a page break.
+Rows that would overflow a page are split by line so a single tall cell cannot
+run past the footer. The footer carries the document title and page number.
+
+`MdSplitWindow` captures the text and base location on the main thread and runs
+the render in a daemon worker, then marshals the result or error back with
+`GLib.idle_add`. HTML is written through `fileio.save_text_async()`; PDF writes
+to a `tempfile.mkstemp` file and atomically replaces the target. Export targets
+get the expected `.html`/`.pdf` extension appended, and existing files
+(including the open document) require confirmation before replacement.
 
 ## Extending the app
 

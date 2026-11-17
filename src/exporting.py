@@ -7,13 +7,16 @@ from __future__ import annotations
 import base64
 import html
 import io
+import math
 import mimetypes
 import os
 import re
 import tempfile
+from dataclasses import dataclass
 from gettext import gettext as _
 from pathlib import Path
-from typing import TYPE_CHECKING
+from string import Template
+from typing import TYPE_CHECKING, Any
 from urllib.parse import unquote, urlparse
 
 import gi
@@ -43,11 +46,67 @@ _MAX_EMBED_IMAGE_BYTES = 8 * 1024 * 1024
 _MAX_EMBED_TOTAL_BYTES = 32 * 1024 * 1024
 _MAX_PDF_IMAGE_PIXELS = 20_000_000
 _ANCHOR_TAG = re.compile(r"</?a\b[^>]*>")
+
+# One source of truth for the exported light theme. The HTML stylesheet is
+# generated from these values and the PDF writer reads the same palette and
+# type scale, so the two outputs cannot drift apart.
+_TEXT_HEX = "#1b1b1f"
+_MUTED_HEX = "#5e5c64"
+_BORDER_HEX = "#d8d8dc"
+_SURFACE_HEX = "#f4f5f6"
+_ZEBRA_HEX = "#fafafb"
+_ACCENT_HEX = "#1c71d8"
+_CODE_BG_HEX = "#eceff1"
+_QUOTE_BAR_HEX = "#c0bfbc"
+_SUCCESS_HEX = "#2ec27e"
+_WARNING_HEX = "#e5a50a"
+_ERROR_HEX = "#c01c28"
+_ACCENT_TINT_HEX = "#eef4fc"
+_SUCCESS_TINT_HEX = "#eaf7f1"
+_WARNING_TINT_HEX = "#fdf5e6"
+_ERROR_TINT_HEX = "#fdeced"
+_BODY_FONT_SIZE = 11.0
+_CODE_FONT_SIZE = 9.0
+_TABLE_FONT_SIZE = 9.5
+_CAPTION_FONT_SIZE = 9.0
+_FOOTER_FONT_SIZE = 8.0
+_HEADING_SCALES = {1: 2.0, 2: 1.55, 3: 1.27, 4: 1.09, 5: 1.0, 6: 1.0}
+
 _PAGE_WIDTH = 595.276
 _PAGE_HEIGHT = 841.89
 _PAGE_MARGIN = 48
-_TEXT_COLOR = (0.10, 0.10, 0.11)
-_MUTED_COLOR = (0.42, 0.42, 0.44)
+_TABLE_PAD_X = 7.0
+_TABLE_PAD_Y = 5.0
+_TABLE_MIN_COLUMN = 42.0
+_TABLE_MARGIN_TOP = 8.0
+_TABLE_MARGIN_BOTTOM = 8.0
+_TABLE_LINE_WIDTH = 0.6
+_CODE_PAD_X = 10.0
+_CODE_PAD_Y = 7.0
+_CODE_RADIUS = 6.0
+_CODE_MARGIN_TOP = 6.0
+_CODE_MARGIN_BOTTOM = 8.0
+
+
+def _rgb(value: str) -> tuple[float, float, float]:
+    value = value.lstrip("#")
+    return (
+        int(value[0:2], 16) / 255,
+        int(value[2:4], 16) / 255,
+        int(value[4:6], 16) / 255,
+    )
+
+
+_TEXT_COLOR = _rgb(_TEXT_HEX)
+_MUTED_COLOR = _rgb(_MUTED_HEX)
+_BORDER_COLOR = _rgb(_BORDER_HEX)
+_SURFACE_COLOR = _rgb(_SURFACE_HEX)
+_ZEBRA_COLOR = _rgb(_ZEBRA_HEX)
+_ACCENT_COLOR = _rgb(_ACCENT_HEX)
+_SUCCESS_COLOR = _rgb(_SUCCESS_HEX)
+_WARNING_COLOR = _rgb(_WARNING_HEX)
+_ERROR_COLOR = _rgb(_ERROR_HEX)
+_QUOTE_BAR_COLOR = _rgb(_QUOTE_BAR_HEX)
 
 
 def _parsed(value: str):
@@ -160,6 +219,32 @@ def _text_rule(tokens, idx, options, _env):
     return content
 
 
+def _sole_image_inline(tokens: list[Token], index: int) -> Token | None:
+    """Return the image token when a paragraph contains only that image."""
+    if index < 0 or index + 1 >= len(tokens):
+        return None
+    if tokens[index].type != "paragraph_open":
+        return None
+    inline = tokens[index + 1]
+    if inline.type != "inline":
+        return None
+    children = [
+        child
+        for child in inline.children or []
+        if not (child.type == "text" and not child.content.strip())
+    ]
+    if len(children) == 1 and children[0].type == "image":
+        return children[0]
+    if (
+        len(children) == 3
+        and children[0].type == "link_open"
+        and children[1].type == "image"
+        and children[2].type == "link_close"
+    ):
+        return children[1]
+    return None
+
+
 def render_html(
     text: str,
     *,
@@ -194,9 +279,32 @@ def render_html(
         token.attrSet("href", resolved or "")
         return parser.renderer.renderToken(tokens, idx, options, env)
 
+    def paragraph_open_rule(tokens, idx, options, env):
+        if tokens[idx].hidden:
+            return parser.renderer.renderToken(tokens, idx, options, env)
+        if _sole_image_inline(tokens, idx) is not None:
+            return "<figure>"
+        return parser.renderer.renderToken(tokens, idx, options, env)
+
+    def paragraph_close_rule(tokens, idx, options, env):
+        if tokens[idx].hidden or tokens[idx - 2].hidden:
+            return parser.renderer.renderToken(tokens, idx, options, env)
+        image = _sole_image_inline(tokens, idx - 2)
+        if image is None:
+            return parser.renderer.renderToken(tokens, idx, options, env)
+        alt = image.content or image.attrGet("alt") or ""
+        caption = (
+            f"<figcaption>{html.escape(alt, quote=False)}</figcaption>"
+            if alt.strip()
+            else ""
+        )
+        return f"{caption}</figure>"
+
     parser.renderer.rules["image"] = image_rule
     parser.renderer.rules["link_open"] = link_rule
     parser.renderer.rules["text"] = _text_rule
+    parser.renderer.rules["paragraph_open"] = paragraph_open_rule
+    parser.renderer.rules["paragraph_close"] = paragraph_close_rule
 
     tokens = parser.parse(text)
 
@@ -226,60 +334,177 @@ def render_html(
 """
 
 
-_EXPORT_CSS = """
-:root { color-scheme: light; }
+_EXPORT_CSS = Template(
+    """
+:root {
+  color-scheme: light;
+  --md-text: $text;
+  --md-muted: $muted;
+  --md-border: $border;
+  --md-surface: $surface;
+  --md-zebra: $zebra;
+  --md-accent: $accent;
+  --md-code-bg: $code_bg;
+  --md-quote-bar: $quote_bar;
+}
 * { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;
-  color: #1b1b1f;
+  color: var(--md-text);
   background: #ffffff;
   font-family: Cantarell, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  line-height: 1.55;
+  font-size: 16px;
+  line-height: 1.6;
+  text-rendering: optimizeLegibility;
 }
 .md-document {
-  max-width: 860px;
+  max-width: 46rem;
   margin: 0 auto;
-  padding: 40px 28px 64px;
+  padding: 48px 32px 72px;
 }
-h1, h2, h3, h4, h5, h6 { line-height: 1.25; margin: 1.2em 0 0.45em; }
-h1, h2 { border-bottom: 1px solid #d8d8dc; padding-bottom: 0.25em; }
-h1 { font-size: 2em; }
-h2 { font-size: 1.55em; }
-h3 { font-size: 1.3em; }
-p, ul, ol, blockquote, pre, table { margin: 0.7em 0; }
-a { color: #1c71d8; }
+.md-document > :first-child { margin-top: 0; }
+h1, h2, h3, h4, h5, h6 {
+  line-height: 1.25;
+  margin: 1.6em 0 0.5em;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+h1, h2 {
+  border-bottom: 1px solid var(--md-border);
+  padding-bottom: 0.3em;
+}
+h1 { font-size: ${h1}em; letter-spacing: -0.02em; }
+h2 { font-size: ${h2}em; }
+h3 { font-size: ${h3}em; }
+h4 { font-size: ${h4}em; }
+h5 { font-size: ${h5}em; }
+h6 { font-size: ${h6}em; color: var(--md-muted); }
+p, ul, ol, blockquote, pre, table, figure { margin: 0.9em 0; }
+ul, ol { padding-left: 1.5em; }
+li + li { margin-top: 0.25em; }
+a {
+  color: var(--md-accent);
+  text-decoration: none;
+  text-underline-offset: 2px;
+}
+a:hover { text-decoration: underline; }
 code {
-  font-family: "JetBrains Mono", "Fira Code", monospace;
-  background: #eceff1;
+  font-family: "JetBrains Mono", "Fira Code", "Source Code Pro", monospace;
+  background: var(--md-code-bg);
   border-radius: 4px;
   padding: 0.1em 0.3em;
   font-size: 0.9em;
 }
 pre {
-  background: #f4f5f6;
-  border: 1px solid #d8d8dc;
+  background: var(--md-surface);
+  border: 1px solid var(--md-border);
   border-radius: 8px;
   padding: 14px 16px;
   overflow-x: auto;
+  line-height: 1.45;
 }
 pre code { background: transparent; padding: 0; }
 blockquote {
-  border-left: 3px solid #c0bfbc;
-  color: #5e5c64;
-  padding: 0.1em 0 0.1em 14px;
+  border-left: 3px solid var(--md-quote-bar);
+  color: var(--md-muted);
+  margin-left: 0;
+  padding: 0.2em 0 0.2em 16px;
 }
-table { border-collapse: collapse; width: 100%; }
-th, td { border: 1px solid #d8d8dc; padding: 7px 10px; text-align: left; }
-th { background: #f4f5f6; }
+blockquote > :first-child { margin-top: 0; }
+blockquote > :last-child { margin-bottom: 0; }
+.markdown-alert {
+  border-left: 4px solid var(--md-accent);
+  background: $accent_tint;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 1em 0;
+}
+.markdown-alert > :first-child { margin-top: 0; }
+.markdown-alert > :last-child { margin-bottom: 0; }
+.markdown-alert-title { font-weight: 700; }
+.markdown-alert-tip {
+  border-left-color: $success;
+  background: $success_tint;
+}
+.markdown-alert-important {
+  border-left-color: var(--md-accent);
+  background: $accent_tint;
+}
+.markdown-alert-warning {
+  border-left-color: $warning;
+  background: $warning_tint;
+}
+.markdown-alert-caution {
+  border-left-color: $error;
+  background: $error_tint;
+}
+table {
+  width: 100%;
+  border: 1px solid var(--md-border);
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+thead { background: var(--md-surface); }
+th, td {
+  border-bottom: 1px solid var(--md-border);
+  border-right: 1px solid var(--md-border);
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+th { font-weight: 600; }
+th:last-child, td:last-child { border-right: none; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:nth-child(even) { background: var(--md-zebra); }
+figure {
+  margin: 1.2em 0;
+  text-align: center;
+}
+figure img { border-radius: 8px; }
+figcaption {
+  margin-top: 6px;
+  color: var(--md-muted);
+  font-size: 0.9em;
+}
 img { max-width: 100%; height: auto; }
-hr { border: none; border-top: 1px solid #d8d8dc; margin: 1.5em 0; }
+hr {
+  border: none;
+  border-top: 1px solid var(--md-border);
+  margin: 1.5em 0;
+}
 @media print {
-  body { background: #ffffff; }
+  @page { margin: 18mm; }
+  body { background: #ffffff; font-size: 11pt; }
   .md-document { max-width: none; padding: 0; }
   a { color: inherit; text-decoration: underline; }
-  pre, blockquote, table, img { break-inside: avoid; }
+  h1, h2, h3, h4, h5, h6 { break-after: avoid; }
+  p, li { orphans: 3; widows: 3; }
+  pre, blockquote, figure, img, tr { break-inside: avoid; }
+  pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+  thead { display: table-header-group; }
 }
 """
+).substitute(
+    text=_TEXT_HEX,
+    muted=_MUTED_HEX,
+    border=_BORDER_HEX,
+    surface=_SURFACE_HEX,
+    zebra=_ZEBRA_HEX,
+    accent=_ACCENT_HEX,
+    code_bg=_CODE_BG_HEX,
+    quote_bar=_QUOTE_BAR_HEX,
+    success=_SUCCESS_HEX,
+    warning=_WARNING_HEX,
+    error=_ERROR_HEX,
+    accent_tint=_ACCENT_TINT_HEX,
+    success_tint=_SUCCESS_TINT_HEX,
+    warning_tint=_WARNING_TINT_HEX,
+    error_tint=_ERROR_TINT_HEX,
+    **{f"h{level}": scale for level, scale in _HEADING_SCALES.items()},
+)
 
 
 def _find_close(
@@ -296,6 +521,33 @@ def _find_close(
     return len(tokens) - 1
 
 
+def _cell_alignment(style: str) -> Pango.Alignment:
+    if "center" in style:
+        return Pango.Alignment.CENTER
+    if "right" in style:
+        return Pango.Alignment.RIGHT
+    return Pango.Alignment.LEFT
+
+
+@dataclass
+class _TableCell:
+    markup: str
+    align: Pango.Alignment
+
+
+@dataclass
+class _TableRow:
+    cells: list[_TableCell]
+    header: bool
+
+
+@dataclass
+class _CellLines:
+    cell: _TableCell
+    width: float
+    lines: list[tuple[Any, int, int, int]]
+
+
 class _PdfWriter:
     def __init__(
         self,
@@ -303,18 +555,21 @@ class _PdfWriter:
         *,
         base_dir: Path | None,
         base_file: Gio.File | None,
+        title: str = "",
     ) -> None:
         self.surface = surface
         self.cr = cairo.Context(surface)
         self.base_dir = base_dir
         self.base_file = base_file
+        self.title = title
         self.parser = create_parser()
         self.renderer = MarkdownRenderer()
         self.page = 0
         self.started = False
         self.y = _PAGE_MARGIN
         self.content_width = _PAGE_WIDTH - 2 * _PAGE_MARGIN
-        self._bars: list[dict[str, float]] = []
+        self._bars: list[dict[str, Any]] = []
+        self._muted_depth = 0
 
     # -- page management -------------------------------------------------
 
@@ -337,13 +592,28 @@ class _PdfWriter:
         self._set_color(_TEXT_COLOR)
 
     def _draw_footer(self) -> None:
-        layout = PangoCairo.create_layout(self.cr)
-        layout.set_font_description(Pango.FontDescription("Sans 8"))
-        layout.set_text(str(self.page), -1)
-        width, _height = layout.get_pixel_size()
+        baseline = _PAGE_HEIGHT - 34
         self.cr.save()
+        self._set_color(_BORDER_COLOR)
+        self.cr.set_line_width(0.5)
+        self.cr.move_to(_PAGE_MARGIN, baseline - 10)
+        self.cr.line_to(_PAGE_WIDTH - _PAGE_MARGIN, baseline - 10)
+        self.cr.stroke()
         self._set_color(_MUTED_COLOR)
-        self.cr.move_to((_PAGE_WIDTH - width) / 2, _PAGE_HEIGHT - 30)
+        if self.title:
+            layout = self._layout(
+                GLib.markup_escape_text(self.title),
+                self.content_width - 40,
+                size=_FOOTER_FONT_SIZE,
+            )
+            layout.set_ellipsize(Pango.EllipsizeMode.END)
+            self.cr.move_to(_PAGE_MARGIN, baseline)
+            PangoCairo.show_layout(self.cr, layout)
+        layout = self._layout(
+            str(self.page), self.content_width, size=_FOOTER_FONT_SIZE
+        )
+        width, _height = layout.get_pixel_size()
+        self.cr.move_to(_PAGE_WIDTH - _PAGE_MARGIN - width, baseline)
         PangoCairo.show_layout(self.cr, layout)
         self.cr.restore()
 
@@ -354,6 +624,17 @@ class _PdfWriter:
         if self.y + height > _PAGE_HEIGHT - _PAGE_MARGIN:
             self._new_page()
 
+    def _draw_heading_rule(self, indent: float) -> None:
+        self.y += 3
+        self.cr.save()
+        self._set_color(_BORDER_COLOR)
+        self.cr.set_line_width(0.7)
+        self.cr.move_to(_PAGE_MARGIN + indent, self.y)
+        self.cr.line_to(_PAGE_WIDTH - _PAGE_MARGIN, self.y)
+        self.cr.stroke()
+        self.cr.restore()
+        self.y += 3
+
     # -- text layout -----------------------------------------------------
 
     def _layout(
@@ -361,9 +642,10 @@ class _PdfWriter:
         markup: str,
         width: float,
         *,
-        size: float = 11,
+        size: float = _BODY_FONT_SIZE,
         monospace: bool = False,
         bold: bool = False,
+        align: Pango.Alignment = Pango.Alignment.LEFT,
     ):
         layout = PangoCairo.create_layout(self.cr)
         description = Pango.FontDescription()
@@ -373,6 +655,7 @@ class _PdfWriter:
             description.set_weight(Pango.Weight.BOLD)
         layout.set_font_description(description)
         layout.set_width(max(1, int(width * Pango.SCALE)))
+        layout.set_alignment(align)
         layout.set_wrap(
             Pango.WrapMode.CHAR if monospace else Pango.WrapMode.WORD_CHAR
         )
@@ -386,7 +669,7 @@ class _PdfWriter:
         indent: float = 0,
         spacing_before: float = 0,
         spacing_after: float = 0,
-        background: bool = False,
+        color: tuple[float, float, float] = _TEXT_COLOR,
     ) -> None:
         self.y += spacing_before
         _width, height = layout.get_pixel_size()
@@ -394,7 +677,7 @@ class _PdfWriter:
         lines = layout.get_lines()
         if height <= available or len(lines) <= 1:
             self._ensure_space(height)
-            self._draw_layout_whole(layout, indent, background)
+            self._draw_layout_whole(layout, indent, color)
             self.y += spacing_after
             return
 
@@ -403,48 +686,41 @@ class _PdfWriter:
             line_height = max(1, logical.height)
             if self.y + line_height > _PAGE_HEIGHT - _PAGE_MARGIN:
                 self._new_page()
-            if background:
-                self._draw_background(indent, line_height + 2)
             self.cr.save()
-            self.cr.move_to(_PAGE_MARGIN + indent, self.y)
+            self._set_color(color)
+            self.cr.move_to(
+                _PAGE_MARGIN + indent, self.y - logical.y
+            )
             PangoCairo.show_layout_line(self.cr, line)
             self.cr.restore()
             self.y += line_height
         self.y += spacing_after
 
-    def _draw_layout_whole(self, layout, indent: float, background: bool) -> None:
+    def _draw_layout_whole(
+        self,
+        layout,
+        indent: float,
+        color: tuple[float, float, float],
+    ) -> None:
         _width, height = layout.get_pixel_size()
-        if background:
-            self._draw_background(indent, height + 4)
         self.cr.save()
+        self._set_color(color)
         self.cr.move_to(_PAGE_MARGIN + indent, self.y)
         PangoCairo.show_layout(self.cr, layout)
         self.cr.restore()
         self.y += height
-
-    def _draw_background(self, indent: float, height: float) -> None:
-        self.cr.save()
-        self.cr.set_source_rgb(0.94, 0.945, 0.95)
-        self.cr.rectangle(
-            _PAGE_MARGIN + indent - 6,
-            self.y - 2,
-            self.content_width - indent + 12,
-            height,
-        )
-        self.cr.fill()
-        self.cr.restore()
 
     def _draw_text(
         self,
         markup: str,
         *,
         indent: float = 0,
-        size: float = 11,
+        size: float = _BODY_FONT_SIZE,
         monospace: bool = False,
         bold: bool = False,
         spacing_before: float = 0,
         spacing_after: float = 6,
-        background: bool = False,
+        align: Pango.Alignment = Pango.Alignment.LEFT,
     ) -> None:
         layout = self._layout(
             markup,
@@ -452,13 +728,14 @@ class _PdfWriter:
             size=size,
             monospace=monospace,
             bold=bold,
+            align=align,
         )
         self._draw_layout(
             layout,
             indent=indent,
             spacing_before=spacing_before,
             spacing_after=spacing_after,
-            background=background,
+            color=_MUTED_COLOR if self._muted_depth else _TEXT_COLOR,
         )
 
     # -- blocks ----------------------------------------------------------
@@ -483,15 +760,20 @@ class _PdfWriter:
                     level = 1
                     if len(token.tag) == 2 and token.tag[0] == "h":
                         level = int(token.tag[1])
-                    sizes = {1: 22, 2: 17, 3: 14, 4: 12, 5: 11, 6: 11}
+                    heading_size = _BODY_FONT_SIZE * _HEADING_SCALES.get(
+                        level, 1.0
+                    )
+                    self._ensure_space(heading_size * 1.6 + 24)
                     self._draw_text(
                         self._inline(inline),
                         indent=indent,
-                        size=sizes.get(level, 11),
+                        size=heading_size,
                         bold=True,
-                        spacing_before=12 if level <= 2 else 7,
-                        spacing_after=5,
+                        spacing_before=14 if level <= 2 else 8,
+                        spacing_after=2 if level <= 2 else 5,
                     )
+                    if level <= 2:
+                        self._draw_heading_rule(indent)
                 index += 3
             elif kind == "paragraph_open":
                 inline = tokens[index + 1] if index + 1 < end else None
@@ -515,7 +797,13 @@ class _PdfWriter:
                     tokens, index, "blockquote_open", "blockquote_close"
                 )
                 self._start_bar(indent + 3)
-                self.blocks(tokens, index + 1, close, indent=indent + 14)
+                self._muted_depth += 1
+                try:
+                    self.blocks(
+                        tokens, index + 1, close, indent=indent + 14
+                    )
+                finally:
+                    self._muted_depth -= 1
                 self._end_bar()
                 index = close + 1
                 first_prefix = None
@@ -540,7 +828,12 @@ class _PdfWriter:
                     and tokens[index + 1].type == "alert_title_open"
                 ):
                     content_start = index + 4
-                self._start_bar(indent + 3)
+                bar_color = {
+                    "TIP": _SUCCESS_COLOR,
+                    "WARNING": _WARNING_COLOR,
+                    "CAUTION": _ERROR_COLOR,
+                }.get(alert_kind, _ACCENT_COLOR)
+                self._start_bar(indent + 3, bar_color)
                 self.blocks(
                     tokens, content_start, close, indent=indent + 10
                 )
@@ -554,7 +847,7 @@ class _PdfWriter:
             elif kind == "hr":
                 self._ensure_space(12)
                 self.cr.save()
-                self.cr.set_source_rgb(0.75, 0.75, 0.78)
+                self._set_color(_BORDER_COLOR)
                 self.cr.set_line_width(0.8)
                 self.cr.move_to(_PAGE_MARGIN + indent, self.y + 4)
                 self.cr.line_to(
@@ -623,12 +916,11 @@ class _PdfWriter:
         self.y += 4
         return close + 1
 
-    def _table(
-        self, tokens: list[Token], start: int, indent: float
-    ) -> int:
-        close = _find_close(tokens, start, "table_open", "table_close")
-        rows: list[list[str]] = []
-        current: list[str] | None = None
+    def _table_rows(
+        self, tokens: list[Token], start: int, close: int
+    ) -> list[_TableRow]:
+        rows: list[_TableRow] = []
+        current: list[_TableCell] | None = None
         header = False
         index = start + 1
         while index < close:
@@ -638,40 +930,300 @@ class _PdfWriter:
                 header = False
             elif kind in ("th_open", "td_open"):
                 inline = tokens[index + 1] if index + 1 < close else None
-                if inline is not None and inline.type == "inline":
-                    markup = self._inline(inline)
-                    if kind == "th_open":
+                if inline is not None and inline.type != "inline":
+                    inline = None
+                markup = self._inline(inline) if inline is not None else ""
+                if kind == "th_open":
+                    header = True
+                    if markup.strip():
                         markup = f"<b>{markup}</b>"
-                        header = True
-                    current = current if current is not None else []
-                    current.append(markup)
-                index += 1
+                if current is None:
+                    current = []
+                align = _cell_alignment(
+                    tokens[index].attrs.get("style", "")
+                )
+                current.append(_TableCell(markup, align))
             elif kind == "tr_close":
-                if current:
-                    rows.append(current)
+                if current is not None:
+                    rows.append(_TableRow(current, header))
                 current = None
             index += 1
+        return rows
 
+    def _natural_width(self, markup: str, size: float) -> int:
+        layout = self._layout(markup or " ", self.content_width, size=size)
+        layout.set_width(-1)
+        width, _height = layout.get_pixel_size()
+        return width
+
+    def _table_column_widths(
+        self, rows: list[_TableRow], columns: int, available: float
+    ) -> list[float]:
+        natural = [0.0] * columns
         for row in rows:
-            markup = "   |   ".join(row)
-            self._draw_text(
-                markup,
-                indent=indent,
-                size=9.5,
-                spacing_before=2,
-                spacing_after=2,
+            for index, cell in enumerate(row.cells[:columns]):
+                natural[index] = max(
+                    natural[index],
+                    float(
+                        self._natural_width(cell.markup, _TABLE_FONT_SIZE)
+                        + 2 * _TABLE_PAD_X
+                    ),
+                )
+        if columns <= 0:
+            return []
+        if _TABLE_MIN_COLUMN * columns >= available:
+            return [available / columns] * columns
+        widths = [max(_TABLE_MIN_COLUMN, value) for value in natural]
+        total = sum(widths)
+        if total < available:
+            extra = available - total
+            weights = [value if value > 0 else 1.0 for value in natural]
+            weight_total = sum(weights) or float(columns)
+            widths = [
+                width + extra * weight / weight_total
+                for width, weight in zip(widths, weights)
+            ]
+        elif total > available:
+            # Keep narrow columns at their natural width and cap only the
+            # wide ones, instead of shrinking every column proportionally.
+            low = _TABLE_MIN_COLUMN
+            high = max(widths)
+            for _attempt in range(40):
+                cap = (low + high) / 2
+                if sum(min(width, cap) for width in widths) > available:
+                    high = cap
+                else:
+                    low = cap
+            widths = [min(width, low) for width in widths]
+        total = sum(widths)
+        if total <= 0:
+            return [available / columns] * columns
+        widths = [width * available / total for width in widths]
+        widths[-1] += available - sum(widths)
+        return widths
+
+    def _table_row_layouts(
+        self, row: _TableRow, widths: list[float]
+    ) -> list[_CellLines]:
+        result: list[_CellLines] = []
+        for cell, width in zip(row.cells, widths):
+            layout = self._layout(
+                cell.markup or " ",
+                max(1.0, width - 2 * _TABLE_PAD_X),
+                size=_TABLE_FONT_SIZE,
             )
-            if header:
-                self._ensure_space(6)
-                self.cr.save()
-                self.cr.set_source_rgb(0.75, 0.75, 0.78)
-                self.cr.set_line_width(0.6)
-                self.cr.move_to(_PAGE_MARGIN + indent, self.y)
-                self.cr.line_to(_PAGE_WIDTH - _PAGE_MARGIN, self.y)
-                self.cr.stroke()
-                self.cr.restore()
-                header = False
-        self.y += 6
+            lines = []
+            for line in layout.get_lines():
+                logical = line.get_pixel_extents()[1]
+                lines.append(
+                    (
+                        line,
+                        max(1, logical.height),
+                        logical.width,
+                        -logical.y,
+                    )
+                )
+            result.append(_CellLines(cell, width, lines))
+        return result
+
+    def _table_slice_height(
+        self, cells: list[_CellLines], start: int = 0, end: int | None = None
+    ) -> float:
+        heights = [
+            sum(
+                height
+                for _line, height, _width, _top in cell.lines[start:end]
+            )
+            for cell in cells
+        ]
+        return max(heights, default=0) + 2 * _TABLE_PAD_Y
+
+    def _table_row_height(self, cells: list[_CellLines]) -> float:
+        return self._table_slice_height(cells)
+
+    def _draw_table_grid(
+        self,
+        x: float,
+        top: float,
+        widths: list[float],
+        height: float,
+    ) -> None:
+        right = x + sum(widths)
+        self.cr.save()
+        self._set_color(_BORDER_COLOR)
+        self.cr.set_line_width(_TABLE_LINE_WIDTH)
+        self.cr.move_to(x, top)
+        self.cr.line_to(right, top)
+        self.cr.move_to(x, top + height)
+        self.cr.line_to(right, top + height)
+        edge = x
+        for width in widths:
+            self.cr.move_to(edge, top)
+            self.cr.line_to(edge, top + height)
+            edge += width
+        self.cr.move_to(edge, top)
+        self.cr.line_to(edge, top + height)
+        self.cr.stroke()
+        self.cr.restore()
+
+    def _draw_table_row(
+        self,
+        cells: list[_CellLines],
+        widths: list[float],
+        x: float,
+        *,
+        header: bool,
+        zebra: bool,
+        start: int = 0,
+        end: int | None = None,
+    ) -> None:
+        height = self._table_slice_height(cells, start, end)
+        top = self.y
+        fill = _SURFACE_COLOR if header else (_ZEBRA_COLOR if zebra else None)
+        if fill is not None:
+            self.cr.save()
+            self.cr.set_source_rgb(*fill)
+            self.cr.rectangle(x, top, sum(widths), height)
+            self.cr.fill()
+            self.cr.restore()
+        cell_x = x
+        for cell in cells:
+            content_width = max(1.0, cell.width - 2 * _TABLE_PAD_X)
+            self.cr.save()
+            self.cr.rectangle(cell_x, top, cell.width, height)
+            self.cr.clip()
+            self._set_color(
+                _MUTED_COLOR if self._muted_depth else _TEXT_COLOR
+            )
+            line_y = top + _TABLE_PAD_Y
+            for line, line_height, line_width, line_top in cell.lines[
+                start:end
+            ]:
+                if cell.cell.align == Pango.Alignment.CENTER:
+                    offset = max(0.0, (content_width - line_width) / 2)
+                elif cell.cell.align == Pango.Alignment.RIGHT:
+                    offset = max(0.0, content_width - line_width)
+                else:
+                    offset = 0.0
+                self.cr.move_to(
+                    cell_x + _TABLE_PAD_X + offset, line_y + line_top
+                )
+                PangoCairo.show_layout_line(self.cr, line)
+                line_y += line_height
+            self.cr.restore()
+            cell_x += cell.width
+        self._draw_table_grid(x, top, widths, height)
+        self.y += height
+
+    def _table(
+        self, tokens: list[Token], start: int, indent: float
+    ) -> int:
+        close = _find_close(tokens, start, "table_open", "table_close")
+        rows = self._table_rows(tokens, start, close)
+        if not rows:
+            return close + 1
+        columns = max((len(row.cells) for row in rows), default=0)
+        if columns == 0:
+            return close + 1
+        for row in rows:
+            while len(row.cells) < columns:
+                row.cells.append(_TableCell("", Pango.Alignment.LEFT))
+        widths = self._table_column_widths(
+            rows, columns, self.content_width - indent
+        )
+        x = _PAGE_MARGIN + indent
+        bottom = _PAGE_HEIGHT - _PAGE_MARGIN
+        self.y += _TABLE_MARGIN_TOP
+
+        header_cells = None
+        header_height = 0.0
+        if rows[0].header:
+            header_cells = self._table_row_layouts(rows[0], widths)
+            header_height = self._table_row_height(header_cells)
+            if self.y + header_height > bottom:
+                self._new_page()
+
+        for row_index, row in enumerate(rows):
+            cells = self._table_row_layouts(row, widths)
+            row_height = self._table_row_height(cells)
+            is_header = row.header
+            zebra = not is_header and row_index % 2 == 0
+            if (
+                self.y + row_height > bottom
+                and self.y > _PAGE_MARGIN + 0.5
+                and row_height <= bottom - _PAGE_MARGIN
+            ):
+                self._new_page()
+                if header_cells is not None and not is_header:
+                    self._draw_table_row(
+                        header_cells, widths, x, header=True, zebra=False
+                    )
+
+            start_line = 0
+            total_lines = max(
+                (len(cell.lines) for cell in cells), default=1
+            )
+            while True:
+                remaining = bottom - self.y
+                if (
+                    start_line == 0
+                    and self._table_slice_height(cells) <= remaining
+                ):
+                    self._draw_table_row(
+                        cells,
+                        widths,
+                        x,
+                        header=is_header,
+                        zebra=zebra,
+                    )
+                    break
+                fit = 0
+                for count in range(1, total_lines - start_line + 1):
+                    if (
+                        self._table_slice_height(
+                            cells, start_line, start_line + count
+                        )
+                        <= remaining
+                    ):
+                        fit = count
+                    else:
+                        break
+                if fit == 0:
+                    minimum_y = _PAGE_MARGIN + 0.5
+                    if header_cells is not None and not is_header:
+                        minimum_y += header_height
+                    if self.y > minimum_y:
+                        self._new_page()
+                        if header_cells is not None and not is_header:
+                            self._draw_table_row(
+                                header_cells,
+                                widths,
+                                x,
+                                header=True,
+                                zebra=False,
+                            )
+                        continue
+                    fit = 1
+                end_line = start_line + fit
+                self._draw_table_row(
+                    cells,
+                    widths,
+                    x,
+                    header=is_header,
+                    zebra=zebra,
+                    start=start_line,
+                    end=end_line,
+                )
+                start_line = end_line
+                if start_line >= total_lines:
+                    break
+                self._new_page()
+                if header_cells is not None and not is_header:
+                    self._draw_table_row(
+                        header_cells, widths, x, header=True, zebra=False
+                    )
+
+        self.y += _TABLE_MARGIN_BOTTOM
         return close + 1
 
     def _footnotes(
@@ -683,7 +1235,7 @@ class _PdfWriter:
         self._draw_text(
             _("Footnotes"),
             indent=indent,
-            size=13,
+            size=_BODY_FONT_SIZE * _HEADING_SCALES[3],
             bold=True,
             spacing_before=10,
             spacing_after=4,
@@ -708,36 +1260,102 @@ class _PdfWriter:
             index = footnote_close + 1
         return close + 1
 
+    def _rounded_rect(
+        self, x: float, y: float, width: float, height: float, radius: float
+    ) -> None:
+        radius = min(radius, width / 2, height / 2)
+        cr = self.cr
+        cr.new_sub_path()
+        cr.arc(x + width - radius, y + radius, radius, -math.pi / 2, 0)
+        cr.arc(
+            x + width - radius,
+            y + height - radius,
+            radius,
+            0,
+            math.pi / 2,
+        )
+        cr.arc(
+            x + radius,
+            y + height - radius,
+            radius,
+            math.pi / 2,
+            math.pi,
+        )
+        cr.arc(x + radius, y + radius, radius, math.pi, 3 * math.pi / 2)
+        cr.close_path()
+
+    def _draw_rounded_box(
+        self, x: float, y: float, width: float, height: float
+    ) -> None:
+        self.cr.save()
+        self._rounded_rect(x, y, width, height, _CODE_RADIUS)
+        self.cr.set_source_rgb(*_SURFACE_COLOR)
+        self.cr.fill_preserve()
+        self._set_color(_BORDER_COLOR)
+        self.cr.set_line_width(0.8)
+        self.cr.stroke()
+        self.cr.restore()
+
     def _draw_code(self, text: str, indent: float) -> None:
-        self.y += 6
+        layouts: list[tuple[Any, float]] = []
+        available = self.content_width - indent - 2 * _CODE_PAD_X
         for line in text.rstrip("\n").split("\n"):
             markup = GLib.markup_escape_text(line) or " "
             layout = self._layout(
                 markup,
-                self.content_width - indent - 16,
-                size=9,
+                available,
+                size=_CODE_FONT_SIZE,
                 monospace=True,
             )
             _width, height = layout.get_pixel_size()
-            height = max(height, 12)
-            if self.y + height + 4 > _PAGE_HEIGHT - _PAGE_MARGIN:
+            layouts.append((layout, max(height, 12.0)))
+
+        self.y += _CODE_MARGIN_TOP
+        index = 0
+        while index < len(layouts):
+            group: list[tuple[Any, float]] = []
+            total = 0.0
+            while index < len(layouts):
+                layout, height = layouts[index]
+                if (
+                    group
+                    and self.y + total + height + 2 * _CODE_PAD_Y
+                    > _PAGE_HEIGHT - _PAGE_MARGIN
+                ):
+                    break
+                group.append((layout, height))
+                total += height
+                index += 1
+            box_height = total + 2 * _CODE_PAD_Y
+            box_x = _PAGE_MARGIN + indent
+            box_width = self.content_width - indent
+            if (
+                self.y + box_height > _PAGE_HEIGHT - _PAGE_MARGIN
+                and self.y > _PAGE_MARGIN + 0.5
+            ):
                 self._new_page()
-            self.cr.save()
-            self.cr.set_source_rgb(0.94, 0.945, 0.95)
-            self.cr.rectangle(
-                _PAGE_MARGIN + indent,
-                self.y - 2,
-                self.content_width - indent,
-                height + 4,
-            )
-            self.cr.fill()
-            self.cr.restore()
-            self.cr.save()
-            self.cr.move_to(_PAGE_MARGIN + indent + 8, self.y)
-            PangoCairo.show_layout(self.cr, layout)
-            self.cr.restore()
-            self.y += height + 2
-        self.y += 8
+            self._draw_rounded_box(box_x, self.y, box_width, box_height)
+            line_y = self.y + _CODE_PAD_Y
+            for layout, height in group:
+                self.cr.save()
+                self.cr.rectangle(
+                    box_x + _CODE_PAD_X,
+                    self.y,
+                    max(1.0, box_width - 2 * _CODE_PAD_X),
+                    box_height,
+                )
+                self.cr.clip()
+                self._set_color(
+                    _MUTED_COLOR if self._muted_depth else _TEXT_COLOR
+                )
+                self.cr.move_to(box_x + _CODE_PAD_X, line_y)
+                PangoCairo.show_layout(self.cr, layout)
+                self.cr.restore()
+                line_y += height
+            self.y += box_height + _CODE_MARGIN_BOTTOM
+            if index < len(layouts):
+                self._new_page()
+                self.y += _CODE_MARGIN_TOP
 
     def _draw_image(self, token: Token, indent: float) -> None:
         source = token.attrGet("src") or ""
@@ -783,31 +1401,59 @@ class _PdfWriter:
 
         image_width = surface.get_width()
         image_height = surface.get_height()
-        self._ensure_space(image_height + 10)
+        caption_space = 24 if alt.strip() else 10
+        self._ensure_space(image_height + caption_space)
+        available = self.content_width - indent
+        offset = max(0.0, (available - image_width) / 2)
         self.cr.save()
-        self.cr.translate(_PAGE_MARGIN + indent, self.y)
+        self.cr.translate(_PAGE_MARGIN + indent + offset, self.y)
         self.cr.set_source_surface(surface, 0, 0)
         self.cr.paint()
         self.cr.restore()
         self.y += image_height + 8
+        if alt.strip():
+            self._draw_text(
+                GLib.markup_escape_text(alt),
+                indent=indent,
+                size=_CAPTION_FONT_SIZE,
+                spacing_before=0,
+                spacing_after=8,
+                align=Pango.Alignment.CENTER,
+            )
 
-    def _start_bar(self, indent: float) -> None:
-        self._bars.append({"indent": indent, "start_y": self.y})
+    def _start_bar(
+        self,
+        indent: float,
+        color: tuple[float, float, float] = _QUOTE_BAR_COLOR,
+    ) -> None:
+        self._bars.append(
+            {"indent": indent, "start_y": self.y, "color": color}
+        )
 
     def _end_bar(self) -> None:
         bar = self._bars.pop()
-        self._draw_bar(bar["indent"], bar["start_y"], self.y)
+        self._draw_bar(
+            bar["indent"], bar["start_y"], self.y, bar["color"]
+        )
 
     def _finish_page_bars(self) -> None:
         bottom = _PAGE_HEIGHT - _PAGE_MARGIN
         for bar in self._bars:
-            self._draw_bar(bar["indent"], bar["start_y"], bottom)
+            self._draw_bar(
+                bar["indent"], bar["start_y"], bottom, bar["color"]
+            )
 
-    def _draw_bar(self, indent: float, start_y: float, end_y: float) -> None:
+    def _draw_bar(
+        self,
+        indent: float,
+        start_y: float,
+        end_y: float,
+        color: tuple[float, float, float] = _QUOTE_BAR_COLOR,
+    ) -> None:
         if end_y <= start_y:
             return
         self.cr.save()
-        self.cr.set_source_rgb(0.72, 0.72, 0.75)
+        self._set_color(color)
         self.cr.rectangle(
             _PAGE_MARGIN + indent, start_y, 2, end_y - start_y
         )
@@ -816,7 +1462,10 @@ class _PdfWriter:
 
     def _inline(self, token: Token) -> str:
         return _ANCHOR_TAG.sub(
-            "", self.renderer.inline_token_markup(token)
+            "",
+            self.renderer.inline_token_markup(
+                token, code_background=_CODE_BG_HEX
+            ),
         )
 
     def _sole_image(self, token: Token) -> Token | None:
@@ -853,7 +1502,11 @@ def write_pdf(
             str(temporary), _PAGE_WIDTH, _PAGE_HEIGHT
         )
         surface.set_metadata(cairo.PDF_METADATA_TITLE, title)
-        writer = _PdfWriter(surface, base_dir=base_dir, base_file=base_file)
+        surface.set_metadata(cairo.PDF_METADATA_CREATOR, "MD Split")
+        surface.set_metadata(cairo.PDF_METADATA_SUBJECT, title)
+        writer = _PdfWriter(
+            surface, base_dir=base_dir, base_file=base_file, title=title
+        )
         tokens = writer.parser.parse(text)
         writer.start()
         writer.blocks(tokens, 0, len(tokens))

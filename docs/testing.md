@@ -79,8 +79,9 @@ Headless tests cover pure logic and file/resource behavior:
   callback handling
 - editing helpers: wrapping, link completion, list continuation, formatting
 - parser output, escaped Pango markup, path containment and underline nesting
-- standalone HTML and PDF export, extension handling, PDF page-spanning quote
-  bars, and cleanup on failure
+- standalone HTML and PDF export, extension handling, figures and print rules,
+  full-width PDF table grids, repeated table headers, row splitting,
+  page-spanning quote bars, and cleanup on failure
 - packaged GResource content, icons, demo, UI files, and the Meson source list
 - desktop, AppStream, and schema validation
 
@@ -117,6 +118,21 @@ GTK_IM_MODULE=gtk-im-context-simple xvfb-run --auto-servernum python3 scripts/te
 5. Run the focused target, then the full suite.
 
 See [architecture.md](architecture.md) for where each behavior belongs.
+
+## Manual export QA
+
+Headless tests assert export structure, but styling changes still need a visual
+pass:
+
+1. Open a document with a short table, a long table, a tall cell, code,
+   quotes, alerts and an image, then export both HTML and PDF.
+2. HTML: check the measure, link treatment, table borders and zebra rows,
+   figure captions, callout backgrounds, and print preview at A4 and Letter.
+3. PDF: check the same table rules, header repetition after a page break, row
+   splitting for tall cells, rounded code boxes, quote/alert bars, centered
+   images with captions, and the title/page-number footer.
+4. Confirm exports stay light-themed and no cell text is clipped or overlaps a
+   neighbouring row.
 
 ## CI
 

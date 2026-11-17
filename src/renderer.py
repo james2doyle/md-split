@@ -197,14 +197,22 @@ class MarkdownRenderer:
             return ""
         return self._render_inline(tokens[0])
 
-    def inline_token_markup(self, token: Token, *, dark: bool = False) -> str:
+    def inline_token_markup(
+        self,
+        token: Token,
+        *,
+        dark: bool = False,
+        code_background: str | None = None,
+    ) -> str:
         """Convert an existing inline token to Pango markup."""
         self._dark = dark
         self._base_dir = None
         self._base_file = None
         self._on_internal_link = None
         self._on_external_link = None
-        self._code_background = "#3d3f42" if dark else "#eceff1"
+        self._code_background = code_background or (
+            "#3d3f42" if dark else "#eceff1"
+        )
         self._muted_color = "#9a9a9a" if dark else "#77767b"
         return self._render_inline(token)
 

@@ -79,6 +79,18 @@ with tempfile.TemporaryDirectory() as tmp:
     assert "<script>alert" not in html
     assert "<style>" in html and "@media print" in html
     assert "Tiny dot" in html
+    assert "<figure><img" in html
+    assert "<figcaption>Tiny dot</figcaption></figure>" in html
+    assert "@page" in html
+    assert "break-inside: avoid" in html
+    assert "nth-child(even)" in html
+    inline_image = render_html(
+        "Text before ![Tiny dot](dot.png) after",
+        title="Inline image",
+        base_dir=root,
+    )
+    assert "<figure>" not in inline_image, inline_image
+    assert "<p>Text before" in inline_image, inline_image
 
     unsafe = render_html(
         "[bad](javascript:alert)\n\n"
@@ -152,6 +164,92 @@ with tempfile.TemporaryDirectory() as tmp:
     assert data.startswith(b"%PDF"), data[:8]
     assert len(data) > 500
 
+    # Tables become a real grid: full content width, header fill and
+    # borders, per-column alignment, and a repeated header on later pages.
+    probe_surface = exporting_module.cairo.PDFSurface(
+        str(root / "probe.pdf"),
+        exporting_module._PAGE_WIDTH,
+        exporting_module._PAGE_HEIGHT,
+    )
+    probe = exporting_module._PdfWriter(
+        probe_surface, base_dir=root, base_file=None, title="Probe"
+    )
+    probe_tokens = probe.parser.parse(
+        "| Name | Value |\n| :--- | ---: |\n| Alpha | 1 |\n"
+    )
+    probe_rows = probe._table_rows(probe_tokens, 0, len(probe_tokens))
+    assert probe_rows[0].header and not probe_rows[1].header
+    assert (
+        probe_rows[1].cells[1].align
+        == exporting_module.Pango.Alignment.RIGHT
+    )
+    probe_widths = probe._table_column_widths(
+        probe_rows, 2, probe.content_width
+    )
+    assert abs(sum(probe_widths) - probe.content_width) < 0.01
+    probe_surface.finish()
+
+    grids = []
+    original_grid = exporting_module._PdfWriter._draw_table_grid
+
+    def record_grid(self, x, top, widths, height):
+        grids.append((x, top, list(widths), height))
+        return original_grid(self, x, top, widths, height)
+
+    exporting_module._PdfWriter._draw_table_grid = record_grid
+    try:
+        grid_pdf = root / "grid.pdf"
+        write_pdf(
+            "| Name | Value |\n"
+            "|------|------:|\n"
+            "| Alpha | 1 |\n"
+            "| Beta | 2 |\n",
+            grid_pdf,
+            title="Grid",
+        )
+    finally:
+        exporting_module._PdfWriter._draw_table_grid = original_grid
+    assert grids
+    for x, _top, grid_widths, height in grids:
+        assert height > 0
+        assert abs(sum(grid_widths) - probe.content_width) < 0.01
+        assert abs(x - exporting_module._PAGE_MARGIN) < 0.01
+
+    long_rows = "\n".join(
+        f"| Row {index} | {'text ' * 8} |" for index in range(80)
+    )
+    long_table = (
+        "| Name | Value |\n|------|------|\n" + long_rows + "\n"
+    )
+    header_pages = []
+    original_row = exporting_module._PdfWriter._draw_table_row
+
+    def record_row(self, cells, widths, x, **kwargs):
+        if kwargs.get("header"):
+            header_pages.append(self.page)
+        return original_row(self, cells, widths, x, **kwargs)
+
+    exporting_module._PdfWriter._draw_table_row = record_row
+    try:
+        table_pdf = root / "table.pdf"
+        table_pages = write_pdf(
+            long_table, table_pdf, title="Long table"
+        )
+    finally:
+        exporting_module._PdfWriter._draw_table_row = original_row
+    assert table_pages > 1, table_pages
+    assert len(set(header_pages)) > 1, header_pages
+
+    # A single cell taller than a page is split instead of overflowing.
+    huge_row = " ".join(f"word{index}" for index in range(1200))
+    huge_pdf = root / "huge-table.pdf"
+    huge_pages = write_pdf(
+        f"| Name | Value |\n|------|------|\n| {huge_row} | 1 |\n",
+        huge_pdf,
+        title="Huge row",
+    )
+    assert huge_pages > 1, huge_pages
+
     long_pdf = root / "long.pdf"
     long_pages = write_pdf(
         "\n\n".join(f"Paragraph {index} " + "text " * 40 for index in range(80)),
@@ -167,9 +265,11 @@ with tempfile.TemporaryDirectory() as tmp:
     bars = []
     original_bar = exporting_module._PdfWriter._draw_bar
 
-    def record_bar(self, indent, start_y, end_y):
+    def record_bar(self, indent, start_y, end_y, color=None):
         bars.append((self.page, start_y, end_y))
-        return original_bar(self, indent, start_y, end_y)
+        if color is None:
+            return original_bar(self, indent, start_y, end_y)
+        return original_bar(self, indent, start_y, end_y, color)
 
     exporting_module._PdfWriter._draw_bar = record_bar
     try:

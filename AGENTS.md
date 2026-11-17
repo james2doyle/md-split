@@ -204,6 +204,12 @@ settings.set_string('view-mode', 'source')
 - HTML/PDF export and document decode run on daemon threads. Do not touch GTK
   from those workers; marshal results back with `GLib.idle_add` and start file
   writes on the main loop.
+- Export colors and type scale live in one block in `src/exporting.py`; the
+  generated CSS and the PDF writer both read it. Add new export colors there
+  instead of introducing a second color literal.
+- `PangoCairo.show_layout_line()` puts the current point on the line baseline,
+  not its top. Offset by `-line.get_pixel_extents()[1].y` when paginating or
+  drawing table cells, or text is clipped and rows overlap.
 - Python debug logging is enabled with `MD_SPLIT_DEBUG=1`. `G_MESSAGES_DEBUG`
   belongs to GLib and does not change the app's log level.
 - If a UI change does not show up, touch the `.blp` or remove stale
