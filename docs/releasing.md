@@ -89,6 +89,32 @@ The archive must have a top-level directory (`--prefix=...`). Flatpak strips
 one leading path component when extracting; without it the source tree is
 flattened and Meson fails with `first statement must be a call to project()`.
 
+## AppImage release build
+
+The AppImage is built from the tagged source in an Ubuntu 26.04 container. The
+build script reads the version from `pyproject.toml`; set `VERSION` only when
+testing a tag checkout whose version matches.
+
+```sh
+export VERSION=1.0.0
+
+./scripts/build-appimage.sh
+sha256sum "dist/md_split-$VERSION-x86_64.AppImage"
+```
+
+The artifact is written to `dist/md_split-$VERSION-x86_64.AppImage`. It bundles
+the app, Python, GTK, libadwaita, GtkSourceView, Pycairo, GSettings schemas,
+icons, translations, libspelling and an English dictionary. See
+[appimage.md](appimage.md) for the runtime behavior, FUSE fallback and limits.
+
+Smoke-test the artifact without installing it:
+
+```sh
+APPIMAGE="dist/md_split-$VERSION-x86_64.AppImage"
+"$APPIMAGE" --appimage-extract
+./squashfs-root/AppRun --help
+```
+
 ## Verify and install
 
 ```sh
@@ -132,8 +158,10 @@ The workflow:
 - builds the Flatpak with `--buildtype=release`;
 - installs the built bundle into a temporary `FLATPAK_USER_DIR` and smoke-runs
   `flatpak run com.james2doyle.MdSplit --help`;
-- uploads the source archive, release manifest, bundle, and `SHA256SUMS` to a
-  GitHub Release;
+- builds the AppImage in an Ubuntu 26.04 container, extracts it, and
+  smoke-runs `AppRun --help` plus an Xvfb launch;
+- uploads the source archive, release manifest, Flatpak, AppImage, and
+  `SHA256SUMS` to a GitHub Release;
 - updates assets with `--clobber` if the release already exists, making
   re-runs safe.
 

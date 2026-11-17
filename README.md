@@ -52,7 +52,8 @@ has no runtime Python dependencies beyond PyGObject.
 
 - [Architecture](docs/architecture.md) — module map, edit-to-preview flow, file I/O, rendering, and scroll sync
 - [Testing](docs/testing.md) — test matrix, headless/display behavior, Xvfb, and adding tests
-- [Release builds](docs/releasing.md) — tagged source archives, native release builds, and Flatpak bundles
+- [Release builds](docs/releasing.md) — tagged source archives, native release builds, Flatpak bundles, and AppImages
+- [AppImage](docs/appimage.md) — container build, bundled runtime, verification, and limits
 - [Flathub checklist](docs/flathub.md) — AppStream, icons, pinned sources, permissions, and submission
 - [Security model](docs/security.md) — raw HTML, links, remote images, limits, and export
 - [Settings](docs/settings.md) — GSettings keys, defaults, persistence, and CLI overrides
@@ -73,6 +74,7 @@ has no runtime Python dependencies beyond PyGObject.
 - `gettext` (`msgfmt`); optional validators: `desktop-file-validate`,
   `appstreamcli`, `glib-compile-schemas`
 - `flatpak` and `flatpak-builder` for packaging
+- podman or Docker for AppImage builds
 
 The Markdown parser is vendored; install no parser packages.
 
@@ -254,6 +256,19 @@ The development manifest builds from the working tree and allows network
 access so remote Markdown images can load when explicitly enabled. For a
 reproducible release build, a local `.flatpak` bundle, and Flathub notes, see
 [docs/releasing.md](docs/releasing.md).
+
+## AppImage
+
+```sh
+./scripts/build-appimage.sh
+./dist/md_split-*-x86_64.AppImage
+```
+
+The AppImage build runs in an Ubuntu 26.04 container and bundles Python,
+GTK 4, libadwaita, GtkSourceView 5, Pycairo and the optional spell-check
+backend. It requires podman or Docker and network access. See
+[docs/appimage.md](docs/appimage.md) for the runtime contents, FUSE fallback,
+and limitations.
 
 ## Third-party licenses
 

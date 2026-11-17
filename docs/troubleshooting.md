@@ -118,6 +118,29 @@ the app still starts, but the export action reports an error. Install the
 system package (for example `python3-cairo` on Fedora) or use the Flatpak
 runtime, which includes it. A failed write removes its temporary file.
 
+## The AppImage does not start
+
+If the AppImage reports that FUSE is unavailable, run it with the embedded
+runtime:
+
+```sh
+./dist/md_split-*.AppImage --appimage-extract-and-run
+```
+
+The release workflow uses `--appimage-extract` and runs
+`squashfs-root/AppRun` directly, which avoids FUSE entirely. If GTK reports a
+missing display or graphics library, confirm the host has working X11 or
+Wayland and GPU drivers; the AppImage intentionally uses host graphics
+drivers.
+
+## AppImage build fails
+
+`scripts/build-appimage.sh` requires podman or Docker, network access, and a
+working Ubuntu 26.04 container. Remove `packaging/appimage/AppDir` and
+`packaging/appimage/appimage-build` before retrying a failed run. The script
+pins `appimage-builder` 1.1.0. See the container output for missing packages
+or key-verification errors.
+
 ## Spell checking is unavailable
 
 MD Split disables spell checking when libspelling, its provider, or a

@@ -176,7 +176,8 @@ settings.set_string('view-mode', 'source')
 [Scripts] scripts/test.py (sanitized test runner), dev.py, scripts/init.py
 [CI] .github/workflows/ci.yml, .github/workflows/release.yml
 [Docs] README.md, AGENTS.md, CONTRIBUTING.md, docs/*.md
-[Packaging] meson.build, src/meson.build, com.james2doyle.MdSplit.json
+[Packaging] meson.build, src/meson.build, com.james2doyle.MdSplit.json,
+  packaging/appimage/AppImageBuilder.yml, scripts/build-appimage.sh
 ```
 
 ## Gotchas
@@ -227,5 +228,8 @@ settings.set_string('view-mode', 'source')
 - Recovery drafts and backups are state files under
   `$XDG_STATE_HOME/md-split`, not settings. Keep their writes atomic and their
   permissions private.
+- The installed launcher resolves `share/md_split` and translations from
+  `APPDIR` when it is set. Preserve that relocation path for AppImage builds;
+  system and Flatpak installs use the configured prefix.
 - If a UI change does not show up, touch the `.blp` or remove stale
   `build/src/*.ui`; `ninja -C build -d explain` shows why.

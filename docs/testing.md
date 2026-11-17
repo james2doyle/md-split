@@ -62,6 +62,18 @@ Display tests call `Gtk.init_check()` and exit with status 77 when no display
 is available, so `python3 scripts/test.py` still passes on a headless machine
 (those targets report as skipped).
 
+## Packaging smoke tests
+
+The Flatpak release job builds the bundle, installs it into a temporary
+`FLATPAK_USER_DIR`, and runs `flatpak run com.james2doyle.MdSplit --help`.
+
+The AppImage release job builds in an Ubuntu 26.04 container, extracts the
+artifact with `--appimage-extract`, checks `squashfs-root/AppRun --help`, and
+starts `examples/demo.md` under Xvfb. The launch is expected to keep running,
+so a timeout exit status is success. `scripts/build-appimage.sh` itself only
+builds and writes the artifact; run the extract-and-help check manually when
+testing outside CI.
+
 ## Sanitized environment
 
 `scripts/test.py` deliberately forwards only a small allowlist of environment
