@@ -10,15 +10,22 @@ checklist, not a certification or a completed audit.
 - `F9` cycles both/source/preview; the View Mode menu exposes the same choices.
 - Formatting shortcuts: `Ctrl+B`, `Ctrl+I`, `Ctrl+U`, `Ctrl+T`, and
   `` Ctrl+` ``.
+- `Ctrl+F`, `Ctrl+G`, `Ctrl+Shift+G`, and `Ctrl+H` open find, find next,
+  find previous, and replace. Escape closes the search bar and returns focus to
+  the editor.
 - `Ctrl+,` opens Preferences; `Ctrl+?` opens the shortcuts dialog.
 - `Ctrl+Q` quits with the normal dirty-document confirmation.
 - Preferences closes with Escape, the close button, or a click outside.
 - The editor receives focus on launch; preview-only mode focuses the preview.
+- Opening find from preview-only mode shows the source pane until the search
+  bar closes.
 
 ## Focus and names
 
-- Icon-only header buttons have tooltips and action names: Open, Save, View
-  Mode, Main Menu.
+- Icon-only header buttons have tooltips and action names: Open, Save, Recent
+  Files, View Mode, Main Menu.
+- Search option buttons use text labels and tooltips; the search entry has a
+  placeholder and the match count is a read-only label.
 - The preferences dialog's close button has a tooltip and the standard
   window-close icon.
 - Preview images use their Markdown alt text as a caption, and image fallbacks
@@ -52,8 +59,9 @@ The preview is a native widget tree, not a web view:
 
 Before a release with UI changes, test:
 
-1. **Keyboard only:** open, edit, save, switch view mode, open preferences,
-   close dialogs, and quit without a pointer.
+1. **Keyboard only:** open, edit, save, find and replace, switch view mode,
+   open preferences, dismiss recovery and external-change dialogs, and quit
+   without a pointer.
 2. **Screen reader:** run Orca and check the window title, header buttons,
    editor, preview links, status bar, and preferences labels.
 3. **Text scaling:** set a large text scale or font size and confirm labels do

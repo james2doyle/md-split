@@ -27,12 +27,18 @@ has no runtime Python dependencies beyond PyGObject.
 - Selection wrapping for brackets, braces, backticks and quotes
 - Automatic list continuation on Return and `[]` to `[]()` completion
 - Bold, italic, underline, block quote and code formatting shortcuts
+- In-document find and replace with case, whole-word, regex and wrap options
+- Selection counts and document or selection reading time in the status bar
+- Autosave recovery drafts, startup recovery, and optional timestamped backups
+- Session restore, recent files, and a clear-recent action
+- External file-change warnings with reload or keep-editing choices
+- Spell checking with libspelling and a system dictionary when available
 - Standalone HTML and styled PDF export, with extension enforcement and
   overwrite confirmation
 - Command-line view and appearance overrides
 - Open, save and save-as with UTF-8 files
 - Unsaved-change prompts, window geometry and preview state persistence
-- Word and character counts plus cursor position in the status bar
+- Cursor position in the status bar
 - Copy-code buttons in code block headers
 - Command-line file opening and `%F` desktop integration
 - Raw HTML is disabled by default for safe previewing; a balanced,
@@ -59,6 +65,7 @@ has no runtime Python dependencies beyond PyGObject.
 - GTK 4 and libadwaita 1.9+ (the Flatpak runtime provides 1.10)
 - GtkSourceView 5
 - Pycairo for PDF export
+- Optional: libspelling with a system dictionary for spell checking
 - `meson`, `ninja`, `blueprint-compiler`
 - `gettext` (`msgfmt`); optional validators: `desktop-file-validate`,
   `appstreamcli`, `glib-compile-schemas`
@@ -95,6 +102,10 @@ without extra environment setup.
 | Ctrl+O | Open |
 | Ctrl+S | Save |
 | Ctrl+Shift+S | Save As |
+| Ctrl+F | Find |
+| Ctrl+G | Find next |
+| Ctrl+Shift+G | Find previous |
+| Ctrl+H | Replace |
 | F9 | Cycle view mode |
 | Ctrl+B | Bold |
 | Ctrl+I | Italic |

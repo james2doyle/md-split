@@ -82,6 +82,18 @@ changes, so a late write cannot be applied to the wrong file.
 The preview shows a paused state rather than attempting to render an
 oversized document. Large-document word counting is also paused.
 
+## Local state
+
+- Recovery drafts and timestamped backups live under
+  `$XDG_STATE_HOME/md-split` with mode `0600`. Drafts contain unsaved document
+  text and are removed after a successful save or explicit discard.
+- Session and recent-file settings store paths only. They contain no document
+  text and are not sent anywhere.
+- File monitoring uses `Gio.FileMonitor` locally. External changes prompt the
+  user; the app never reloads over unsaved text without confirmation.
+- Spell checking uses the system libspelling and dictionary provider. Personal
+  dictionary entries are managed by that provider.
+
 ## Export
 
 HTML export produces a standalone document with embedded CSS. Local images are

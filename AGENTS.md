@@ -149,11 +149,16 @@ settings.set_string('view-mode', 'source')
 ```text
 [UI] src/window.blp, src/preferences-dialog.blp, src/shortcuts-dialog.blp;
   generated: build/src/*.ui
-[App] src/main.py (application/actions/icons), src/window.py (window/file I/O),
+[App] src/main.py (application/actions/icons, session/recent/recovery),
+  src/window.py (window/file I/O, search, autosave, file monitor, spell check),
   src/logging_utils.py (known GTK warning filter)
-[Model] src/document.py (text, file, dirty state), src/fileio.py (async I/O)
+[Model] src/document.py (text, file, dirty state, counts, reading time),
+  src/fileio.py (async I/O)
+[State] src/session.py (session/recent paths), src/recovery.py (drafts/backups),
+  src/filechanges.py (external-change decisions)
+[Spell] src/spellcheck.py (optional libspelling backend)
 [Paths] src/paths.py (document-directory containment, export extensions)
-[Edit] src/editing.py (surround/link completion/formatting)
+[Edit] src/editing.py (surround/link completion/formatting/search)
 [Preview] src/renderer.py (tokens -> widgets), src/markdown_view.py (scroll/theme),
   src/markdown_parser.py (shared GFM parser)
 [Export] src/exporting.py (standalone HTML and styled PDF)
@@ -163,6 +168,7 @@ settings.set_string('view-mode', 'source')
 [Vendor] src/vendor/markdown_it, mdit_py_plugins, mdurl, LICENSES
 [Tests] tests/test_document.py, test_markdown.py, test_fileio.py,
   test_editing.py, test_lists.py, test_export.py, test_logging.py,
+  test_filechanges.py, test_session.py, test_recovery.py, test_spellcheck.py,
   test_resources.py (headless);
   test_renderer.py, test_window.py, test_lifecycle.py, test_preferences.py,
   test_view_modes.py, test_cli.py, test_scroll_sync.py, test_images.py (display)
@@ -212,5 +218,10 @@ settings.set_string('view-mode', 'source')
   drawing table cells, or text is clipped and rows overlap.
 - Python debug logging is enabled with `MD_SPLIT_DEBUG=1`. `G_MESSAGES_DEBUG`
   belongs to GLib and does not change the app's log level.
+- Spell checking is optional. Check the provider's language count, not only the
+  `Spelling` GI namespace; the host can load the typelib without dictionaries.
+- Recovery drafts and backups are state files under
+  `$XDG_STATE_HOME/md-split`, not settings. Keep their writes atomic and their
+  permissions private.
 - If a UI change does not show up, touch the `.blp` or remove stale
   `build/src/*.ui`; `ninja -C build -d explain` shows why.

@@ -38,6 +38,10 @@ xvfb-run --auto-servernum python3 scripts/test.py
 | Validate schema file | Headless |
 | Document model | Headless |
 | File I/O | Headless |
+| External file changes | Headless |
+| Session helpers | Headless |
+| Recovery helpers | Headless |
+| Spell-check helpers | Headless |
 | Editing helpers | Headless |
 | List continuation | Headless |
 | Packaged resources | Headless |
@@ -77,7 +81,12 @@ Headless tests cover pure logic and file/resource behavior:
 - `Document` state, dirty tracking, counts, and file association
 - async UTF-8 load/save limits, ETags, worker-thread decoding, and stale
   callback handling
-- editing helpers: wrapping, link completion, list continuation, formatting
+- editing helpers: wrapping, link completion, list continuation, formatting,
+  search matching, and replace-all
+- recovery draft write/read/clear, backup retention, session path pruning, and
+  recent-file ordering
+- external-change event classification and self-save filtering
+- spell-check language choice and missing-backend fallback
 - parser output, escaped Pango markup, path containment and underline nesting
 - standalone HTML and PDF export, extension handling, figures and print rules,
   full-width PDF table grids, repeated table headers, row splitting,
@@ -93,6 +102,9 @@ Display tests construct GTK widgets in-process and inspect:
 
 - preview widget trees, links, images, theme changes, and nested list indentation
 - window lifecycle, focus, view modes, preview render counts, and paned positions
+- selection statistics, reading time, find/replace, and search-bar focus
+- autosave drafts, recovery prompts, session restore, and recent-file menus
+- external-change prompts and spell-check no-backend fallback
 - preferences bindings and dialog dismissal
 - CLI parsing and application action state
 - scroll synchronization, allocation-time restore, and feedback suppression

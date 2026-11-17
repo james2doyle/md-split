@@ -19,6 +19,16 @@ Settings use the GSettings schema `com.james2doyle.MdSplit` with path
 | `sync-scroll` | bool | `true` | Keep editor and preview scroll positions aligned |
 | `autocomplete-links` | bool | `true` | Expand a typed `[]` to `[]()` |
 | `last-folder` | string | `""` | Last file-chooser directory |
+| `restore-session` | bool | `true` | Reopen file windows from the last session |
+| `session-files` | string list | `[]` | Paths of open file windows from the last run |
+| `session-active` | string | `""` | File that had focus in the last run |
+| `recent-files` | string list | `[]` | Recent paths, newest first |
+| `autosave` | bool | `true` | Write recovery drafts while editing |
+| `autosave-interval` | int | `30` | Seconds between drafts; range 5–300 |
+| `backup-files` | bool | `false` | Keep timestamped backups on save |
+| `backup-retention` | int | `5` | Backups per file; range 1–50 |
+| `spell-check` | bool | `true` | Check spelling when a backend and dictionary exist |
+| `spell-language` | string | `""` | Dictionary code; empty uses the provider default |
 
 ## When values are written
 
@@ -32,6 +42,17 @@ Settings use the GSettings schema `com.james2doyle.MdSplit` with path
   persists the maximum. `paned-position` is only stored while both panes are
   visible.
 - `last-folder` is updated after a file is opened or saved.
+- `session-files` and `session-active` update when a file opens, saves, gains
+  focus, or closes. Missing paths are removed on the next session restore.
+- `recent-files` updates after a file opens or saves. **Clear Recent** empties
+  the list.
+- `restore-session`, `autosave`, `autosave-interval`, `backup-files`,
+  `backup-retention`, `spell-check`, and `spell-language` are bound in the
+  preferences dialog. Numeric rows clamp to the schema ranges. Spell settings
+  have no effect when no dictionary provider is available.
+- Recovery drafts live under
+  `$XDG_STATE_HOME/md-split/recovery`. Timestamped backups live under
+  `$XDG_STATE_HOME/md-split/backups`.
 
 ## Command-line overrides
 

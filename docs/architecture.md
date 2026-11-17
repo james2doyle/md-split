@@ -8,11 +8,15 @@ is a tree of ordinary GTK widgets.
 
 | Module | Responsibility |
 | --- | --- |
-| `src/main.py` | `Adw.Application`, actions, CLI options, icon loading, file activation |
-| `src/window.py` | Window layout, `GtkSource.Buffer`, file dialogs, save queue, preview scheduling, scroll sync, threaded exports |
+| `src/main.py` | `Adw.Application`, actions, CLI options, icon loading, file activation, session restore, recent files, recovery prompts |
+| `src/window.py` | Window layout, `GtkSource.Buffer`, file dialogs, save queue, preview scheduling, scroll sync, search, autosave, file monitoring, spell-check adapter, threaded exports |
 | `src/document.py` | Headless document model: file, text, saved text, dirty state, ETag, counts |
 | `src/fileio.py` | Headless async UTF-8 load/save, 64 MiB input bound, worker-thread decode, atomic replacement |
-| `src/editing.py` | Pure `TextEdit` helpers: wrapping, link completion, formatting, list continuation |
+| `src/filechanges.py` | External file-event classification and prompt decisions |
+| `src/recovery.py` | Recovery drafts, state directories, and bounded timestamped backups |
+| `src/session.py` | Session path pruning, deduplication, and recent-file ordering |
+| `src/spellcheck.py` | Optional libspelling backend, language discovery and fallback |
+| `src/editing.py` | Pure `TextEdit` helpers: wrapping, link completion, formatting, list continuation, search, and replace-all |
 | `src/markdown_parser.py` | Shared `markdown-it-py` + GFM parser configuration |
 | `src/renderer.py` | Markdown tokens to native GTK widgets, links, images, code blocks |
 | `src/markdown_view.py` | Scrollable preview, empty/oversized states, theme rerendering, scroll fraction |
@@ -62,6 +66,11 @@ The editor applies pure `TextEdit` objects from `src/editing.py`. Edits are
 wrapped in `begin_user_action()`/`end_user_action()` so undo restores a
 formatting or list operation as one step.
 
+`src/document.py` counts words and estimates reading time at 200 words per
+minute. CJK characters count individually. The status bar shows document
+totals, or the selected slice while a selection exists; counts above the
+large-document threshold stay paused.
+
 ## File I/O
 
 `src/fileio.py` is GTK-independent and testable headlessly:
@@ -74,6 +83,50 @@ formatting or list operation as one step.
   alive until GIO finishes reading it.
 - The window keeps a serialized save queue and an operation epoch/generation
   counter so stale callbacks cannot apply text to a different document.
+
+## Find and replace
+
+`Gtk.SearchBar` sits above the editor scroller. `GtkSource.SearchSettings` and
+`SearchContext` drive navigation and highlighting; `src/editing.py` mirrors the
+query and provides tested match counting and replace-all behavior. Replace-all
+runs as one `TextEdit` user action, so undo restores the previous text in one
+step. Search state is cleared when the bar closes or the source pane is hidden.
+
+## Recovery and session state
+
+`src/recovery.py` writes recovery drafts and timestamped backups under
+`$XDG_STATE_HOME/md-split`. Draft text and JSON metadata are written atomically
+with mode `0600`. Autosave runs on a daemon thread at the configured interval
+for dirty documents; a generation counter prevents a late draft from
+overwriting a cleared recovery entry.
+
+At startup the application offers each draft for restore or discard. A
+restored file-backed draft loads the on-disk baseline first and then marks the
+draft text dirty. Successful saves and explicit discards clear the matching
+draft.
+
+`src/session.py` prunes and deduplicates saved paths. The application stores
+the open file-backed windows and the active path in GSettings, reopens one
+window per path, and skips missing files with a warning. Recent files share
+the same path list helpers and also feed `Gtk.RecentManager`.
+
+## External file changes
+
+`MdSplitWindow` watches the current file with `Gio.FileMonitor` and
+`WATCH_MOVES`. Events are debounced, filtered by `src/filechanges.py`, and
+compared against the document ETag. The app's own saves set a short ignore
+window and refresh the monitor after save-as. A clean document offers reload or
+keep editing; a dirty document makes reload destructive. Deleted files keep the
+editor text and offer **Save As…**.
+
+## Spell checking
+
+`src/spellcheck.py` loads the optional `Spelling` GI namespace. The feature
+stays disabled when the namespace, provider, or dictionary list is empty, and
+logs one warning that names the missing piece. When available, a
+`Spelling.TextBufferAdapter` supplies the underline tag, right-click
+suggestions, language changes, **Add to Dictionary**, and **Ignore**. The
+adapter is detached on window close.
 
 ## Preview rendering
 

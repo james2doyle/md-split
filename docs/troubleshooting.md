@@ -118,6 +118,45 @@ the app still starts, but the export action reports an error. Install the
 system package (for example `python3-cairo` on Fedora) or use the Flatpak
 runtime, which includes it. A failed write removes its temporary file.
 
+## Spell checking is unavailable
+
+MD Split disables spell checking when libspelling, its provider, or a
+dictionary is missing. Check the backend directly:
+
+```sh
+python3 -c 'import gi; gi.require_version("Spelling", "1"); from gi.repository import Spelling; Spelling.init(); print(Spelling.Checker.get_default().get_provider().list_languages().get_n_items())'
+```
+
+The app logs one `Spell checking disabled` warning at startup that names the
+missing namespace, provider, or dictionary source. Install a dictionary package
+for your locale and reopen the app. The Flatpak runtime has dictionaries, but
+the manifest does not bundle libspelling. If dictionaries live outside the
+standard directories, force detection with `MD_SPLIT_SPELLCHECK=1`.
+
+## Recovery drafts or backups
+
+Drafts and backups live under `$XDG_STATE_HOME/md-split`. Inspect them with:
+
+```sh
+ls "$XDG_STATE_HOME/md-split/recovery"
+ls "$XDG_STATE_HOME/md-split/backups"
+```
+
+A draft is removed after a successful save or when you discard it from the
+recovery prompt. Set `autosave` to false to stop new drafts.
+
+## Session restore or recent files behave unexpectedly
+
+Session paths and recent files are ordinary list settings:
+
+```sh
+gsettings get com.james2doyle.MdSplit session-files
+gsettings get com.james2doyle.MdSplit recent-files
+```
+
+Missing session paths are skipped with a warning and removed on the next
+restore. Use **Clear Recent** in the recent-files menu to empty the recent list.
+
 ## Remote images do not load
 
 Remote images are disabled by default. Enable **Load Remote Images** from the
