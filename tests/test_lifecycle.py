@@ -59,6 +59,7 @@ assert app.settings.get_string("view-mode") == "both"
 assert app.settings.get_boolean("load-demo-on-startup") is True
 assert app.settings.get_boolean("sync-scroll") is True
 assert app.settings.get_boolean("autocomplete-links") is True
+assert app.settings.get_boolean("format-on-save") is True
 assert app.settings.get_boolean("restore-session") is True
 assert app.settings.get_boolean("autosave") is True
 assert app.settings.get_int("autosave-interval") == 30
@@ -68,6 +69,9 @@ assert app.settings.get_boolean("spell-check") is True
 assert app.settings.get_string("spell-language") == ""
 assert app.settings.get_strv("session-files") == []
 assert app.settings.get_strv("recent-files") == []
+
+# Keep save-queue tests focused on serialization, not formatting payloads.
+app.settings.set_boolean("format-on-save", False)
 
 # Quit must request a window close so the dirty-document guard runs.
 close_requests = []
@@ -272,6 +276,15 @@ assert [
 ] == ["<control>h"]
 assert app.lookup_action("find-next") is not None
 assert app.lookup_action("find-previous") is not None
+format_accels = [
+    value.lower()
+    for value in app.get_accels_for_action("app.format-document")
+]
+assert len(format_accels) == 1, format_accels
+assert "<control>" in format_accels[0], format_accels
+assert "<shift>" in format_accels[0], format_accels
+assert format_accels[0].endswith("r"), format_accels
+assert app.lookup_action("format-document") is not None
 assert app.lookup_action("open-recent") is not None
 assert app.lookup_action("clear-recent") is not None
 

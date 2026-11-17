@@ -70,6 +70,11 @@ template $MdSplitPreferencesDialog: Adw.PreferencesDialog {
         title: _("Complete empty links");
         subtitle: _("Turn [] into []() and place the cursor inside the parentheses");
       }
+
+      Adw.SwitchRow switch_format_on_save {
+        title: _("Format Markdown on save");
+        subtitle: _("Normalize headings, lists, tables, and whitespace before writing");
+      }
     }
 
     Adw.PreferencesGroup {

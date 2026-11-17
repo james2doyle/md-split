@@ -55,6 +55,7 @@ assert app.settings.get_string("appearance") == "system"
 assert dialog.switch_sync_scroll.get_active()
 assert dialog.switch_autocomplete_links.get_active()
 assert dialog.switch_restore_session.get_active()
+assert dialog.switch_format_on_save.get_active()
 assert dialog.switch_autosave.get_active()
 assert dialog.spin_autosave_interval.get_value() == 30
 assert not dialog.switch_backups.get_active()
@@ -63,6 +64,9 @@ assert dialog.spin_backup_retention.get_value() == 5
 dialog.switch_restore_session.set_active(False)
 assert app.settings.get_boolean("restore-session") is False
 dialog.switch_restore_session.set_active(True)
+dialog.switch_format_on_save.set_active(False)
+assert app.settings.get_boolean("format-on-save") is False
+dialog.switch_format_on_save.set_active(True)
 dialog.spin_autosave_interval.set_value(45)
 assert app.settings.get_int("autosave-interval") == 45
 app.settings.set_int("autosave-interval", 20)

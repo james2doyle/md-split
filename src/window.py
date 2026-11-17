@@ -31,6 +31,7 @@ from . import (
     editing,
     filechanges,
     fileio,
+    formatting,
     recovery,
     session,
     spellcheck,
@@ -133,6 +134,7 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self._preview_text: str | None = None
         self._file_dialog = None
         self._confirm_dialog = None
+        self._format_dialog = None
         self._error_dialog = None
         self._load_cancellable = None
         self._load_generation = 0
@@ -684,6 +686,156 @@ class MdSplitWindow(Adw.ApplicationWindow):
         finally:
             self._buffer.end_user_action()
         self.editor_view.scroll_mark_onscreen(self._buffer.get_insert())
+
+    # -- formatting ------------------------------------------------------
+
+    def format_document(self) -> None:
+        """Format the selection, or the whole document when nothing is selected."""
+        self._format_scope(confirm=True, notify=True, selection=True)
+
+    def _format_scope(
+        self, *, confirm: bool, notify: bool, selection: bool
+    ) -> bool:
+        bounds = self._buffer.get_selection_bounds() if selection else None
+        if bounds:
+            source = self._buffer.get_text(bounds[0], bounds[1], True)
+            start = bounds[0].get_offset()
+            end = bounds[1].get_offset()
+            scope = "selection"
+        else:
+            source = self.get_text()
+            start = 0
+            end = self._buffer.get_char_count()
+            scope = "document"
+
+        formatted = formatting.format_markdown(
+            source,
+            ensure_final_newline=(
+                scope == "document" or source.endswith("\n")
+            ),
+        )
+        if formatted == source:
+            if notify:
+                self._show_toast(
+                    _("Selection is already formatted")
+                    if scope == "selection"
+                    else _("Document is already formatted")
+                )
+            return False
+
+        summary = formatting.summarize_changes(source, formatted)
+        if confirm and summary.changed_lines > formatting.CONFIRM_CHANGE_LINES:
+            self._confirm_format(scope, source, formatted, summary, start, end)
+            return False
+        self._apply_format(scope, formatted, start, end, notify=notify)
+        return True
+
+    def _confirm_format(
+        self,
+        scope: str,
+        source: str,
+        formatted: str,
+        summary: formatting.ChangeSummary,
+        start: int,
+        end: int,
+    ) -> None:
+        if self._format_dialog is not None:
+            self._format_dialog.present(self)
+            return
+        dialog = Adw.AlertDialog()
+        dialog.set_heading(
+            _("Format Selection")
+            if scope == "selection"
+            else _("Format Document")
+        )
+        dialog.set_body(
+            ngettext(
+                "{n} line will change.",
+                "{n} lines will change.",
+                summary.changed_lines,
+            ).format(n=summary.changed_lines)
+        )
+        preview = Gtk.Label(label=summary.preview)
+        preview.set_xalign(0.0)
+        preview.set_wrap(False)
+        preview.add_css_class("monospace")
+        preview.add_css_class("caption")
+        scroller = Gtk.ScrolledWindow()
+        scroller.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+        scroller.set_min_content_height(180)
+        scroller.set_min_content_width(420)
+        scroller.set_has_frame(True)
+        scroller.set_child(preview)
+        dialog.set_extra_child(scroller)
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("format", _("Format"))
+        dialog.set_response_appearance(
+            "format", Adw.ResponseAppearance.SUGGESTED
+        )
+        dialog.set_default_response("format")
+        dialog.set_close_response("cancel")
+        revision = self._document.revision
+
+        def on_response(_dialog, response: str) -> None:
+            self._format_dialog = None
+            if response != "format":
+                return
+            if self._destroyed or self._document.revision != revision:
+                self._show_toast(
+                    _("Document changed; run Format again")
+                )
+                return
+            self._apply_format(
+                scope, formatted, start, end, notify=True
+            )
+
+        dialog.connect("response", on_response)
+        self._format_dialog = dialog
+        dialog.present(self)
+
+    def _apply_format(
+        self,
+        scope: str,
+        formatted: str,
+        start: int,
+        end: int,
+        *,
+        notify: bool,
+    ) -> None:
+        total = self._buffer.get_char_count()
+        start = min(max(0, start), total)
+        end = min(max(start, end), total)
+        insert = self._buffer.get_iter_at_mark(
+            self._buffer.get_insert()
+        ).get_offset()
+        if scope == "selection":
+            selection_start = start
+            selection_end = start + len(formatted)
+        else:
+            if insert <= start:
+                mapped = insert
+            elif insert >= end:
+                mapped = insert - (end - start) + len(formatted)
+            else:
+                mapped = start + len(formatted)
+            selection_start = selection_end = min(
+                mapped, total - (end - start) + len(formatted)
+            )
+        self._apply_text_edit(
+            editing.TextEdit(
+                start,
+                end,
+                formatted,
+                selection_start,
+                selection_end,
+            )
+        )
+        if notify:
+            self._show_toast(
+                _("Formatted selection")
+                if scope == "selection"
+                else _("Formatted document")
+            )
 
     # -- search ----------------------------------------------------------
 
@@ -1789,6 +1941,12 @@ class MdSplitWindow(Adw.ApplicationWindow):
     def _write_file(
         self, file: Gio.File, callback: Callable[[], None] | None
     ) -> None:
+        if (
+            not self._destroyed
+            and not self._loading
+            and self._settings.get_boolean("format-on-save")
+        ):
+            self._format_scope(confirm=False, notify=False, selection=False)
         self._document.set_text(self.get_text())
         self._save_queue.append((file, callback, self._document_epoch))
         self._start_next_save()

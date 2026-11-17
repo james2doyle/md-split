@@ -69,6 +69,11 @@ class MdSplitApplication(Adw.Application):
             ["<control><shift>g"],
         )
         self.create_action("replace", self.on_replace_action, ["<control>h"])
+        self.create_action(
+            "format-document",
+            self.on_format_document_action,
+            ["<control><shift>r"],
+        )
         self.create_action("export-html", self.on_export_html_action)
         self.create_action("export-pdf", self.on_export_pdf_action)
         for name, shortcut in (
@@ -417,6 +422,11 @@ class MdSplitApplication(Adw.Application):
         win = self.props.active_window
         if win is not None:
             win.show_replace()
+
+    def on_format_document_action(self, *_args):
+        win = self.props.active_window
+        if win is not None:
+            win.format_document()
 
     def on_export_html_action(self, *_args):
         win = self.props.active_window

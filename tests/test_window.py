@@ -41,7 +41,7 @@ os.environ.setdefault(
     ),
 )
 
-from src import recovery
+from src import fileio, recovery
 from src.window import MdSplitWindow, _preview_interval
 
 assert _preview_interval(0) == 180
@@ -135,6 +135,79 @@ window._update_stats()
 assert not window.label_stats.get_label().startswith("Selection:")
 assert "6 words" in window.label_stats.get_label(), window.label_stats.get_label()
 
+# Manual formatting is one undo step and updates the whole document.
+window.set_text("#  Heading  #\n\n\n\nbody ")
+window.format_document()
+assert window.get_text() == "# Heading\n\nbody\n", window.get_text()
+window._buffer.undo()
+assert window.get_text() == "#  Heading  #\n\n\n\nbody ", window.get_text()
+
+# Large changes ask for confirmation and cancel leaves the text untouched.
+large_source = "\n".join(f"#  Heading {index}  #" for index in range(10)) + "\n"
+large_expected = (
+    "\n".join(f"# Heading {index}" for index in range(10)) + "\n"
+)
+window.set_text(large_source)
+window.format_document()
+dialog = window._format_dialog
+assert dialog is not None
+assert dialog.get_heading() == "Format Document"
+assert window.get_text() == large_source
+dialog.emit("response", "cancel")
+assert window._format_dialog is None
+assert window.get_text() == large_source
+window.format_document()
+dialog = window._format_dialog
+assert dialog is not None
+dialog.emit("response", "format")
+assert window.get_text() == large_expected, window.get_text()
+
+# A selection formats only its own range.
+window.set_text("before\n#  Selected  #\nafter\n")
+start = len("before\n")
+end = start + len("#  Selected  #")
+window._buffer.select_range(
+    window._buffer.get_iter_at_offset(start),
+    window._buffer.get_iter_at_offset(end),
+)
+window.format_document()
+assert window.get_text() == "before\n# Selected\nafter\n", window.get_text()
+bounds = window._buffer.get_selection_bounds()
+assert bounds
+assert window._buffer.get_text(bounds[0], bounds[1], True) == "# Selected"
+window._buffer.undo()
+assert window.get_text() == "before\n#  Selected  #\nafter\n"
+
+# Format on save rewrites the snapshot before it is written.
+saved_texts = []
+original_save = fileio.save_text_async
+
+
+def capture_format_save(file, text, callback, cancellable=None, etag=None):
+    saved_texts.append(text)
+    callback(None, "etag")
+
+
+fileio.save_text_async = capture_format_save
+try:
+    window._settings.set_boolean("format-on-save", True)
+    window.set_text("#  Saved  #\n")
+    window._write_file(
+        Gio.File.new_for_path("/tmp/opencode/format-on-save.md"), None
+    )
+    assert saved_texts[-1] == "# Saved\n", saved_texts
+    assert window.get_text() == "# Saved\n"
+
+    window._settings.set_boolean("format-on-save", False)
+    window.set_text("#  Keep  #\n")
+    window._write_file(
+        Gio.File.new_for_path("/tmp/opencode/format-on-save.md"), None
+    )
+    assert saved_texts[-1] == "#  Keep  #\n", saved_texts
+finally:
+    window._settings.set_boolean("format-on-save", True)
+    fileio.save_text_async = original_save
+
 # Find and replace wiring.
 assert not window.search_bar.get_search_mode()
 window.show_find()
@@ -178,6 +251,8 @@ window._close_search()
 assert not window.search_bar.get_search_mode()
 
 # External edits prompt once per etag and offer reload/keep choices.
+window._ignore_monitor_until = 0.0
+window._last_prompted_etag = None
 with tempfile.TemporaryDirectory() as tmp:
     external_path = Path(tmp) / "external.md"
     external_path.write_text("base", encoding="utf-8")
@@ -261,6 +336,7 @@ assert open_parameters == ["self", "dialog", "result"], open_parameters
 from src import fileio
 
 window = MdSplitWindow()
+window._settings.set_boolean("format-on-save", False)
 file = Gio.File.new_for_path("/tmp/opencode/test-save-race.md")
 window.document.load("old", file)
 pending_saves = []

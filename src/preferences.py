@@ -35,6 +35,7 @@ class MdSplitPreferencesDialog(Adw.PreferencesDialog):
     combo_spell_language = Gtk.Template.Child("combo_spell_language")
     switch_sync_scroll = Gtk.Template.Child("switch_sync_scroll")
     switch_autocomplete_links = Gtk.Template.Child("switch_autocomplete_links")
+    switch_format_on_save = Gtk.Template.Child("switch_format_on_save")
     switch_remote_images = Gtk.Template.Child("switch_remote_images")
     close_button = Gtk.Template.Child("close_button")
 
@@ -76,6 +77,7 @@ class MdSplitPreferencesDialog(Adw.PreferencesDialog):
             ("spell-check", self.switch_spell_check),
             ("sync-scroll", self.switch_sync_scroll),
             ("autocomplete-links", self.switch_autocomplete_links),
+            ("format-on-save", self.switch_format_on_save),
             ("remote-images", self.switch_remote_images),
         ):
             key = "backup-files" if setting == "backups" else setting
