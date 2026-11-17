@@ -29,15 +29,21 @@ Adw.init()
 resource = Gio.Resource.load(RESOURCE)
 resource._register()
 
-from src import fileio
+from src import APP_ID, fileio
 from src.main import MdSplitApplication
 from src.window import MdSplitWindow
 
 app = MdSplitApplication("test")
 app.register(None)
+app.do_startup()
+
+theme = Gtk.IconTheme.get_for_display(Gdk.Display.get_default())
+assert theme.has_icon(APP_ID)
+assert theme.has_icon(f"{APP_ID}-symbolic")
 
 # Defaults: follow the system theme, load the demo, and enable both helpers.
 assert app.settings.get_string("appearance") == "system"
+assert app.settings.get_string("view-mode") == "both"
 assert app.settings.get_boolean("load-demo-on-startup") is True
 assert app.settings.get_boolean("sync-scroll") is True
 assert app.settings.get_boolean("autocomplete-links") is True
@@ -207,49 +213,6 @@ assert app.lookup_action("preferences") is not None
 assert app.lookup_action("export-html") is not None
 assert app.lookup_action("export-pdf") is not None
 assert app.lookup_action("format-bold") is not None
-
-# The preferences dialog reflects and updates the shared settings.
-from src.preferences import MdSplitPreferencesDialog
-
-parent = MdSplitWindow(application=app)
-parent.present()
-while GLib.MainContext.default().iteration(False):
-    pass
-
-dialog = MdSplitPreferencesDialog()
-dialog.present(parent)
-while GLib.MainContext.default().iteration(False):
-    pass
-assert dialog.appearance_row.get_selected() == 0, dialog.appearance_row.get_selected()
-assert dialog.switch_sync_scroll.get_active()
-assert dialog.switch_autocomplete_links.get_active()
-dialog.switch_sync_scroll.set_active(False)
-assert app.settings.get_boolean("sync-scroll") is False
-dialog.appearance_row.set_selected(1)
-assert app.settings.get_string("appearance") == "light"
-dialog.switch_remote_images.set_active(True)
-assert app.settings.get_boolean("remote-images") is True
-app.settings.set_boolean("remote-images", False)
-app.settings.set_string("appearance", "dark")
-dialog.close()
-while GLib.MainContext.default().iteration(False):
-    pass
-
-dialog = MdSplitPreferencesDialog()
-dialog.present(parent)
-while GLib.MainContext.default().iteration(False):
-    pass
-assert dialog.appearance_row.get_selected() == 2, dialog.appearance_row.get_selected()
-app.settings.set_string("appearance", "system")
-app.settings.set_boolean("sync-scroll", True)
-app.settings.set_boolean("autocomplete-links", True)
-dialog.close()
-while GLib.MainContext.default().iteration(False):
-    pass
-parent._force_close = True
-parent.destroy()
-while GLib.MainContext.default().iteration(False):
-    pass
 
 # Startup loads the bundled demo as clean untitled content when enabled.
 for existing in app.get_windows():

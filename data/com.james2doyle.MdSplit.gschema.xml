@@ -13,8 +13,15 @@
 			<default>540</default>
 			<range min="0" max="4000"/>
 		</key>
-		<key name="show-preview" type="b">
-			<default>true</default>
+		<key name="view-mode" type="s">
+			<summary>Initial view mode</summary>
+			<description>Show both panes, the source editor only, or the preview only.</description>
+			<choices>
+				<choice value="both"/>
+				<choice value="source"/>
+				<choice value="preview"/>
+			</choices>
+			<default>'both'</default>
 		</key>
 		<key name="remote-images" type="b">
 			<summary>Load remote images in the preview</summary>

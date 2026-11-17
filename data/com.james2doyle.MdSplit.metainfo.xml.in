@@ -59,8 +59,8 @@
   <content_rating type="oars-1.1" />
 
   <branding>
-    <color type="primary" scheme_preference="light">#3584e4</color>
-    <color type="primary" scheme_preference="dark">#1c71d8</color>
+    <color type="primary" scheme_preference="light">#3369f4</color>
+    <color type="primary" scheme_preference="dark">#0a1f71</color>
   </branding>
 
   <releases>

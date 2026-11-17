@@ -96,6 +96,22 @@ test('Native Markdown renderer', python3, args: [files('../tests/test_renderer.p
 test('Application lifecycle', python3, args: [files('../tests/test_lifecycle.py')],
   depends: test_schemas,
   env: test_env)
+test('Preferences dialog', python3, args: [files('../tests/test_preferences.py')],
+  depends: test_schemas,
+  env: test_env)
+test('View modes', python3, args: [files('../tests/test_view_modes.py')],
+  depends: test_schemas,
+  env: test_env)
+test('CLI options', python3, args: [files('../tests/test_cli.py')],
+  depends: test_schemas,
+  env: test_env)
+test('List continuation', python3, args: [files('../tests/test_lists.py')],
+  env: test_env)
+test('Scroll sync', python3, args: [files('../tests/test_scroll_sync.py')],
+  depends: test_schemas,
+  env: test_env)
+test('Packaged resources', python3, args: [files('../tests/test_resources.py')],
+  env: test_env)
 test('Remote image policy', python3, args: [files('../tests/test_images.py')],
   env: test_env)
 test('Editing helpers', python3, args: [files('../tests/test_editing.py')],

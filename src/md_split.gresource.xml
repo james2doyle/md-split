@@ -6,5 +6,7 @@
     <file preprocess="xml-stripblanks">window.ui</file>
     <file>style.css</file>
     <file alias="demo.md">examples/demo.md</file>
+    <file alias="icons/scalable/apps/com.james2doyle.MdSplit.svg">data/icons/hicolor/scalable/apps/com.james2doyle.MdSplit.svg</file>
+    <file alias="icons/symbolic/apps/com.james2doyle.MdSplit-symbolic.svg">data/icons/hicolor/symbolic/apps/com.james2doyle.MdSplit-symbolic.svg</file>
   </gresource>
 </gresources>

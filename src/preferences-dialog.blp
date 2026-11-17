@@ -3,10 +3,23 @@ using Adw 1;
 
 template $MdSplitPreferencesDialog: Adw.PreferencesDialog {
   title: _("Preferences");
-  search-enabled: true;
 
-  child: Adw.PreferencesPage {
-    title: _("General");
+  child: Adw.ToolbarView {
+    [top]
+    Adw.HeaderBar {
+      title-widget: Adw.WindowTitle {
+        title: _("Preferences");
+      };
+
+      [end]
+      Button close_button {
+        icon-name: "window-close-symbolic";
+        tooltip-text: _("Close");
+      }
+    }
+
+    content: Adw.PreferencesPage {
+      title: _("General");
 
     Adw.PreferencesGroup {
       title: _("Appearance");
@@ -45,5 +58,6 @@ template $MdSplitPreferencesDialog: Adw.PreferencesDialog {
         subtitle: _("Fetch HTTP and HTTPS images referenced by the document");
       }
     }
+  };
   };
 }

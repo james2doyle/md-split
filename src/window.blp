@@ -31,10 +31,10 @@ template $MdSplitWindow: Adw.ApplicationWindow {
       };
 
       [end]
-      ToggleButton button_preview {
+      MenuButton button_view {
         icon-name: "view-dual-symbolic";
-        tooltip-text: _("Toggle Preview");
-        action-name: "app.toggle-preview";
+        tooltip-text: _("View Mode");
+        menu-model: view_menu;
       }
 
       [end]
@@ -52,7 +52,7 @@ template $MdSplitWindow: Adw.ApplicationWindow {
       shrink-start-child: false;
       shrink-end-child: false;
 
-      start-child: Gtk.Overlay {
+      start-child: Gtk.Overlay editor_pane {
         child: Gtk.ScrolledWindow editor_scroller {
           hscrollbar-policy: never;
           has-frame: false;
@@ -172,8 +172,19 @@ menu main_menu {
   }
   section {
     item {
-      label: _("_Toggle Preview");
-      action: "app.toggle-preview";
+      label: _("Both Panes");
+      action: "app.view-mode";
+      target: "both";
+    }
+    item {
+      label: _("Source Only");
+      action: "app.view-mode";
+      target: "source";
+    }
+    item {
+      label: _("Preview Only");
+      action: "app.view-mode";
+      target: "preview";
     }
     item {
       label: _("Load _Remote Images");
@@ -198,6 +209,26 @@ menu main_menu {
     item {
       label: _("_Quit");
       action: "app.quit";
+    }
+  }
+}
+
+menu view_menu {
+  section {
+    item {
+      label: _("Both Panes");
+      action: "app.view-mode";
+      target: "both";
+    }
+    item {
+      label: _("Source Only");
+      action: "app.view-mode";
+      target: "source";
+    }
+    item {
+      label: _("Preview Only");
+      action: "app.view-mode";
+      target: "preview";
     }
   }
 }

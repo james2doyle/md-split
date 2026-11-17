@@ -13,13 +13,14 @@ gi.require_version("Adw", "1")
 
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
-from . import APP_ID
+from . import APP_ID, VIEW_MODES
 from .preferences import MdSplitPreferencesDialog
 from .window import MdSplitWindow
 
 log = logging.getLogger(__name__)
 
 STYLE_RESOURCE = "/com/james2doyle/MdSplit/style.css"
+ICON_RESOURCE_PATH = "/com/james2doyle/MdSplit/icons"
 
 
 class MdSplitApplication(Adw.Application):
@@ -34,6 +35,10 @@ class MdSplitApplication(Adw.Application):
         self.version = version
         self.settings = Gio.Settings(schema_id=APP_ID)
         self._preferences_dialog = None
+        self._cli_view_mode = None
+        self._cli_color_scheme = None
+        self._register_options()
+        self.connect("handle-local-options", self._on_handle_local_options)
         self._apply_appearance()
         self.settings.connect("changed::appearance", self._on_appearance_changed)
         self.create_action("new", self.on_new_action, ["<control>n"])
@@ -53,11 +58,16 @@ class MdSplitApplication(Adw.Application):
         ):
             self.create_action(name, self.on_format_action, [shortcut])
         self.create_action(
-            "toggle-preview",
-            self.on_toggle_preview_action,
-            ["F9"],
-            state=GLib.Variant.new_boolean(True),
+            "view-mode",
+            self.on_view_mode_action,
+            parameter_type=GLib.VariantType.new("s"),
+            state=GLib.Variant.new_string(
+                self.settings.get_string("view-mode")
+                if self.settings.get_string("view-mode") in VIEW_MODES
+                else "both"
+            ),
         )
+        self.create_action("cycle-view", self.on_cycle_view_action, ["F9"])
         self.create_action(
             "remote-images",
             self.on_remote_images_action,
@@ -72,23 +82,81 @@ class MdSplitApplication(Adw.Application):
         self.create_action("about", self.on_about_action)
         self.settings.connect("changed::remote-images", self._sync_remote_action)
 
-    def _apply_appearance(self) -> None:
-        value = self.settings.get_string("appearance")
-        schemes = {
-            "light": Adw.ColorScheme.FORCE_LIGHT,
-            "dark": Adw.ColorScheme.FORCE_DARK,
-        }
-        Adw.StyleManager.get_default().set_color_scheme(
-            schemes.get(value, Adw.ColorScheme.DEFAULT)
+    def _register_options(self) -> None:
+        for name, description in (
+            ("no-source", _("Start with the preview pane only")),
+            ("no-preview", _("Start with the source pane only")),
+            ("source-only", _("Start with the source pane only")),
+            ("preview-only", _("Start with the preview pane only")),
+            ("light", _("Force light mode for this run")),
+            ("dark", _("Force dark mode for this run")),
+        ):
+            self.add_main_option(
+                name,
+                0,
+                GLib.OptionFlags.NONE,
+                GLib.OptionArg.NONE,
+                description,
+                None,
+            )
+
+    def _on_handle_local_options(self, _app, options) -> int:
+        source_only = options.contains("source-only") or options.contains(
+            "no-preview"
         )
+        preview_only = options.contains("preview-only") or options.contains(
+            "no-source"
+        )
+        if source_only and preview_only:
+            print(
+                _("error: --source-only and --preview-only cannot be combined"),
+                file=sys.stderr,
+            )
+            return 1
+
+        light = options.contains("light")
+        dark = options.contains("dark")
+        if light and dark:
+            print(
+                _("error: --light and --dark cannot be combined"),
+                file=sys.stderr,
+            )
+            return 1
+
+        self._cli_view_mode = (
+            "source" if source_only else "preview" if preview_only else None
+        )
+        if light:
+            self._cli_color_scheme = Adw.ColorScheme.FORCE_LIGHT
+        elif dark:
+            self._cli_color_scheme = Adw.ColorScheme.FORCE_DARK
+        else:
+            self._cli_color_scheme = None
+        self._apply_appearance()
+        return -1
+
+    def _apply_appearance(self) -> None:
+        if self._cli_color_scheme is not None:
+            scheme = self._cli_color_scheme
+        else:
+            value = self.settings.get_string("appearance")
+            schemes = {
+                "light": Adw.ColorScheme.FORCE_LIGHT,
+                "dark": Adw.ColorScheme.FORCE_DARK,
+            }
+            scheme = schemes.get(value, Adw.ColorScheme.DEFAULT)
+        Adw.StyleManager.get_default().set_color_scheme(scheme)
 
     def _on_appearance_changed(self, _settings, _key) -> None:
+        self._cli_color_scheme = None
         self._apply_appearance()
 
     def do_startup(self):
         Adw.Application.do_startup(self)
         display = Gdk.Display.get_default()
         if display is not None:
+            icon_theme = Gtk.IconTheme.get_for_display(display)
+            icon_theme.add_resource_path(ICON_RESOURCE_PATH)
             provider = Gtk.CssProvider()
             provider.load_from_resource(STYLE_RESOURCE)
             Gtk.StyleContext.add_provider_for_display(
@@ -100,7 +168,7 @@ class MdSplitApplication(Adw.Application):
     def do_activate(self):
         win = self.props.active_window
         if win is None:
-            win = MdSplitWindow(application=self)
+            win = self._new_window()
             if self.settings.get_boolean("load-demo-on-startup"):
                 win.load_demo_document()
         win.present()
@@ -113,17 +181,22 @@ class MdSplitApplication(Adw.Application):
         first_window = self._ensure_window()
         windows = [(first_window, files[0])]
         for file in files[1:]:
-            win = MdSplitWindow(application=self)
+            win = self._new_window()
             windows.append((win, file))
 
         for win, file in windows:
             win.open_file(file)
             win.present()
 
+    def _new_window(self) -> MdSplitWindow:
+        return MdSplitWindow(
+            application=self, initial_view_mode=self._cli_view_mode
+        )
+
     def _ensure_window(self) -> MdSplitWindow:
         win = self.props.active_window
         if win is None:
-            win = MdSplitWindow(application=self)
+            win = self._new_window()
         return win
 
     # -- actions ---------------------------------------------------------
@@ -176,17 +249,30 @@ class MdSplitApplication(Adw.Application):
         if self._preferences_dialog is dialog:
             self._preferences_dialog = None
 
-    def on_toggle_preview_action(self, action, _parameter):
-        visible = not action.get_state().get_boolean()
-        action.set_state(GLib.Variant.new_boolean(visible))
+    def on_view_mode_action(self, action, parameter):
+        if parameter is None:
+            return
+        mode = parameter.get_string()
+        if mode not in VIEW_MODES:
+            return
         win = self.props.active_window
         if win is not None:
-            win.set_preview_visible(visible)
+            win.set_view_mode(mode)
+        else:
+            self.settings.set_string("view-mode", mode)
+            self.sync_view_mode(mode)
 
-    def set_preview_visible(self, visible: bool) -> None:
-        action = self.lookup_action("toggle-preview")
-        if action is not None and action.get_state().get_boolean() != visible:
-            action.set_state(GLib.Variant.new_boolean(visible))
+    def on_cycle_view_action(self, *_args):
+        win = self.props.active_window
+        if win is None:
+            return
+        index = VIEW_MODES.index(win.view_mode)
+        win.set_view_mode(VIEW_MODES[(index + 1) % len(VIEW_MODES)])
+
+    def sync_view_mode(self, mode: str) -> None:
+        action = self.lookup_action("view-mode")
+        if action is not None and action.get_state().get_string() != mode:
+            action.set_state(GLib.Variant.new_string(mode))
 
     def on_remote_images_action(self, action, _parameter):
         enabled = not action.get_state().get_boolean()
@@ -227,11 +313,20 @@ class MdSplitApplication(Adw.Application):
         )
         about.present(self.props.active_window)
 
-    def create_action(self, name, callback, shortcuts=None, state=None):
+    def create_action(
+        self,
+        name,
+        callback,
+        shortcuts=None,
+        state=None,
+        parameter_type=None,
+    ):
         if state is None:
-            action = Gio.SimpleAction.new(name, None)
+            action = Gio.SimpleAction.new(name, parameter_type)
         else:
-            action = Gio.SimpleAction.new_stateful(name, None, state)
+            action = Gio.SimpleAction.new_stateful(
+                name, parameter_type, state
+            )
         action.connect("activate", callback)
         self.add_action(action)
         if shortcuts:

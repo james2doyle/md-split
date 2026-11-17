@@ -21,7 +21,7 @@ gi.require_version("GtkSource", "5")
 
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk, GtkSource
 
-from . import APP_ID, editing, fileio
+from . import APP_ID, VIEW_MODES, editing, fileio
 from .document import Document
 from .markdown_view import MarkdownView
 
@@ -64,7 +64,7 @@ class MdSplitWindow(Adw.ApplicationWindow):
     __gtype_name__ = "MdSplitWindow"
 
     window_title = Gtk.Template.Child("window_title")
-    button_preview = Gtk.Template.Child("button_preview")
+    editor_pane = Gtk.Template.Child("editor_pane")
     editor_scroller = Gtk.Template.Child("editor_scroller")
     editor_view = Gtk.Template.Child("editor_view")
     paned = Gtk.Template.Child("paned")
@@ -74,8 +74,9 @@ class MdSplitWindow(Adw.ApplicationWindow):
     label_stats = Gtk.Template.Child("label_stats")
     toast_overlay = Gtk.Template.Child("toast_overlay")
 
-    def __init__(self, **kwargs):
+    def __init__(self, initial_view_mode=None, **kwargs):
         _ensure_gtksource_types()
+        self._initial_view_mode = initial_view_mode
         super().__init__(**kwargs)
         self._settings = Gio.Settings(schema_id=APP_ID)
         self._document = Document()
@@ -96,6 +97,8 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self._force_close = False
         self._focused_once = False
         self._scroll_guard = False
+        self._view_mode = "both"
+        self._saved_paned_position = None
         self._key_controller = None
         self._signal_handlers: list[tuple[object, int]] = []
 
@@ -135,14 +138,8 @@ class MdSplitWindow(Adw.ApplicationWindow):
 
         position = self._settings.get_int("paned-position")
         if position > 0:
+            self._saved_paned_position = position
             GLib.idle_add(self._apply_paned_position, position)
-
-        show_preview = self._settings.get_boolean("show-preview")
-        self.preview_container.set_visible(show_preview)
-        self._preview.set_paused(not show_preview)
-        app = self.get_application()
-        if app is not None:
-            app.set_preview_visible(show_preview)
 
         style_manager = Adw.StyleManager.get_default()
         self._style_handler = style_manager.connect(
@@ -158,6 +155,13 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self._sync_scroll_handler = self._settings.connect(
             "changed::sync-scroll", self._on_sync_scroll_changed
         )
+
+        mode = self._initial_view_mode or self._settings.get_string(
+            "view-mode"
+        )
+        if mode not in VIEW_MODES:
+            mode = "both"
+        self._apply_view_mode(mode, persist=False)
 
     def _connect_signals(self) -> None:
         self._signal_handlers.extend(
@@ -203,7 +207,7 @@ class MdSplitWindow(Adw.ApplicationWindow):
     def _on_map(self, *_args) -> None:
         if not self._focused_once:
             self._focused_once = True
-            self.focus_editor()
+            self.focus_primary_pane()
 
     # -- public API ------------------------------------------------------
 
@@ -253,7 +257,7 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self._set_buffer_text(text)
         self._update_ui(render_preview=True)
         self._buffer.place_cursor(self._buffer.get_start_iter())
-        self.focus_editor()
+        self.focus_primary_pane()
 
     def new_document(self) -> None:
         self._confirm_discard(
@@ -296,15 +300,54 @@ class MdSplitWindow(Adw.ApplicationWindow):
     def save_as_document(self) -> None:
         self._save_as(None)
 
-    def set_preview_visible(self, visible: bool) -> None:
-        self.preview_container.set_visible(visible)
-        self._preview.set_paused(not visible)
-        self._settings.set_boolean("show-preview", visible)
-        if visible:
+    @property
+    def view_mode(self) -> str:
+        return self._view_mode
+
+    def focus_primary_pane(self) -> None:
+        if self._view_mode == "preview":
+            self._preview.grab_focus()
+        else:
+            self.focus_editor()
+
+    def set_view_mode(self, mode: str, *, persist: bool = True) -> None:
+        if mode not in VIEW_MODES:
+            mode = "both"
+        self._apply_view_mode(mode, persist=persist)
+
+    def _apply_view_mode(self, mode: str, *, persist: bool) -> None:
+        if mode != "both" and self._view_mode == "both":
+            position = self.paned.get_position()
+            if position > 0:
+                self._saved_paned_position = position
+        previous = self._view_mode
+        self._view_mode = mode
+
+        source_visible = mode in ("both", "source")
+        preview_visible = mode in ("both", "preview")
+        self.editor_pane.set_visible(source_visible)
+        self.preview_container.set_visible(preview_visible)
+        self._preview.set_paused(not preview_visible)
+        if preview_visible:
             self.flush_preview()
             self._on_editor_scrolled()
         else:
             self._cancel_preview_timeout()
+
+        if mode == "both" and previous != "both":
+            position = self._saved_paned_position
+            if position is not None:
+                GLib.idle_add(self._apply_paned_position, position)
+        if source_visible:
+            self.focus_editor()
+        elif preview_visible:
+            self._preview.grab_focus()
+
+        if persist:
+            self._settings.set_string("view-mode", mode)
+        app = self.get_application()
+        if app is not None:
+            app.sync_view_mode(mode)
 
     # -- editor signals --------------------------------------------------
 
@@ -338,6 +381,16 @@ class MdSplitWindow(Adw.ApplicationWindow):
 
         text = self.get_text()
         bounds = self._buffer.get_selection_bounds()
+        if (
+            not bounds
+            and keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter)
+            and not (state & Gdk.ModifierType.SHIFT_MASK)
+        ):
+            insert = self._buffer.get_iter_at_mark(self._buffer.get_insert())
+            edit = editing.continue_list(text, insert.get_offset())
+            if edit is not None:
+                self._apply_text_edit(edit)
+                return True
         if bounds:
             start_iter, end_iter = bounds
             codepoint = Gdk.keyval_to_unicode(keyval)
@@ -549,7 +602,7 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self._document.reset()
         self._set_buffer_text("")
         self._update_ui(render_preview=True)
-        self.focus_editor()
+        self.focus_primary_pane()
 
     # -- file operations -------------------------------------------------
 
@@ -835,7 +888,7 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self.editor_view.scroll_to_iter(
             self._buffer.get_start_iter(), 0.0, False, 0.0, 0.0
         )
-        self.focus_editor()
+        self.focus_primary_pane()
         if on_loaded is not None:
             on_loaded()
 
@@ -1018,7 +1071,7 @@ class MdSplitWindow(Adw.ApplicationWindow):
             self._settings.set_int("window-width", width)
         if height > 0:
             self._settings.set_int("window-height", height)
-        self._settings.set_int("paned-position", self.paned.get_position())
-        self._settings.set_boolean(
-            "show-preview", self.preview_container.get_visible()
-        )
+        if self._view_mode == "both":
+            self._settings.set_int(
+                "paned-position", self.paned.get_position()
+            )

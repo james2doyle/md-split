@@ -1,10 +1,38 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <rect x="8" y="8" width="112" height="112" rx="24" fill="#3584e4"/>
-  <rect x="24" y="32" width="36" height="64" rx="7" fill="#ffffff"/>
-  <rect x="68" y="32" width="36" height="64" rx="7" fill="#ffffff" opacity="0.92"/>
-  <rect x="31" y="43" width="22" height="4" rx="2" fill="#3584e4"/>
-  <rect x="31" y="52" width="17" height="4" rx="2" fill="#99c1f1"/>
-  <rect x="31" y="61" width="20" height="4" rx="2" fill="#99c1f1"/>
-  <rect x="31" y="70" width="14" height="4" rx="2" fill="#99c1f1"/>
-  <path d="M74 82V58h6l6 9 6-9h6v24h-6V68l-6 8-6-8v14z" fill="#1c71d8"/>
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="39 39 946 946">
+  <defs>
+    <linearGradient id="background" x1="512" y1="39" x2="512" y2="985" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3369f4"/>
+      <stop offset="1" stop-color="#0a1f71"/>
+    </linearGradient>
+    <linearGradient id="page" x1="697.066" y1="238.428" x2="697.066" y2="745.571" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#cfd8ec"/>
+      <stop offset="0.484" stop-color="#fafbff"/>
+      <stop offset="1" stop-color="#cfd8ec"/>
+    </linearGradient>
+  </defs>
+  <rect x="39" y="39" width="946" height="946" rx="200" ry="200" fill="url(#background)"/>
+  <g transform="translate(2 20)">
+    <rect x="132" y="210" width="756" height="564" rx="80" ry="80" fill="#ffffff"/>
+    <path d="M 226 238.428 L 496.133 238.428 L 494.469 745.571 L 226 745.571 C 190.654 745.571 162 716.917 162 681.571 L 162 302.428 C 162 267.082 190.654 238.428 226 238.428 Z" fill="#141728" stroke="#141728" stroke-width="4"/>
+    <g fill="#8b8fa3">
+      <rect x="204" y="318" width="186" height="30" rx="14" fill="#449efc"/>
+      <rect x="204" y="382.8" width="144" height="30" rx="14"/>
+      <rect x="204" y="447.6" width="258" height="30" rx="14" fill="#449efc"/>
+      <rect x="204" y="512.4" width="132" height="30" rx="14"/>
+      <rect x="204" y="577.2" width="186" height="30" rx="14" fill="#9a74fd"/>
+      <rect x="204" y="642" width="150" height="30" rx="14"/>
+    </g>
+    <path d="M 593.999 745.571 L 864.132 745.571 L 862.468 238.428 L 593.999 238.428 C 558.653 238.428 529.999 267.082 529.999 302.428 L 529.999 681.571 C 529.999 716.917 558.653 745.571 593.999 745.571 Z" fill="url(#page)" stroke="#a3adc3" stroke-width="4" paint-order="stroke" transform="matrix(-1 0 0 -1 0 0)" transform-origin="50% 50%" transform-box="fill-box"/>
+    <g>
+      <rect x="564" y="312" width="264" height="186" rx="20" ry="20" fill="#97bcfa"/>
+      <ellipse cx="750" cy="378" rx="24" ry="24" fill="#f9fafe"/>
+      <path d="M 808 498 L 584 498 C 572.954 498 564 489.046 564 478 L 564 470.632 L 630 408 C 630 408 643.199 396 651.572 396 C 660 396 672 408 672 408 L 720.094 456.094 C 720.094 456.094 723.216 459.709 726 459.709 C 728.784 459.709 731.906 456.094 731.906 456.094 L 750 438 C 750 438 761.152 425.189 771.743 425.103 C 787.487 424.974 816.192 470.491 827.408 482.85 C 825.241 491.552 817.373 498 808 498 Z" fill="#4f76b2"/>
+      <g fill="#b6bacd">
+        <rect x="564" y="546" width="264" height="30" rx="14"/>
+        <rect x="564" y="597" width="222" height="30" rx="14"/>
+        <rect x="564" y="648" width="162" height="30" rx="14"/>
+      </g>
+    </g>
+  </g>
 </svg>

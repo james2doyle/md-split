@@ -9,6 +9,7 @@ display and lets the window apply an edit as one undoable user action.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 SURROUND_PAIRS = {
@@ -136,4 +137,74 @@ def toggle_blockquote(text: str, start: int, end: int) -> TextEdit:
         replacement=replacement,
         selection_start=line_start,
         selection_end=line_start + len(replacement),
+    )
+
+
+_BULLET_ITEM = re.compile(r"^([ \t]*)([-+*])([ \t]+)(.*)$")
+_TASK_MARKER = re.compile(r"^(\[[ xX]\][ \t]+)(.*)$")
+_ORDERED_ITEM = re.compile(r"^([ \t]*)(\d+)([.)])([ \t]+)(.*)$")
+
+
+def continue_list(text: str, cursor: int) -> TextEdit | None:
+    """Continue a list item, or exit an empty item, when Return is pressed."""
+    if cursor < 0 or cursor > len(text):
+        return None
+
+    line_start = text.rfind("\n", 0, cursor) + 1
+    line_end = text.find("\n", cursor)
+    if line_end == -1:
+        line_end = len(text)
+    line = text[line_start:line_end]
+    relative = cursor - line_start
+
+    bullet = _BULLET_ITEM.match(line)
+    ordered = _ORDERED_ITEM.match(line)
+    if bullet is not None:
+        indent, marker, _spaces, rest = bullet.groups()
+        marker_end = len(indent) + len(marker) + len(_spaces)
+        task = _TASK_MARKER.match(rest)
+        if task is not None:
+            task_marker, content = task.groups()
+            marker_end += len(task_marker)
+            next_marker = f"{indent}{marker} [ ] "
+        else:
+            content = rest
+            next_marker = f"{indent}{marker} "
+    elif ordered is not None:
+        indent, number, delimiter, _spaces, content = ordered.groups()
+        marker_end = (
+            len(indent) + len(number) + len(delimiter) + len(_spaces)
+        )
+        try:
+            number = int(number) + 1
+        except ValueError:
+            return None
+        next_marker = f"{indent}{number}{delimiter} "
+    else:
+        return None
+
+    if relative < marker_end:
+        return None
+
+    if not content.strip():
+        end = (
+            line_end + 1
+            if line_end < len(text) and text[line_end] == "\n"
+            else line_end
+        )
+        return TextEdit(
+            start=line_start,
+            end=end,
+            replacement="\n",
+            selection_start=line_start + 1,
+            selection_end=line_start + 1,
+        )
+
+    replacement = "\n" + next_marker
+    return TextEdit(
+        start=cursor,
+        end=cursor,
+        replacement=replacement,
+        selection_start=cursor + len(replacement),
+        selection_end=cursor + len(replacement),
     )

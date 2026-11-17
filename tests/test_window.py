@@ -64,9 +64,16 @@ assert "bold" in joined, joined
 assert 'href="https://example.com"' in joined, joined
 assert "WebKit" not in sys.modules, "window must not instantiate a web view"
 
-window.set_preview_visible(False)
+window.set_view_mode("source")
+assert window.editor_pane.get_visible()
 assert not window.preview_container.get_visible()
-window.set_preview_visible(True)
+assert window.preview._paused
+window.set_view_mode("preview")
+assert not window.editor_pane.get_visible()
+assert window.preview_container.get_visible()
+assert not window.preview._paused
+window.set_view_mode("both")
+assert window.editor_pane.get_visible()
 assert window.preview_container.get_visible()
 
 window.destroy()
@@ -134,7 +141,7 @@ finally:
 
 # Hidden previews must not synchronously render or start image requests.
 window = MdSplitWindow()
-window.set_preview_visible(False)
+window.set_view_mode("source")
 rendered = []
 window._preview.set_markdown = lambda *args, **kwargs: rendered.append(True)
 window.set_text("# Hidden")
@@ -158,45 +165,6 @@ assert not window.document.is_dirty
 assert window.document.file is None
 window.set_text(window.get_text() + "\nchanged")
 assert window.document.is_dirty
-window.destroy()
-
-# Scroll sync is bidirectional and can be disabled.
-window = MdSplitWindow()
-window._settings.set_boolean("sync-scroll", True)
-window.set_preview_visible(True)
-assert window._settings.get_boolean("sync-scroll")
-assert window.preview_container.get_visible()
-preview = window._preview
-preview_adjustment = preview.get_vadjustment()
-preview_adjustment.set_upper(2000)
-preview_adjustment.set_page_size(100)
-preview.set_scroll_fraction(0.5)
-assert abs(preview_adjustment.get_value() - 950) < 1
-
-class FakePreview:
-    def __init__(self):
-        self.fraction = None
-
-    def set_scroll_fraction(self, fraction):
-        self.fraction = fraction
-
-fake_preview = FakePreview()
-window._preview = fake_preview  # type: ignore[assignment]
-editor_adjustment = Gtk.Adjustment(
-    value=450, lower=0, upper=1000, step_increment=1, page_increment=10,
-    page_size=100,
-)
-window.editor_scroller.get_vadjustment = lambda: editor_adjustment
-window._on_editor_scrolled()
-assert fake_preview.fraction == 0.5, fake_preview.fraction
-editor_adjustment.set_value(0)
-window._on_preview_scrolled(preview, 0.25)
-assert abs(editor_adjustment.get_value() - 225) < 1
-window._settings.set_boolean("sync-scroll", False)
-fake_preview.fraction = None
-window._on_editor_scrolled()
-assert fake_preview.fraction is None
-window._preview = preview  # type: ignore[assignment]
 window.destroy()
 
 # Typing ] after an empty [ completes a link with the cursor inside ().

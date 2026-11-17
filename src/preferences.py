@@ -9,10 +9,11 @@ from gettext import gettext as _
 import gi
 
 gi.require_version("Gtk", "4.0")
+gi.require_version("Gdk", "4.0")
 gi.require_version("Adw", "1")
 gi.require_version("Gio", "2.0")
 
-from gi.repository import Adw, Gio, Gtk
+from gi.repository import Adw, Gdk, Gio, Gtk
 
 from . import APP_ID
 
@@ -28,6 +29,7 @@ class MdSplitPreferencesDialog(Adw.PreferencesDialog):
     switch_sync_scroll = Gtk.Template.Child("switch_sync_scroll")
     switch_autocomplete_links = Gtk.Template.Child("switch_autocomplete_links")
     switch_remote_images = Gtk.Template.Child("switch_remote_images")
+    close_button = Gtk.Template.Child("close_button")
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -46,6 +48,18 @@ class MdSplitPreferencesDialog(Adw.PreferencesDialog):
         self.appearance_row.connect(
             "notify::selected", self._on_appearance_selected
         )
+        self.close_button.connect("clicked", self._on_close_clicked)
+        click = Gtk.GestureClick()
+        click.set_button(Gdk.BUTTON_PRIMARY)
+        click.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        click.connect("pressed", self._on_background_clicked)
+        self.add_controller(click)
+        self._click_controller = click
+        key = Gtk.EventControllerKey()
+        key.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        key.connect("key-pressed", self._on_key_pressed)
+        self.add_controller(key)
+        self._key_controller = key
 
         for key, row in (
             ("load-demo-on-startup", self.switch_load_demo),
@@ -85,6 +99,39 @@ class MdSplitPreferencesDialog(Adw.PreferencesDialog):
         index = self.appearance_row.get_selected()
         if 0 <= index < len(_APPEARANCES):
             self._settings.set_string("appearance", _APPEARANCES[index])
+
+    def _on_close_clicked(self, _button) -> None:
+        self.close()
+
+    def _on_background_clicked(
+        self, _gesture, _n_press: int, x: float, y: float
+    ) -> None:
+        child = self.get_child()
+        if child is None:
+            return
+        success, bounds = child.compute_bounds(self)
+        if not success:
+            return
+        if (
+            bounds.get_x() <= x < bounds.get_x() + bounds.get_width()
+            and bounds.get_y() <= y < bounds.get_y() + bounds.get_height()
+        ):
+            return
+        self.close()
+
+    def _on_key_pressed(
+        self, _controller, keyval: int, _keycode: int, state: Gdk.ModifierType
+    ) -> bool:
+        modifiers = state & Gtk.accelerator_get_default_mod_mask()
+        blocked = (
+            Gdk.ModifierType.CONTROL_MASK
+            | Gdk.ModifierType.ALT_MASK
+            | Gdk.ModifierType.SUPER_MASK
+        )
+        if keyval == Gdk.KEY_Escape and not (modifiers & blocked):
+            self.close()
+            return True
+        return False
 
     def _on_closed(self, *_args) -> None:
         if self._appearance_handler:

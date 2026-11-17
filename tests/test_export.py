@@ -61,6 +61,19 @@ with tempfile.TemporaryDirectory() as tmp:
     assert "<style>" in html and "@media print" in html
     assert "Tiny dot" in html
 
+    unsafe = render_html(
+        "[bad](javascript:alert)\n\n"
+        "![remote](https://example.com/pic.png)\n\n"
+        "![missing](missing.png)\n",
+        title="Unsafe",
+        base_dir=root,
+    )
+    assert 'href="javascript:' not in unsafe
+    assert "javascript:" in unsafe
+    assert "https://example.com/pic.png" in unsafe
+    assert 'src=""' in unsafe
+    assert "missing" in unsafe
+
     pdf = root / "export.pdf"
     pages = write_pdf(
         "# PDF title\n\n"
@@ -94,5 +107,28 @@ with tempfile.TemporaryDirectory() as tmp:
     )
     assert long_pages > 1, long_pages
     assert long_pdf.read_bytes().startswith(b"%PDF")
+    assert not (root / ".long.pdf.tmp").exists()
+
+    # A failed write removes its temporary file and leaves no target.
+    from src import exporting
+
+    original_blocks = exporting._PdfWriter.blocks
+
+    def fail_blocks(self, *_args, **_kwargs):
+        raise RuntimeError("boom")
+
+    exporting._PdfWriter.blocks = fail_blocks
+    failed = root / "failed.pdf"
+    try:
+        try:
+            write_pdf("content", failed, title="Failed")
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError("write_pdf should have failed")
+    finally:
+        exporting._PdfWriter.blocks = original_blocks
+    assert not (root / ".failed.pdf.tmp").exists()
+    assert not failed.exists()
 
 print("ok: HTML and PDF export")

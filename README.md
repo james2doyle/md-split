@@ -23,10 +23,12 @@ has no runtime Python dependencies beyond PyGObject.
 - System, light and dark appearance with system as the default
 - Optional bundled demo document when opening without a file
 - Synchronized editor/preview scrolling
+- Three view modes: both panes, source only, and preview only
 - Selection wrapping for brackets, braces, backticks and quotes
-- Automatic `[]` to `[]()` completion for links
+- Automatic list continuation on Return and `[]` to `[]()` completion
 - Bold, italic, underline, block quote and code formatting shortcuts
 - Standalone HTML and styled PDF export
+- Command-line view and appearance overrides
 - Open, save and save-as with UTF-8 files
 - Unsaved-change prompts, window geometry and preview state persistence
 - Word and character counts plus cursor position in the status bar
@@ -77,7 +79,7 @@ without extra environment setup.
 | Ctrl+O | Open |
 | Ctrl+S | Save |
 | Ctrl+Shift+S | Save As |
-| F9 | Toggle preview |
+| F9 | Cycle view mode |
 | Ctrl+B | Bold |
 | Ctrl+I | Italic |
 | Ctrl+U | Underline |
@@ -86,6 +88,34 @@ without extra environment setup.
 | Ctrl+, | Preferences |
 | Ctrl+? | Show shortcuts |
 | Ctrl+Q | Quit |
+
+## View modes
+
+The view control in the header and the **View Mode** entries in the main menu
+switch between both panes, source only, and preview only. The choice is stored
+in `view-mode` and restored on the next launch. F9 cycles through the three
+modes.
+
+## Command-line options
+
+```sh
+md_split --preview-only --dark notes.md
+md_split --no-source
+md_split --source-only --light
+```
+
+| Option | Effect |
+| --- | --- |
+| `--no-source` | Start with the preview pane only |
+| `--no-preview` | Start with the source editor only |
+| `--source-only` | Start with the source editor only |
+| `--preview-only` | Start with the preview pane only |
+| `--light` | Force light mode for this run |
+| `--dark` | Force dark mode for this run |
+
+Command-line view modes and appearance overrides apply only to that run; they
+do not overwrite the saved settings. `--source-only` conflicts with
+`--preview-only` (and `--light` with `--dark`).
 
 ## Markdown support
 
@@ -102,6 +132,9 @@ The preview uses the composite GFM plugin from `mdit-py-plugins`:
 - Fenced code blocks with language labels and copy buttons
 - Local and remote images
 - Underline with `<u>...</u>` (the only inline raw HTML tag interpreted)
+
+Pressing Return inside a bullet, ordered, task, or nested list continues the
+list with the next marker; pressing Return on an empty item exits the list.
 
 Relative links and images are resolved against the open document's directory.
 Local images are decoded asynchronously with size and pixel limits. Remote
@@ -155,14 +188,18 @@ No app process is needed. Most tests run completely headless:
 - document model and dirty-state logic
 - Markdown parsing and Pango markup generation
 - asynchronous UTF-8 file loading and saving
-- editing helpers, selection wrapping, and link completion
-- HTML and PDF export, including pagination
+- editing helpers, selection wrapping, link completion, and list continuation
+- HTML and PDF export, including pagination and failure cleanup
+- scroll synchronization and feedback-loop suppression
+- packaged gresource content and the bundled demo
 - desktop/AppStream/schema validators
 
 GUI tests construct widgets and application actions in-process (not a running
 app) to inspect the preview tree, window lifecycle, keyboard focus, scroll
-sync, formatting, preferences, and remote-image policy. They skip themselves
-when no display is available; CI runs them under Xvfb.
+sync, view modes, list continuation, formatting, preferences, and remote-image
+policy. CLI option parsing and action state are covered without launching a
+separate process. GUI tests skip themselves when no display is available; CI
+runs them under Xvfb.
 
 ## Flatpak
 

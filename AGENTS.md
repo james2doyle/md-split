@@ -128,7 +128,7 @@ GSettings access (keys live in `data/com.james2doyle.MdSplit.gschema.xml`):
 
 ```python
 settings = Gio.Settings(schema_id='com.james2doyle.MdSplit')
-settings.set_boolean('show-preview', True)
+settings.set_string('view-mode', 'source')
 ```
 
 ## File index
@@ -143,11 +143,13 @@ settings.set_boolean('show-preview', True)
   src/markdown_parser.py (shared GFM parser)
 [Export] src/exporting.py (standalone HTML and styled PDF)
 [Prefs] src/preferences.py (settings-backed preferences dialog)
-[Data] data/*.gschema.xml, data/*.desktop.in, data/*.metainfo.xml.in
+[Data] data/*.gschema.xml, data/*.desktop.in, data/*.metainfo.xml.in,
+  data/icons/hicolor/*/apps/*.svg
 [Vendor] src/vendor/markdown_it, mdit_py_plugins, mdurl, LICENSES
 [Tests] tests/test_document.py, test_markdown.py, test_fileio.py,
-  test_editing.py, test_export.py (headless); test_renderer.py, test_window.py,
-  test_lifecycle.py, test_images.py (display)
+  test_editing.py, test_lists.py, test_export.py, test_resources.py (headless);
+  test_renderer.py, test_window.py, test_lifecycle.py, test_preferences.py,
+  test_view_modes.py, test_cli.py, test_scroll_sync.py, test_images.py (display)
 [Scripts] scripts/test.py (sanitized test runner), dev.py, scripts/init.py
 [Packaging] meson.build, src/meson.build, com.james2doyle.MdSplit.json
 ```
