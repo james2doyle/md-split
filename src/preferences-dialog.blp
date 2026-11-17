@@ -39,9 +39,50 @@ template $MdSplitPreferencesDialog: Adw.PreferencesDialog {
         subtitle: _("Show the bundled Markdown demo when no file is opened");
       }
 
+      Adw.SwitchRow switch_restore_session {
+        title: _("Restore previous session");
+        subtitle: _("Reopen file windows from the last session when no file is opened");
+      }
+
+      Adw.SwitchRow switch_autosave {
+        title: _("Autosave recovery drafts");
+        subtitle: _("Write unsaved text to the recovery directory while typing");
+      }
+
+      Adw.SpinRow spin_autosave_interval {
+        title: _("Autosave interval");
+        subtitle: _("Seconds between recovery drafts");
+        digits: 0;
+      }
+
+      Adw.SwitchRow switch_backups {
+        title: _("Keep timestamped backups");
+        subtitle: _("Save a copy of the previous text when saving a file");
+      }
+
+      Adw.SpinRow spin_backup_retention {
+        title: _("Backups to keep");
+        subtitle: _("Oldest backups are removed first");
+        digits: 0;
+      }
+
       Adw.SwitchRow switch_autocomplete_links {
         title: _("Complete empty links");
         subtitle: _("Turn [] into []() and place the cursor inside the parentheses");
+      }
+    }
+
+    Adw.PreferencesGroup {
+      title: _("Spelling");
+
+      Adw.SwitchRow switch_spell_check {
+        title: _("Check spelling while typing");
+        subtitle: _("Underline words that are not in the selected dictionary");
+      }
+
+      Adw.ComboRow combo_spell_language {
+        title: _("Language");
+        subtitle: _("Dictionary used for spell checking");
       }
     }
 

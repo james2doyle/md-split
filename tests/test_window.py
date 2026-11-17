@@ -5,7 +5,9 @@ Run via `meson test`; APP_RESOURCE points at the built gresource.
 
 import os
 import sys
+import tempfile
 import threading
+from pathlib import Path
 
 SOURCE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RESOURCE = os.environ.get("APP_RESOURCE")
@@ -32,6 +34,14 @@ Adw.init()
 resource = Gio.Resource.load(RESOURCE)
 resource._register()
 
+os.environ.setdefault(
+    "MD_SPLIT_STATE_DIR",
+    os.path.join(
+        tempfile.gettempdir(), f"md-split-window-state-{os.getpid()}"
+    ),
+)
+
+from src import recovery
 from src.window import MdSplitWindow, _preview_interval
 
 assert _preview_interval(0) == 180
@@ -70,9 +80,24 @@ def wait_until(predicate, timeout_ms=4000):
     assert not state["timed_out"], "timed out waiting for background work"
 
 
+from src import spellcheck
+
 window = MdSplitWindow()
 assert "MD Split" in window.get_title(), window.get_title()
 assert not window.document.is_dirty
+if not spellcheck.backend_available():
+    assert window.spell_adapter is None
+else:
+    assert window.spell_adapter is not None
+    assert window.spell_adapter.get_enabled() is True
+    window._settings.set_boolean("spell-check", False)
+    while GLib.MainContext.default().iteration(False):
+        pass
+    assert not window.spell_adapter.get_enabled()
+    window._settings.set_boolean("spell-check", True)
+    while GLib.MainContext.default().iteration(False):
+        pass
+    assert window.spell_adapter.get_enabled()
 
 window.set_text("# Native preview\n\n**bold** and [link](https://example.com)")
 assert window.get_text().startswith("# Native preview")
@@ -80,6 +105,7 @@ assert window.document.is_dirty
 assert "Untitled.md" in window.window_title.get_title()
 assert "•" in window.window_title.get_title()
 assert "words" in window.label_stats.get_label(), window.label_stats.get_label()
+assert "minute read" in window.label_stats.get_label(), window.label_stats.get_label()
 
 texts = []
 for widget in walk(window.preview):
@@ -91,6 +117,121 @@ assert "Native preview" in joined, joined
 assert "bold" in joined, joined
 assert 'href="https://example.com"' in joined, joined
 assert "WebKit" not in sys.modules, "window must not instantiate a web view"
+
+# Selection statistics replace document totals while text is selected.
+window.set_text("Hello world from the selection test")
+window._buffer.select_range(
+    window._buffer.get_iter_at_offset(0),
+    window._buffer.get_iter_at_offset(11),
+)
+window._update_stats()
+selection_stats = window.label_stats.get_label()
+assert selection_stats.startswith("Selection:"), selection_stats
+assert "2 words" in selection_stats, selection_stats
+assert "11 characters" in selection_stats, selection_stats
+assert "minute read" in selection_stats, selection_stats
+window._buffer.place_cursor(window._buffer.get_end_iter())
+window._update_stats()
+assert not window.label_stats.get_label().startswith("Selection:")
+assert "6 words" in window.label_stats.get_label(), window.label_stats.get_label()
+
+# Find and replace wiring.
+assert not window.search_bar.get_search_mode()
+window.show_find()
+assert window.search_bar.get_search_mode()
+assert not window.replace_row.get_visible()
+window.show_replace()
+assert window.search_bar.get_search_mode()
+assert window.replace_row.get_visible()
+
+window.set_text("one one one")
+window.search_entry.set_text("one")
+window._on_search_changed()
+assert "3 matches" in window.search_status_label.get_label(), (
+    window.search_status_label.get_label()
+)
+window._find_next()
+bounds = window._buffer.get_selection_bounds()
+assert bounds, "find did not select a match"
+assert window._buffer.get_text(bounds[0], bounds[1], True) == "one"
+
+window.replace_entry.set_text("two")
+window._replace_all()
+assert window.get_text() == "two two two", window.get_text()
+window._buffer.undo()
+assert window.get_text() == "one one one", window.get_text()
+
+window._buffer.select_range(
+    window._buffer.get_iter_at_offset(0),
+    window._buffer.get_iter_at_offset(3),
+)
+window._replace_current()
+assert window.get_text() == "two one one", window.get_text()
+window._buffer.undo()
+assert window.get_text() == "one one one", window.get_text()
+
+window.search_entry.set_text("[")
+window.search_regex_button.set_active(True)
+window._on_search_changed()
+assert "Invalid regular expression" in window.search_status_label.get_label()
+window._close_search()
+assert not window.search_bar.get_search_mode()
+
+# External edits prompt once per etag and offer reload/keep choices.
+with tempfile.TemporaryDirectory() as tmp:
+    external_path = Path(tmp) / "external.md"
+    external_path.write_text("base", encoding="utf-8")
+    external = Gio.File.new_for_path(str(external_path))
+    window.document.load("base", external, "old-etag")
+    window._handle_file_change(external, "changed", "new-etag")
+    dialog = window._confirm_dialog
+    assert dialog is not None
+    assert dialog.get_heading() == "File changed on disk"
+    dialog.close()
+    window._confirm_dialog = None
+
+    window._handle_file_change(external, "deleted", None)
+    dialog = window._confirm_dialog
+    assert dialog is not None
+    assert dialog.get_heading() == "File deleted"
+    dialog.close()
+    window._confirm_dialog = None
+
+# Autosave drafts are written off the main loop and clear on save/discard.
+window.set_text("draft text")
+window._autosave_now()
+draft_key = window._draft_key()
+wait_until(lambda: recovery.read_draft(draft_key) is not None)
+draft = recovery.read_draft(draft_key)
+assert draft is not None and draft.text == "draft text"
+window._clear_recovery()
+assert recovery.read_draft(draft_key) is None
+
+with tempfile.TemporaryDirectory() as tmp:
+    recovered_path = Path(tmp) / "recovered.md"
+    recovered_path.write_text("saved baseline", encoding="utf-8")
+    recovered = recovery.Draft(
+        key="recovered",
+        text="unsaved recovery",
+        path=str(recovered_path),
+        name="recovered.md",
+        updated=0.0,
+    )
+    window.load_recovered_draft(recovered)
+    assert window.get_text() == "unsaved recovery"
+    assert window.document.is_dirty
+    assert window.document.file is not None
+    assert window.document.file.get_path() == str(recovered_path)
+    window._clear_recovery()
+
+with tempfile.TemporaryDirectory() as tmp:
+    recent_path = Path(tmp) / "recent.md"
+    recent_path.write_text("recent", encoding="utf-8")
+    window._record_recent(Gio.File.new_for_path(str(recent_path)))
+    assert str(recent_path) in window._settings.get_strv("recent-files")
+    menu = window.button_recent.get_menu_model()
+    assert menu is not None and menu.get_n_items() >= 1
+window._settings.set_strv("recent-files", [])
 
 window.set_view_mode("source")
 assert window.editor_pane.get_visible()

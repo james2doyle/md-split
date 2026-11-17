@@ -15,7 +15,7 @@ gi.require_version("Gio", "2.0")
 
 from gi.repository import Adw, Gdk, Gio, Gtk
 
-from . import APP_ID
+from . import APP_ID, spellcheck
 
 _APPEARANCES = ("system", "light", "dark")
 
@@ -26,6 +26,13 @@ class MdSplitPreferencesDialog(Adw.PreferencesDialog):
 
     appearance_row = Gtk.Template.Child("appearance_row")
     switch_load_demo = Gtk.Template.Child("switch_load_demo")
+    switch_restore_session = Gtk.Template.Child("switch_restore_session")
+    switch_autosave = Gtk.Template.Child("switch_autosave")
+    spin_autosave_interval = Gtk.Template.Child("spin_autosave_interval")
+    switch_backups = Gtk.Template.Child("switch_backups")
+    spin_backup_retention = Gtk.Template.Child("spin_backup_retention")
+    switch_spell_check = Gtk.Template.Child("switch_spell_check")
+    combo_spell_language = Gtk.Template.Child("combo_spell_language")
     switch_sync_scroll = Gtk.Template.Child("switch_sync_scroll")
     switch_autocomplete_links = Gtk.Template.Child("switch_autocomplete_links")
     switch_remote_images = Gtk.Template.Child("switch_remote_images")
@@ -63,15 +70,142 @@ class MdSplitPreferencesDialog(Adw.PreferencesDialog):
 
         for setting, row in (
             ("load-demo-on-startup", self.switch_load_demo),
+            ("restore-session", self.switch_restore_session),
+            ("autosave", self.switch_autosave),
+            ("backups", self.switch_backups),
+            ("spell-check", self.switch_spell_check),
             ("sync-scroll", self.switch_sync_scroll),
             ("autocomplete-links", self.switch_autocomplete_links),
             ("remote-images", self.switch_remote_images),
         ):
+            key = "backup-files" if setting == "backups" else setting
             self._settings.bind(
-                setting, row, "active", Gio.SettingsBindFlags.DEFAULT
+                key, row, "active", Gio.SettingsBindFlags.DEFAULT
             )
             self._bindings.append((row, "active"))
+
+        self._window_handlers: list[int] = []
+        self.spin_autosave_interval.set_adjustment(
+            Gtk.Adjustment(
+                lower=5,
+                upper=300,
+                step_increment=5,
+                page_increment=5,
+                value=self._settings.get_int("autosave-interval"),
+            )
+        )
+        self.spin_autosave_interval.set_value(
+            self._settings.get_int("autosave-interval")
+        )
+        self.spin_backup_retention.set_adjustment(
+            Gtk.Adjustment(
+                lower=1,
+                upper=50,
+                step_increment=1,
+                page_increment=1,
+                value=self._settings.get_int("backup-retention"),
+            )
+        )
+        self.spin_backup_retention.set_value(
+            self._settings.get_int("backup-retention")
+        )
+        self.spin_autosave_interval.connect(
+            "notify::value", self._on_autosave_interval_changed
+        )
+        self.spin_backup_retention.connect(
+            "notify::value", self._on_backup_retention_changed
+        )
+        self._window_handlers.append(
+            self._settings.connect(
+                "changed::autosave-interval",
+                self._on_autosave_interval_setting_changed,
+            )
+        )
+        self._window_handlers.append(
+            self._settings.connect(
+                "changed::backup-retention",
+                self._on_backup_retention_setting_changed,
+            )
+        )
+        self._spell_choices = spellcheck.language_choices()
+        self._updating_language = False
+        if self._spell_choices:
+            self.combo_spell_language.set_model(
+                Gtk.StringList.new(
+                    [name for _code, name in self._spell_choices]
+                )
+            )
+            self._sync_spell_language()
+            self.combo_spell_language.connect(
+                "notify::selected", self._on_spell_language_selected
+            )
+            self._window_handlers.append(
+                self._settings.connect(
+                    "changed::spell-language",
+                    self._on_spell_language_changed,
+                )
+            )
+        else:
+            self.switch_spell_check.set_sensitive(False)
+            self.combo_spell_language.set_sensitive(False)
+            self.combo_spell_language.set_subtitle(
+                _("Spell checking is not available")
+            )
         self.connect("closed", self._on_closed)
+
+    def _spell_language_index(self) -> int:
+        preferred = self._settings.get_string("spell-language")
+        code = spellcheck.choose_language(self._spell_choices, preferred)
+        for index, (candidate, _name) in enumerate(self._spell_choices):
+            if candidate == code:
+                return index
+        return 0
+
+    def _sync_spell_language(self) -> None:
+        index = self._spell_language_index()
+        if self.combo_spell_language.get_selected() == index:
+            return
+        self._updating_language = True
+        try:
+            self.combo_spell_language.set_selected(index)
+        finally:
+            self._updating_language = False
+
+    def _on_spell_language_selected(self, _row, _pspec) -> None:
+        if self._updating_language:
+            return
+        index = self.combo_spell_language.get_selected()
+        if 0 <= index < len(self._spell_choices):
+            self._settings.set_string(
+                "spell-language", self._spell_choices[index][0]
+            )
+
+    def _on_spell_language_changed(self, _settings, _key) -> None:
+        self._sync_spell_language()
+
+    def _on_autosave_interval_changed(self, row, _pspec) -> None:
+        value = max(5, min(300, int(round(row.get_value()))))
+        if self._settings.get_int("autosave-interval") != value:
+            self._settings.set_int("autosave-interval", value)
+
+    def _on_autosave_interval_setting_changed(
+        self, _settings, _key
+    ) -> None:
+        value = self._settings.get_int("autosave-interval")
+        if int(round(self.spin_autosave_interval.get_value())) != value:
+            self.spin_autosave_interval.set_value(value)
+
+    def _on_backup_retention_changed(self, row, _pspec) -> None:
+        value = max(1, min(50, int(round(row.get_value()))))
+        if self._settings.get_int("backup-retention") != value:
+            self._settings.set_int("backup-retention", value)
+
+    def _on_backup_retention_setting_changed(
+        self, _settings, _key
+    ) -> None:
+        value = self._settings.get_int("backup-retention")
+        if int(round(self.spin_backup_retention.get_value())) != value:
+            self.spin_backup_retention.set_value(value)
 
     def _appearance_index(self) -> int:
         value = self._settings.get_string("appearance")
@@ -137,6 +271,9 @@ class MdSplitPreferencesDialog(Adw.PreferencesDialog):
         if self._appearance_handler:
             self._settings.disconnect(self._appearance_handler)
             self._appearance_handler = 0
+        for handler in self._window_handlers:
+            self._settings.disconnect(handler)
+        self._window_handlers.clear()
         for row, prop in self._bindings:
             self._settings.unbind(row, prop)
         self._bindings.clear()

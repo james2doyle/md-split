@@ -27,6 +27,30 @@ Adw.ShortcutsDialog shortcuts_dialog {
   }
 
   Adw.ShortcutsSection {
+    title: _("Search");
+
+    Adw.ShortcutsItem {
+      title: C_("shortcut window", "Find");
+      action-name: "app.find";
+    }
+
+    Adw.ShortcutsItem {
+      title: C_("shortcut window", "Find Next");
+      action-name: "app.find-next";
+    }
+
+    Adw.ShortcutsItem {
+      title: C_("shortcut window", "Find Previous");
+      action-name: "app.find-previous";
+    }
+
+    Adw.ShortcutsItem {
+      title: C_("shortcut window", "Replace");
+      action-name: "app.replace";
+    }
+  }
+
+  Adw.ShortcutsSection {
     title: _("View");
 
     Adw.ShortcutsItem {

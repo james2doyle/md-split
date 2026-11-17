@@ -4,7 +4,10 @@ import gc
 import logging
 import os
 import sys
+import tempfile
+import time
 import weakref
+from pathlib import Path
 
 SOURCE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RESOURCE = os.environ.get("APP_RESOURCE")
@@ -30,7 +33,14 @@ Adw.init()
 resource = Gio.Resource.load(RESOURCE)
 resource._register()
 
-from src import APP_ID, fileio
+os.environ.setdefault(
+    "MD_SPLIT_STATE_DIR",
+    os.path.join(
+        tempfile.gettempdir(), f"md-split-lifecycle-state-{os.getpid()}"
+    ),
+)
+
+from src import APP_ID, fileio, recovery
 from src import main as main_module
 from src.main import MdSplitApplication
 from src.window import MdSplitWindow
@@ -49,6 +59,15 @@ assert app.settings.get_string("view-mode") == "both"
 assert app.settings.get_boolean("load-demo-on-startup") is True
 assert app.settings.get_boolean("sync-scroll") is True
 assert app.settings.get_boolean("autocomplete-links") is True
+assert app.settings.get_boolean("restore-session") is True
+assert app.settings.get_boolean("autosave") is True
+assert app.settings.get_int("autosave-interval") == 30
+assert app.settings.get_boolean("backup-files") is False
+assert app.settings.get_int("backup-retention") == 5
+assert app.settings.get_boolean("spell-check") is True
+assert app.settings.get_string("spell-language") == ""
+assert app.settings.get_strv("session-files") == []
+assert app.settings.get_strv("recent-files") == []
 
 # Quit must request a window close so the dirty-document guard runs.
 close_requests = []
@@ -245,13 +264,110 @@ assert app.lookup_action("preferences") is not None
 assert app.lookup_action("export-html") is not None
 assert app.lookup_action("export-pdf") is not None
 assert app.lookup_action("format-bold") is not None
+assert [
+    value.lower() for value in app.get_accels_for_action("app.find")
+] == ["<control>f"]
+assert [
+    value.lower() for value in app.get_accels_for_action("app.replace")
+] == ["<control>h"]
+assert app.lookup_action("find-next") is not None
+assert app.lookup_action("find-previous") is not None
+assert app.lookup_action("open-recent") is not None
+assert app.lookup_action("clear-recent") is not None
 
-# Startup loads the bundled demo as clean untitled content when enabled.
+def wait_for(predicate, timeout=2.0):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        while GLib.MainContext.default().iteration(False):
+            pass
+        if predicate():
+            return True
+        time.sleep(0.01)
+    return False
+
+
+# Session restore reopens file windows and focuses the previous active file.
 for existing in app.get_windows():
     existing._force_close = True
     existing.destroy()
 while GLib.MainContext.default().iteration(False):
     pass
+
+with tempfile.TemporaryDirectory() as tmp:
+    first_path = Path(tmp) / "first.md"
+    second_path = Path(tmp) / "second.md"
+    missing_path = Path(tmp) / "missing.md"
+    first_path.write_text("# First\n", encoding="utf-8")
+    second_path.write_text("# Second\n", encoding="utf-8")
+    app.settings.set_boolean("restore-session", True)
+    app.settings.set_boolean("load-demo-on-startup", False)
+    app.settings.set_strv(
+        "session-files",
+        [str(first_path), str(missing_path), str(second_path)],
+    )
+    app.settings.set_string("session-active", str(second_path))
+    app.do_activate()
+    assert wait_for(
+        lambda: sum(
+            1 for win in app.get_windows() if win.document.file is not None
+        )
+        == 2
+    ), [win.document.file for win in app.get_windows()]
+    restored_paths = sorted(
+        win.document.file.get_path()
+        for win in app.get_windows()
+        if win.document.file is not None
+    )
+    assert restored_paths == sorted([str(first_path), str(second_path)])
+    assert app.props.active_window is not None
+    assert (
+        app.props.active_window.document.file.get_path()
+        == str(second_path)
+    )
+    assert app.settings.get_strv("session-files") == [
+        str(first_path),
+        str(second_path),
+    ], app.settings.get_strv("session-files")
+    assert app._missing_dialog is not None
+    assert (
+        app._missing_dialog.get_heading()
+        == "Some files could not be reopened"
+    )
+    app._missing_dialog.close()
+    app._missing_dialog = None
+
+for existing in app.get_windows():
+    existing._force_close = True
+    existing.destroy()
+while GLib.MainContext.default().iteration(False):
+    pass
+app.settings.set_strv("session-files", [])
+app.settings.set_string("session-active", "")
+app.settings.set_boolean("restore-session", True)
+
+# Recovery prompts discard drafts when the user declines to restore them.
+with tempfile.TemporaryDirectory() as tmp:
+    draft = recovery.Draft(
+        key="lifecycle-recovery",
+        text="unsaved text",
+        path=None,
+        name="Untitled.md",
+        updated=time.time(),
+    )
+    recovery.write_draft(draft)
+    app._recovery_prompted = False
+    app._prompt_recovery_drafts()
+    assert app._recovery_dialog is not None
+    assert app._recovery_dialog.get_heading() == "Recover unsaved document"
+    app._recovery_dialog.close()
+    assert recovery.read_draft(draft.key) is None
+    for existing in app.get_windows():
+        existing._force_close = True
+        existing.destroy()
+    while GLib.MainContext.default().iteration(False):
+        pass
+
+# Startup loads the bundled demo as clean untitled content when enabled.
 
 app.settings.set_boolean("load-demo-on-startup", True)
 app.do_activate()

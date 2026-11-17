@@ -31,6 +31,12 @@ template $MdSplitWindow: Adw.ApplicationWindow {
       };
 
       [end]
+      MenuButton button_recent {
+        icon-name: "document-open-recent-symbolic";
+        tooltip-text: _("Recent Files");
+      }
+
+      [end]
       MenuButton button_view {
         icon-name: "view-dual-symbolic";
         tooltip-text: _("View Mode");
@@ -53,24 +59,110 @@ template $MdSplitWindow: Adw.ApplicationWindow {
       shrink-end-child: false;
 
       start-child: Gtk.Overlay editor_pane {
-        child: Gtk.ScrolledWindow editor_scroller {
-          hscrollbar-policy: never;
-          has-frame: false;
+        child: Box editor_box {
+          orientation: vertical;
 
-          child: GtkSource.View editor_view {
-            wrap-mode: word;
-            monospace: true;
-            show-line-numbers: true;
-            highlight-current-line: true;
-            auto-indent: true;
-            indent-on-tab: true;
-            tab-width: 2;
-            indent-width: 2;
-            left-margin: 18;
-            right-margin: 18;
-            top-margin: 18;
-            bottom-margin: 18;
-          };
+          Gtk.SearchBar search_bar {
+            show-close-button: true;
+
+            child: Box search_panel {
+              orientation: vertical;
+              spacing: 6;
+              margin-start: 6;
+              margin-end: 6;
+              margin-top: 6;
+              margin-bottom: 6;
+
+              Box search_find_row {
+                orientation: horizontal;
+                spacing: 6;
+
+                Gtk.SearchEntry search_entry {
+                  hexpand: true;
+                  placeholder-text: _("Find");
+                }
+
+                ToggleButton search_case_button {
+                  label: _("Aa");
+                  tooltip-text: _("Match Case");
+                }
+
+                ToggleButton search_word_button {
+                  label: _("ab");
+                  tooltip-text: _("Whole Words");
+                }
+
+                ToggleButton search_regex_button {
+                  label: _(".*");
+                  tooltip-text: _("Regular Expression");
+                }
+
+                ToggleButton search_wrap_button {
+                  label: _("Wrap");
+                  active: true;
+                  tooltip-text: _("Wrap Around");
+                }
+
+                Label search_status_label {
+                  label: _("0 matches");
+                  styles [
+                    "caption",
+                    "dim-label",
+                  ]
+                }
+
+                Button search_previous_button {
+                  icon-name: "go-up-symbolic";
+                  tooltip-text: _("Previous Match");
+                }
+
+                Button search_next_button {
+                  icon-name: "go-down-symbolic";
+                  tooltip-text: _("Next Match");
+                }
+              }
+
+              Box replace_row {
+                orientation: horizontal;
+                spacing: 6;
+                visible: false;
+
+                Entry replace_entry {
+                  hexpand: true;
+                  placeholder-text: _("Replace");
+                }
+
+                Button replace_button {
+                  label: _("Replace");
+                }
+
+                Button replace_all_button {
+                  label: _("Replace All");
+                }
+              }
+            };
+          }
+
+          Gtk.ScrolledWindow editor_scroller {
+            hscrollbar-policy: never;
+            has-frame: false;
+            vexpand: true;
+
+            child: GtkSource.View editor_view {
+              wrap-mode: word;
+              monospace: true;
+              show-line-numbers: true;
+              highlight-current-line: true;
+              auto-indent: true;
+              indent-on-tab: true;
+              tab-width: 2;
+              indent-width: 2;
+              left-margin: 18;
+              right-margin: 18;
+              top-margin: 18;
+              bottom-margin: 18;
+            };
+          }
         };
 
         [overlay]
@@ -158,6 +250,24 @@ menu main_menu {
     item {
       label: _("Save _As…");
       action: "app.save-as";
+    }
+  }
+  section {
+    item {
+      label: _("_Find…");
+      action: "app.find";
+    }
+    item {
+      label: _("Find _Next");
+      action: "app.find-next";
+    }
+    item {
+      label: _("Find _Previous");
+      action: "app.find-previous";
+    }
+    item {
+      label: _("_Replace…");
+      action: "app.replace";
     }
   }
   section {

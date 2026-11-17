@@ -6,10 +6,13 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from collections.abc import Callable
 from gettext import gettext as _
 from gettext import ngettext
 from pathlib import Path
+from typing import Any
+from uuid import uuid4
 
 import gi
 
@@ -22,8 +25,17 @@ gi.require_version("GtkSource", "5")
 
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk, GtkSource
 
-from . import APP_ID, VIEW_MODES, editing, fileio
-from .document import Document
+from . import (
+    APP_ID,
+    VIEW_MODES,
+    editing,
+    filechanges,
+    fileio,
+    recovery,
+    session,
+    spellcheck,
+)
+from .document import Document, text_statistics
 from .markdown_view import MarkdownView
 from .paths import ensure_file_extension
 
@@ -72,6 +84,7 @@ class MdSplitWindow(Adw.ApplicationWindow):
     __gtype_name__ = "MdSplitWindow"
 
     window_title = Gtk.Template.Child("window_title")
+    button_recent = Gtk.Template.Child("button_recent")
     editor_pane = Gtk.Template.Child("editor_pane")
     editor_scroller = Gtk.Template.Child("editor_scroller")
     editor_view = Gtk.Template.Child("editor_view")
@@ -81,6 +94,19 @@ class MdSplitWindow(Adw.ApplicationWindow):
     label_cursor = Gtk.Template.Child("label_cursor")
     label_stats = Gtk.Template.Child("label_stats")
     toast_overlay = Gtk.Template.Child("toast_overlay")
+    search_bar = Gtk.Template.Child("search_bar")
+    search_entry = Gtk.Template.Child("search_entry")
+    search_case_button = Gtk.Template.Child("search_case_button")
+    search_word_button = Gtk.Template.Child("search_word_button")
+    search_regex_button = Gtk.Template.Child("search_regex_button")
+    search_wrap_button = Gtk.Template.Child("search_wrap_button")
+    search_status_label = Gtk.Template.Child("search_status_label")
+    search_previous_button = Gtk.Template.Child("search_previous_button")
+    search_next_button = Gtk.Template.Child("search_next_button")
+    replace_row = Gtk.Template.Child("replace_row")
+    replace_entry = Gtk.Template.Child("replace_entry")
+    replace_button = Gtk.Template.Child("replace_button")
+    replace_all_button = Gtk.Template.Child("replace_all_button")
 
     def __init__(self, initial_view_mode=None, **kwargs):
         _ensure_gtksource_types()
@@ -91,6 +117,19 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self._loading = False
         self._preview_timeout = 0
         self._stats_timeout = 0
+        self._search_timeout = 0
+        self._search_previous_mode: str | None = None
+        self._file_monitor = None
+        self._monitor_handler = 0
+        self._monitor_timeout = 0
+        self._ignore_monitor_until = 0.0
+        self._last_prompted_etag: str | None = None
+        self._pending_monitor_kind = "changed"
+        self._draft_token = uuid4().hex
+        self._last_draft_key: str | None = None
+        self._autosave_timeout = 0
+        self._recovery_generation = 0
+        self.spell_adapter: Any = None
         self._preview_text: str | None = None
         self._file_dialog = None
         self._confirm_dialog = None
@@ -116,6 +155,7 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self.preview_container.set_child(self._preview)
 
         self._setup_editor()
+        self._setup_search()
         self._setup_window()
         self._connect_signals()
         self._update_ui(render_preview=True)
@@ -138,6 +178,47 @@ class MdSplitWindow(Adw.ApplicationWindow):
         )
         self.editor_view.add_controller(controller)
         self._key_controller = controller
+        self._setup_spellcheck()
+
+    def _setup_spellcheck(self) -> None:
+        self.spell_adapter = spellcheck.create_adapter(self._buffer)
+        if self.spell_adapter is None:
+            return
+        self.editor_view.set_extra_menu(
+            self.spell_adapter.get_menu_model()
+        )
+        self.editor_view.insert_action_group("spelling", self.spell_adapter)
+        self._apply_spell_settings()
+        self._spell_handler = self._settings.connect(
+            "changed::spell-check", self._on_spell_settings_changed
+        )
+        self._spell_language_handler = self._settings.connect(
+            "changed::spell-language", self._on_spell_settings_changed
+        )
+
+    def _apply_spell_settings(self) -> None:
+        if self.spell_adapter is None:
+            return
+        self.spell_adapter.set_enabled(
+            self._settings.get_boolean("spell-check")
+        )
+        language = spellcheck.choose_language(
+            spellcheck.language_choices(),
+            self._settings.get_string("spell-language"),
+        )
+        if language:
+            self.spell_adapter.set_language(language)
+
+    def _on_spell_settings_changed(self, *_args) -> None:
+        self._apply_spell_settings()
+
+    def _setup_search(self) -> None:
+        self._search_settings = GtkSource.SearchSettings()
+        self._search_settings.set_wrap_around(True)
+        self._search_context = GtkSource.SearchContext.new(
+            self._buffer, self._search_settings
+        )
+        self._search_context.set_highlight(True)
 
     def _setup_window(self) -> None:
         width = self._settings.get_int("window-width")
@@ -164,6 +245,17 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self._sync_scroll_handler = self._settings.connect(
             "changed::sync-scroll", self._on_sync_scroll_changed
         )
+        self._recent_handler = self._settings.connect(
+            "changed::recent-files", self._on_recent_changed
+        )
+        self._autosave_handler = self._settings.connect(
+            "changed::autosave", self._on_autosave_settings_changed
+        )
+        self._autosave_interval_handler = self._settings.connect(
+            "changed::autosave-interval",
+            self._on_autosave_settings_changed,
+        )
+        self._refresh_recent_menu()
 
         mode = self._initial_view_mode or self._settings.get_string(
             "view-mode"
@@ -185,6 +277,10 @@ class MdSplitWindow(Adw.ApplicationWindow):
                         "notify::cursor-position", self._on_cursor_moved
                     ),
                 ),
+                (
+                    self._buffer,
+                    self._buffer.connect("mark-set", self._on_mark_set),
+                ),
                 (self, self.connect("close-request", self._on_close_request)),
                 (self, self.connect("destroy", self._on_destroy)),
                 (self, self.connect("map", self._on_map)),
@@ -198,6 +294,104 @@ class MdSplitWindow(Adw.ApplicationWindow):
                     self.editor_scroller.get_vadjustment(),
                     self.editor_scroller.get_vadjustment().connect(
                         "value-changed", self._on_editor_scrolled
+                    ),
+                ),
+            ]
+        )
+        self._connect_search_signals()
+
+    def _connect_search_signals(self) -> None:
+        self._signal_handlers.extend(
+            [
+                (
+                    self.search_entry,
+                    self.search_entry.connect(
+                        "search-changed", self._on_search_changed
+                    ),
+                ),
+                (
+                    self.search_entry,
+                    self.search_entry.connect(
+                        "activate", self._find_next
+                    ),
+                ),
+                (
+                    self.search_entry,
+                    self.search_entry.connect(
+                        "next-match", self._find_next
+                    ),
+                ),
+                (
+                    self.search_entry,
+                    self.search_entry.connect(
+                        "previous-match", self._find_previous
+                    ),
+                ),
+                (
+                    self.search_entry,
+                    self.search_entry.connect(
+                        "stop-search", self._close_search
+                    ),
+                ),
+                (
+                    self.search_bar,
+                    self.search_bar.connect(
+                        "notify::search-mode-enabled",
+                        self._on_search_mode_changed,
+                    ),
+                ),
+                (
+                    self.search_case_button,
+                    self.search_case_button.connect(
+                        "toggled", self._on_search_options_changed
+                    ),
+                ),
+                (
+                    self.search_word_button,
+                    self.search_word_button.connect(
+                        "toggled", self._on_search_options_changed
+                    ),
+                ),
+                (
+                    self.search_regex_button,
+                    self.search_regex_button.connect(
+                        "toggled", self._on_search_options_changed
+                    ),
+                ),
+                (
+                    self.search_wrap_button,
+                    self.search_wrap_button.connect(
+                        "toggled", self._on_search_options_changed
+                    ),
+                ),
+                (
+                    self.search_previous_button,
+                    self.search_previous_button.connect(
+                        "clicked", self._find_previous
+                    ),
+                ),
+                (
+                    self.search_next_button,
+                    self.search_next_button.connect(
+                        "clicked", self._find_next
+                    ),
+                ),
+                (
+                    self.replace_entry,
+                    self.replace_entry.connect(
+                        "activate", self._replace_current
+                    ),
+                ),
+                (
+                    self.replace_button,
+                    self.replace_button.connect(
+                        "clicked", self._replace_current
+                    ),
+                ),
+                (
+                    self.replace_all_button,
+                    self.replace_all_button.connect(
+                        "clicked", self._replace_all
                     ),
                 ),
             ]
@@ -264,6 +458,8 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self._invalidate_file_operations()
         self._document.load_demo(text)
         self._set_buffer_text(text)
+        self._clear_recovery()
+        self._note_session_file(None)
         self._update_ui(render_preview=True)
         self._buffer.place_cursor(self._buffer.get_start_iter())
         self.focus_primary_pane()
@@ -369,6 +565,8 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self._document.set_text(self.get_text(), changed=True)
         self._update_ui(update_stats=False)
         self._schedule_stats()
+        self._schedule_search_refresh()
+        self._schedule_autosave()
         self._schedule_preview()
 
     def _on_cursor_moved(self, *_args) -> None:
@@ -378,6 +576,12 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self.label_cursor.set_label(
             _("Ln {line}, Col {column}").format(line=line, column=column)
         )
+
+    def _on_mark_set(self, _buffer, _location, mark) -> None:
+        if self._loading:
+            return
+        if mark.get_name() in ("insert", "selection-bound"):
+            self._schedule_stats()
 
     def _on_key_pressed(
         self, _controller, keyval: int, _keycode: int, state: Gdk.ModifierType
@@ -481,6 +685,201 @@ class MdSplitWindow(Adw.ApplicationWindow):
             self._buffer.end_user_action()
         self.editor_view.scroll_mark_onscreen(self._buffer.get_insert())
 
+    # -- search ----------------------------------------------------------
+
+    def show_find(self) -> None:
+        self._show_search(replace=False)
+
+    def show_replace(self) -> None:
+        self._show_search(replace=True)
+
+    def find_next(self) -> None:
+        self._find_next()
+
+    def find_previous(self) -> None:
+        self._find_previous()
+
+    def _show_search(self, *, replace: bool) -> None:
+        if self._view_mode == "preview":
+            self._search_previous_mode = "preview"
+            self._apply_view_mode("both", persist=False)
+        self.search_bar.set_search_mode(True)
+        self.replace_row.set_visible(replace)
+        self.search_entry.grab_focus()
+        self.search_entry.select_region(0, -1)
+        self._refresh_search()
+        self._update_placeholder()
+
+    def _close_search(self, *_args) -> None:
+        if not self.search_bar.get_search_mode():
+            self.focus_editor()
+            return
+        self.search_bar.set_search_mode(False)
+
+    def _on_search_mode_changed(self, _bar, _pspec) -> None:
+        if not self.search_bar.get_search_mode():
+            self._cancel_search_timeout()
+            self._search_context.set_highlight(False)
+            self.replace_row.set_visible(False)
+            self.search_status_label.set_label("")
+            if self._search_previous_mode is not None:
+                previous = self._search_previous_mode
+                self._search_previous_mode = None
+                self._apply_view_mode(previous, persist=False)
+            else:
+                self.focus_editor()
+        self._update_placeholder()
+
+    def _on_search_changed(self, *_args) -> None:
+        count = self._refresh_search()
+        if count and self.search_entry.get_text():
+            self._find_next()
+
+    def _on_search_options_changed(self, *_args) -> None:
+        self._refresh_search()
+
+    def _search_query(self) -> editing.SearchQuery:
+        return editing.SearchQuery(
+            self.search_entry.get_text(),
+            match_case=self.search_case_button.get_active(),
+            whole_word=self.search_word_button.get_active(),
+            regex=self.search_regex_button.get_active(),
+        )
+
+    def _sync_search_settings(self) -> None:
+        query = self._search_query()
+        self._search_settings.set_search_text(query.text)
+        self._search_settings.set_case_sensitive(query.match_case)
+        self._search_settings.set_regex_enabled(query.regex)
+        self._search_settings.set_at_word_boundaries(query.whole_word)
+        self._search_settings.set_wrap_around(
+            self.search_wrap_button.get_active()
+        )
+
+    def _refresh_search(self) -> int:
+        self._sync_search_settings()
+        query = self._search_query()
+        if not query.text:
+            self.search_status_label.set_label("")
+            self._search_context.set_highlight(False)
+            return 0
+        if query.regex and editing.compile_search(query) is None:
+            self.search_status_label.set_label(
+                _("Invalid regular expression")
+            )
+            self._search_context.set_highlight(False)
+            return 0
+        count = editing.count_matches(self.get_text(), query)
+        self.search_status_label.set_label(
+            ngettext("{n} match", "{n} matches", count).format(n=count)
+        )
+        self._search_context.set_highlight(count > 0)
+        return count
+
+    def _prepare_search(self) -> bool:
+        if not self.search_bar.get_search_mode():
+            self.show_find()
+        self._sync_search_settings()
+        query = self._search_query()
+        if not query.text:
+            return False
+        if query.regex and editing.compile_search(query) is None:
+            self.search_status_label.set_label(
+                _("Invalid regular expression")
+            )
+            self._search_context.set_highlight(False)
+            return False
+        return True
+
+    def _select_search_match(self, start, end) -> None:
+        self._buffer.select_range(start, end)
+        self.editor_view.scroll_to_iter(start, 0.0, False, 0.0, 0.0)
+
+    def _find_next(self, *_args) -> None:
+        if not self._prepare_search():
+            return
+        insert = self._buffer.get_iter_at_mark(self._buffer.get_insert())
+        found, start, end, _wrapped = self._search_context.forward(insert)
+        if found:
+            self._select_search_match(start, end)
+
+    def _find_previous(self, *_args) -> None:
+        if not self._prepare_search():
+            return
+        insert = self._buffer.get_iter_at_mark(self._buffer.get_insert())
+        found, start, end, _wrapped = self._search_context.backward(insert)
+        if found:
+            self._select_search_match(start, end)
+
+    def _replace_current(self, *_args) -> None:
+        if not self._prepare_search():
+            return
+        bounds = self._buffer.get_selection_bounds()
+        if not bounds:
+            self._find_next()
+            bounds = self._buffer.get_selection_bounds()
+            if not bounds:
+                return
+        start, end = bounds
+        replacement = self.replace_entry.get_text()
+        edit = editing.TextEdit(
+            start.get_offset(),
+            end.get_offset(),
+            replacement,
+            start.get_offset() + len(replacement),
+            start.get_offset() + len(replacement),
+        )
+        self._apply_text_edit(edit)
+        self._refresh_search()
+        self._find_next()
+
+    def _replace_all(self, *_args) -> None:
+        query = self._search_query()
+        if not query.text:
+            return
+        if query.regex and editing.compile_search(query) is None:
+            self._refresh_search()
+            return
+        old_text = self.get_text()
+        new_text, count = editing.replace_all_text(
+            old_text, query, self.replace_entry.get_text()
+        )
+        if count == 0:
+            self._show_toast(_("No matches to replace"))
+            return
+        offset = min(
+            self._buffer.get_iter_at_mark(self._buffer.get_insert()).get_offset(),
+            len(new_text),
+        )
+        self._apply_text_edit(
+            editing.TextEdit(0, len(old_text), new_text, offset, offset)
+        )
+        self._show_toast(
+            ngettext(
+                "Replaced {n} match", "Replaced {n} matches", count
+            ).format(n=count)
+        )
+        self._refresh_search()
+
+    def _schedule_search_refresh(self) -> None:
+        if not self.search_bar.get_search_mode():
+            return
+        self._cancel_search_timeout()
+        self._search_timeout = GLib.timeout_add(
+            150, self._refresh_search_now
+        )
+
+    def _refresh_search_now(self) -> bool:
+        self._search_timeout = 0
+        if not self._destroyed and self.search_bar.get_search_mode():
+            self._refresh_search()
+        return False
+
+    def _cancel_search_timeout(self) -> None:
+        if self._search_timeout:
+            GLib.source_remove(self._search_timeout)
+            self._search_timeout = 0
+
     def _on_dark_changed(self, *_args) -> None:
         self._apply_editor_scheme()
         self._preview.set_dark(Adw.StyleManager.get_default().get_dark())
@@ -552,23 +951,46 @@ class MdSplitWindow(Adw.ApplicationWindow):
             self.flush_preview()
 
     def _update_stats(self) -> None:
-        characters = self._document.character_count
+        bounds = self._buffer.get_selection_bounds()
+        if bounds:
+            text = self._buffer.get_text(bounds[0], bounds[1], True)
+            selected = True
+        else:
+            text = self._document.text
+            selected = False
+
+        characters = len(text)
         character_text = ngettext(
             "{n} character", "{n} characters", characters
         ).format(n=characters)
         if characters > _MAX_WORD_COUNT_CHARS:
-            self.label_stats.set_label(
-                _("{characters} \u00b7 word count paused for large document").format(
-                    characters=character_text
+            if selected:
+                message = _(
+                    "Selection: {characters} \u00b7 "
+                    "word count paused for large selection"
                 )
-            )
+            else:
+                message = _(
+                    "{characters} \u00b7 word count paused for large document"
+                )
+            self.label_stats.set_label(message.format(characters=character_text))
             return
-        words = self._document.word_count
+
+        words, _characters, minutes = text_statistics(text)
         word_text = ngettext("{n} word", "{n} words", words).format(n=words)
-        self.label_stats.set_label(f"{word_text} \u00b7 {character_text}")
+        minute_text = ngettext(
+            "{n} minute read", "{n} minutes read", minutes
+        ).format(n=minutes)
+        stats = f"{word_text} \u00b7 {character_text} \u00b7 {minute_text}"
+        if selected:
+            stats = _("Selection: {stats}").format(stats=stats)
+        self.label_stats.set_label(stats)
 
     def _update_placeholder(self) -> None:
-        self.placeholder_label.set_visible(self._buffer.get_char_count() == 0)
+        self.placeholder_label.set_visible(
+            self._buffer.get_char_count() == 0
+            and not self.search_bar.get_search_mode()
+        )
 
     def _schedule_stats(self) -> None:
         self._cancel_stats_timeout()
@@ -623,6 +1045,8 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self._invalidate_file_operations()
         self._document.reset()
         self._set_buffer_text("")
+        self._clear_recovery()
+        self._note_session_file(None)
         self._update_ui(render_preview=True)
         self.focus_primary_pane()
 
@@ -659,6 +1083,49 @@ class MdSplitWindow(Adw.ApplicationWindow):
         path = parent.get_path() if parent is not None else None
         if path:
             self._settings.set_string("last-folder", path)
+
+    def _refresh_recent_menu(self) -> None:
+        menu = Gio.Menu()
+        section = Gio.Menu()
+        paths = self._settings.get_strv("recent-files")
+        for path in paths:
+            item = Gio.MenuItem.new(Path(path).name, None)
+            item.set_action_and_target_value(
+                "app.open-recent", GLib.Variant.new_string(path)
+            )
+            section.append_item(item)
+        if not paths:
+            section.append_item(Gio.MenuItem.new(_("No Recent Files"), None))
+        section.append_item(
+            Gio.MenuItem.new(_("Clear Recent"), "app.clear-recent")
+        )
+        menu.append_section(None, section)
+        self.button_recent.set_menu_model(menu)
+
+    def _on_recent_changed(self, *_args) -> None:
+        self._refresh_recent_menu()
+
+    def _record_recent(self, file: Gio.File) -> None:
+        path = file.get_path()
+        if path is None:
+            return
+        recent = session.add_recent(
+            self._settings.get_strv("recent-files"), path
+        )
+        self._settings.set_strv("recent-files", recent)
+        uri = file.get_uri()
+        if uri:
+            try:
+                Gtk.RecentManager.get_default().add_item(uri)
+            except Exception as error:  # pragma: no cover - optional session
+                log.debug("Could not update recent manager: %s", error)
+
+    def _note_session_file(self, file: Gio.File | None) -> None:
+        app = self.get_application()
+        if app is None or not hasattr(app, "note_window_file"):
+            return
+        path = file.get_path() if file is not None else None
+        app.note_window_file(self, path)
 
     def _on_open_finished(self, dialog: Gtk.FileDialog, result) -> None:
         try:
@@ -950,12 +1417,300 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self._document_epoch += 1
         self._load_generation += 1
         self._cancel_load()
+        self._stop_file_monitor()
         self._save_queue.clear()
         self.editor_view.set_editable(True)
+
+    def _draft_key(self) -> str:
+        path = (
+            self._document.file.get_path()
+            if self._document.file is not None
+            else None
+        )
+        return recovery.draft_key(path, self._draft_token)
+
+    def _schedule_autosave(self) -> None:
+        self._cancel_autosave_timeout()
+        if self._loading or not self._document.is_dirty:
+            return
+        if not self._settings.get_boolean("autosave"):
+            return
+        interval = max(5, self._settings.get_int("autosave-interval"))
+        self._autosave_timeout = GLib.timeout_add_seconds(
+            interval, self._autosave_now
+        )
+
+    def _autosave_now(self) -> bool:
+        self._autosave_timeout = 0
+        if self._destroyed or not self._document.is_dirty:
+            return False
+        key = self._draft_key()
+        self._last_draft_key = key
+        draft = recovery.Draft(
+            key=key,
+            text=self.get_text(),
+            path=(
+                self._document.file.get_path()
+                if self._document.file is not None
+                else None
+            ),
+            name=self._document.display_name,
+            updated=time.time(),
+        )
+        threading.Thread(
+            target=self._write_recovery,
+            args=(draft, self._recovery_generation),
+            daemon=True,
+            name="md-split-recovery",
+        ).start()
+        return False
+
+    def _write_recovery(
+        self, draft: recovery.Draft, generation: int
+    ) -> None:
+        if generation != self._recovery_generation:
+            return
+        try:
+            recovery.write_draft(draft)
+        except OSError as error:
+            GLib.idle_add(self._autosave_failed, str(error))
+
+    def _autosave_failed(self, message: str) -> bool:
+        if not self._destroyed:
+            log.warning("Could not write recovery draft: %s", message)
+            self._show_toast(_("Could not save recovery draft"))
+        return False
+
+    def _clear_recovery(self) -> None:
+        self._recovery_generation += 1
+        keys = {self._draft_key()}
+        if self._last_draft_key is not None:
+            keys.add(self._last_draft_key)
+        self._last_draft_key = None
+        for key in keys:
+            try:
+                recovery.clear_draft(key)
+            except OSError as error:
+                log.warning("Could not clear recovery draft: %s", error)
+
+    def _on_autosave_settings_changed(self, *_args) -> None:
+        self._schedule_autosave()
+
+    def _cancel_autosave_timeout(self) -> None:
+        if self._autosave_timeout:
+            GLib.source_remove(self._autosave_timeout)
+            self._autosave_timeout = 0
+
+    def load_recovered_draft(self, draft: recovery.Draft) -> None:
+        """Restore a draft, keeping its file association when possible."""
+        file = None
+        baseline = ""
+        if draft.path:
+            candidate = Gio.File.new_for_path(draft.path)
+            if candidate.query_exists(None):
+                file = candidate
+                try:
+                    baseline = Path(draft.path).read_text(
+                        encoding="utf-8", errors="replace"
+                    )
+                except OSError:
+                    baseline = ""
+        if file is not None:
+            self._document.load(baseline, file)
+            self._start_file_monitor(file)
+        else:
+            self._document.load_demo("")
+        self._set_buffer_text(draft.text)
+        self._document.set_text(draft.text)
+        self._note_session_file(file)
+        self._update_ui(render_preview=True)
+        self._buffer.place_cursor(self._buffer.get_start_iter())
+        self._schedule_autosave()
+
+    def _start_file_monitor(self, file: Gio.File) -> None:
+        self._stop_file_monitor()
+        path = file.get_path()
+        if path is None or not Path(path).is_file():
+            return
+        try:
+            monitor = file.monitor_file(
+                Gio.FileMonitorFlags.WATCH_MOVES, None
+            )
+        except GLib.Error as error:
+            log.warning("Could not watch %s: %s", path, error.message)
+            return
+        self._file_monitor = monitor
+        self._monitor_handler = monitor.connect(
+            "changed", self._on_monitor_changed
+        )
+        self._ignore_monitor_until = time.monotonic() + 1.0
+
+    def _stop_file_monitor(self) -> None:
+        if self._monitor_timeout:
+            GLib.source_remove(self._monitor_timeout)
+            self._monitor_timeout = 0
+        monitor = self._file_monitor
+        if monitor is not None:
+            if self._monitor_handler:
+                try:
+                    monitor.disconnect(self._monitor_handler)
+                except (TypeError, RuntimeError):
+                    pass
+            monitor.cancel()
+        self._file_monitor = None
+        self._monitor_handler = 0
+
+    def _on_monitor_changed(
+        self, _monitor, _file, _other_file, event_type
+    ) -> None:
+        kind = filechanges.classify_event(event_type)
+        if kind == "ignore":
+            return
+        if time.monotonic() < self._ignore_monitor_until:
+            return
+        if self._monitor_timeout:
+            GLib.source_remove(self._monitor_timeout)
+        self._pending_monitor_kind = kind
+        self._monitor_timeout = GLib.timeout_add(
+            350, self._check_file_change
+        )
+
+    def _check_file_change(self) -> bool:
+        self._monitor_timeout = 0
+        if self._destroyed or self._document.file is None:
+            return False
+        file = self._document.file
+        if self._pending_monitor_kind == "deleted":
+            self._handle_file_change(file, "deleted", None)
+            return False
+        file.query_info_async(
+            Gio.FILE_ATTRIBUTE_ETAG_VALUE,
+            Gio.FileQueryInfoFlags.NONE,
+            GLib.PRIORITY_DEFAULT,
+            None,
+            lambda source, result, _data: self._on_monitor_info(
+                source, result, file
+            ),
+            None,
+        )
+        return False
+
+    def _on_monitor_info(
+        self, source: Gio.File, result, expected_file: Gio.File
+    ) -> None:
+        if self._destroyed:
+            return
+        if (
+            self._document.file is None
+            or not self._document.file.equal(expected_file)
+        ):
+            return
+        try:
+            info = source.query_info_finish(result)
+        except GLib.Error as error:
+            if error.matches(
+                Gio.io_error_quark(), Gio.IOErrorEnum.NOT_FOUND
+            ):
+                self._handle_file_change(expected_file, "deleted", None)
+            else:
+                log.warning("Could not check changed file: %s", error.message)
+            return
+        self._handle_file_change(
+            expected_file, "changed", info.get_etag()
+        )
+
+    def _handle_file_change(
+        self, file: Gio.File, kind: str, etag: str | None
+    ) -> None:
+        action = filechanges.change_action(
+            kind,
+            dirty=self._document.is_dirty,
+            self_saved=time.monotonic() < self._ignore_monitor_until,
+            etag_changed=kind != "deleted"
+            and etag != self._document.etag,
+            exists=kind != "deleted",
+        )
+        if action == "ignore":
+            return
+        if action != "deleted" and etag == self._last_prompted_etag:
+            return
+        self._last_prompted_etag = etag
+        if action == "deleted":
+            self._prompt_deleted_file(file)
+        else:
+            self._prompt_external_change(file, etag)
+
+    def _prompt_external_change(
+        self, file: Gio.File, etag: str | None
+    ) -> None:
+        if self._confirm_dialog is not None:
+            return
+        dirty = self._document.is_dirty
+        dialog = Adw.AlertDialog()
+        dialog.set_heading(_("File changed on disk"))
+        name = file.get_basename() or file.get_parse_name()
+        if dirty:
+            dialog.set_body(
+                _(
+                    "“{name}” changed on disk. Reloading will discard your "
+                    "unsaved changes."
+                ).format(name=name)
+            )
+        else:
+            dialog.set_body(
+                _("“{name}” changed on disk.").format(name=name)
+            )
+        dialog.add_response("keep", _("Keep Editing"))
+        dialog.add_response("reload", _("Reload"))
+        if dirty:
+            dialog.set_response_appearance(
+                "reload", Adw.ResponseAppearance.DESTRUCTIVE
+            )
+        else:
+            dialog.set_response_appearance(
+                "reload", Adw.ResponseAppearance.SUGGESTED
+            )
+        dialog.set_default_response("keep" if dirty else "reload")
+        dialog.set_close_response("keep")
+
+        def on_response(_dialog, response: str) -> None:
+            self._confirm_dialog = None
+            if response == "reload":
+                self._load_file(file)
+
+        dialog.connect("response", on_response)
+        self._confirm_dialog = dialog
+        dialog.present(self)
+
+    def _prompt_deleted_file(self, file: Gio.File) -> None:
+        if self._confirm_dialog is not None:
+            return
+        dialog = Adw.AlertDialog()
+        dialog.set_heading(_("File deleted"))
+        name = file.get_basename() or file.get_parse_name()
+        dialog.set_body(
+            _(
+                "“{name}” was removed from disk. Your text is still here."
+            ).format(name=name)
+        )
+        dialog.add_response("keep", _("Keep Editing"))
+        dialog.add_response("save-as", _("Save As…"))
+        dialog.set_default_response("save-as")
+        dialog.set_close_response("keep")
+
+        def on_response(_dialog, response: str) -> None:
+            self._confirm_dialog = None
+            if response == "save-as":
+                self.save_as_document()
+
+        dialog.connect("response", on_response)
+        self._confirm_dialog = dialog
+        dialog.present(self)
 
     def _load_file(self, file: Gio.File, on_loaded=None) -> None:
         self._document_epoch += 1
         self._save_queue.clear()
+        self._stop_file_monitor()
         self._load_generation += 1
         generation = self._load_generation
         self._cancel_load()
@@ -1018,8 +1773,11 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self._save_queue.clear()
         self._document.load(text, requested_file, etag)
         self._set_buffer_text(text)
+        self._start_file_monitor(requested_file)
         self._update_ui(render_preview=True)
         self._remember_folder(requested_file)
+        self._record_recent(requested_file)
+        self._note_session_file(requested_file)
         self._buffer.place_cursor(self._buffer.get_start_iter())
         self.editor_view.scroll_to_iter(
             self._buffer.get_start_iter(), 0.0, False, 0.0, 0.0
@@ -1052,6 +1810,7 @@ class MdSplitWindow(Adw.ApplicationWindow):
         )
         expected_etag = self._document.etag if same_file else None
         self._save_active = True
+        self._ignore_monitor_until = time.monotonic() + 1.5
         fileio.save_text_async(
             requested_file,
             snapshot,
@@ -1096,10 +1855,32 @@ class MdSplitWindow(Adw.ApplicationWindow):
                 self._show_error(_("Could not save file"), str(error))
             return
 
+        previous_text = self._document.saved_text
         self._document.mark_saved(
             requested_file, saved_text=snapshot, etag=etag
         )
+        if (
+            self._settings.get_boolean("backup-files")
+            and previous_text
+            and previous_text != snapshot
+            and requested_file.get_path()
+        ):
+            retention = max(
+                1, self._settings.get_int("backup-retention")
+            )
+            threading.Thread(
+                target=recovery.write_backup,
+                args=(Path(requested_file.get_path()), previous_text),
+                kwargs={"retention": retention},
+                daemon=True,
+                name="md-split-backup",
+            ).start()
+        self._clear_recovery()
+        self._ignore_monitor_until = time.monotonic() + 1.5
+        self._start_file_monitor(requested_file)
         self._remember_folder(requested_file)
+        self._record_recent(requested_file)
+        self._note_session_file(requested_file)
         self._update_ui()
 
         # A queued save without a continuation must not swallow an earlier
@@ -1157,6 +1938,7 @@ class MdSplitWindow(Adw.ApplicationWindow):
 
         def on_response(_dialog, response: str) -> None:
             if response == "discard":
+                self._clear_recovery()
                 on_discard()
             elif response == "save":
                 self.save_document_then(on_discard)
@@ -1186,6 +1968,10 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self._destroyed = True
         self._cancel_preview_timeout()
         self._cancel_stats_timeout()
+        self._cancel_search_timeout()
+        self._cancel_autosave_timeout()
+        if not self._document.is_dirty:
+            self._clear_recovery()
         self._invalidate_file_operations()
         for owner, handler_id in self._signal_handlers:
             disconnect = getattr(owner, "disconnect", None)
@@ -1205,6 +1991,28 @@ class MdSplitWindow(Adw.ApplicationWindow):
         if getattr(self, "_sync_scroll_handler", 0):
             self._settings.disconnect(self._sync_scroll_handler)
             self._sync_scroll_handler = 0
+        if getattr(self, "_recent_handler", 0):
+            self._settings.disconnect(self._recent_handler)
+            self._recent_handler = 0
+        if getattr(self, "_autosave_handler", 0):
+            self._settings.disconnect(self._autosave_handler)
+            self._autosave_handler = 0
+        if getattr(self, "_autosave_interval_handler", 0):
+            self._settings.disconnect(self._autosave_interval_handler)
+            self._autosave_interval_handler = 0
+        if getattr(self, "_spell_handler", 0):
+            self._settings.disconnect(self._spell_handler)
+            self._spell_handler = 0
+        if getattr(self, "_spell_language_handler", 0):
+            self._settings.disconnect(self._spell_language_handler)
+            self._spell_language_handler = 0
+        if self.spell_adapter is not None:
+            self.editor_view.insert_action_group("spelling", None)
+            self.editor_view.set_extra_menu(None)
+            self.spell_adapter = None
+        app = self.get_application()
+        if app is not None and hasattr(app, "forget_window"):
+            app.forget_window(self)
         if self._key_controller is not None:
             self.editor_view.remove_controller(self._key_controller)
             self._key_controller = None

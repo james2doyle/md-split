@@ -13,7 +13,7 @@ gi.require_version("Adw", "1")
 
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
-from . import APP_ID, VIEW_MODES
+from . import APP_ID, VIEW_MODES, recovery, session
 from .logging_utils import install_known_gtk_warning_filter
 from .preferences import MdSplitPreferencesDialog
 from .window import MdSplitWindow
@@ -34,6 +34,7 @@ class MdSplitApplication(Adw.Application):
             resource_base_path="/com/james2doyle/MdSplit",
         )
         self.version = version
+        GLib.set_application_name("MD Split")
         self.settings = Gio.Settings(schema_id=APP_ID)
         if (Adw.MAJOR_VERSION, Adw.MINOR_VERSION) < MINIMUM_ADW:
             log.warning(
@@ -42,6 +43,12 @@ class MdSplitApplication(Adw.Application):
         self._preferences_dialog = None
         self._cli_view_mode = None
         self._cli_color_scheme = None
+        self._session_files: dict[MdSplitWindow, str] = {}
+        self._last_active_path = ""
+        self._session_written = False
+        self._recovery_prompted = False
+        self._recovery_dialog = None
+        self._missing_dialog = None
         self._register_options()
         self.connect("handle-local-options", self._on_handle_local_options)
         self._apply_appearance()
@@ -52,6 +59,16 @@ class MdSplitApplication(Adw.Application):
         self.create_action(
             "save-as", self.on_save_as_action, ["<control><shift>s"]
         )
+        self.create_action("find", self.on_find_action, ["<control>f"])
+        self.create_action(
+            "find-next", self.on_find_next_action, ["<control>g"]
+        )
+        self.create_action(
+            "find-previous",
+            self.on_find_previous_action,
+            ["<control><shift>g"],
+        )
+        self.create_action("replace", self.on_replace_action, ["<control>h"])
         self.create_action("export-html", self.on_export_html_action)
         self.create_action("export-pdf", self.on_export_pdf_action)
         for name, shortcut in (
@@ -81,11 +98,18 @@ class MdSplitApplication(Adw.Application):
             ),
         )
         self.create_action(
+            "open-recent",
+            self.on_open_recent_action,
+            parameter_type=GLib.VariantType.new("s"),
+        )
+        self.create_action("clear-recent", self.on_clear_recent_action)
+        self.create_action(
             "preferences", self.on_preferences_action, ["<control>comma"]
         )
         self.create_action("quit", self.on_quit_action, ["<control>q"])
         self.create_action("about", self.on_about_action)
         self.settings.connect("changed::remote-images", self._sync_remote_action)
+        self.connect("notify::active-window", self._on_active_window_changed)
 
     def _register_options(self) -> None:
         for name, description in (
@@ -165,11 +189,149 @@ class MdSplitApplication(Adw.Application):
 
     def do_activate(self):
         win = self.props.active_window
-        if win is None:
+        if win is not None:
+            win.present()
+            return
+
+        restored = False
+        missing: list[str] = []
+        target = None
+        if self.settings.get_boolean("restore-session"):
+            stored = self.settings.get_strv("session-files")
+            existing, missing = session.prune_missing(stored)
+            if existing != stored:
+                self.settings.set_strv("session-files", existing)
+            active = self.settings.get_string("session-active")
+            for path in existing:
+                restored_win = self._new_window()
+                restored_win.open_file(Gio.File.new_for_path(path))
+                restored_win.present()
+                if path == active:
+                    target = restored_win
+                restored = True
+
+        if not restored:
             win = self._new_window()
             if self.settings.get_boolean("load-demo-on-startup"):
                 win.load_demo_document()
-        win.present()
+            win.present()
+
+        if target is not None:
+            target.present()
+        if missing:
+            self._warn_missing_files(missing)
+        self._prompt_recovery_drafts()
+
+    def _prompt_recovery_drafts(self) -> None:
+        if self._recovery_prompted:
+            return
+        self._recovery_prompted = True
+        drafts = recovery.list_drafts()
+        if drafts:
+            self._prompt_next_draft(drafts)
+
+    def _prompt_next_draft(self, drafts: list[recovery.Draft]) -> None:
+        if not drafts:
+            return
+        draft = drafts[0]
+        win = self.props.active_window
+        if win is None:
+            win = self._ensure_window()
+            win.present()
+        dialog = Adw.AlertDialog()
+        dialog.set_heading(_("Recover unsaved document"))
+        dialog.set_body(
+            _(
+                "“{name}” has unsaved changes from a previous run."
+            ).format(name=draft.name)
+        )
+        dialog.add_response("discard", _("Discard"))
+        dialog.add_response("restore", _("Restore"))
+        dialog.set_response_appearance(
+            "discard", Adw.ResponseAppearance.DESTRUCTIVE
+        )
+        dialog.set_response_appearance(
+            "restore", Adw.ResponseAppearance.SUGGESTED
+        )
+        dialog.set_default_response("restore")
+        dialog.set_close_response("discard")
+
+        def on_response(_dialog, response: str) -> None:
+            self._recovery_dialog = None
+            if response == "restore":
+                restored = self._new_window()
+                restored.load_recovered_draft(draft)
+                restored.present()
+            else:
+                recovery.clear_draft(draft.key)
+            self._prompt_next_draft(drafts[1:])
+
+        dialog.connect("response", on_response)
+        self._recovery_dialog = dialog
+        dialog.present(win)
+
+    def _warn_missing_files(self, missing: list[str]) -> None:
+        win = self.props.active_window
+        if win is None:
+            return
+        dialog = Adw.AlertDialog()
+        dialog.set_heading(_("Some files could not be reopened"))
+        dialog.set_body("\n".join(missing))
+        dialog.add_response("close", _("Close"))
+        dialog.set_default_response("close")
+        dialog.set_close_response("close")
+
+        def on_response(_dialog, _response: str) -> None:
+            self._missing_dialog = None
+
+        dialog.connect("response", on_response)
+        self._missing_dialog = dialog
+        dialog.present(win)
+
+    def note_window_file(
+        self, window: MdSplitWindow, path: str | None
+    ) -> None:
+        if path:
+            self._session_files[window] = path
+            self._last_active_path = path
+        else:
+            self._session_files.pop(window, None)
+        self._session_written = False
+        self._write_session()
+
+    def forget_window(self, window: MdSplitWindow) -> None:
+        self._session_files.pop(window, None)
+        if not self._session_written:
+            self._write_session()
+
+    def _on_active_window_changed(self, *_args) -> None:
+        win = self.props.active_window
+        if win is not None:
+            path = self._session_files.get(win)
+            if path:
+                self._last_active_path = path
+
+    def _write_session(self) -> None:
+        windows = set(self.get_windows())
+        paths = session.dedupe_paths(
+            [
+                path
+                for window, path in self._session_files.items()
+                if path and window in windows
+            ]
+        )
+        active = (
+            self._last_active_path
+            if self._last_active_path in paths
+            else (paths[-1] if paths else "")
+        )
+        self.settings.set_strv("session-files", paths)
+        self.settings.set_string("session-active", active)
+
+    def do_shutdown(self):
+        if not self._session_written:
+            self._write_session()
+        Adw.Application.do_shutdown(self)
 
     def do_open(self, files, n_files, hint):
         if not files:
@@ -209,6 +371,23 @@ class MdSplitApplication(Adw.Application):
         if win is not None:
             win.open_document()
 
+    def on_open_recent_action(self, _action, parameter):
+        if parameter is None:
+            return
+        path = parameter.get_string()
+        if not path:
+            return
+        win = self._ensure_window()
+        win.open_file(Gio.File.new_for_path(path))
+        win.present()
+
+    def on_clear_recent_action(self, *_args):
+        self.settings.set_strv("recent-files", [])
+        try:
+            Gtk.RecentManager.get_default().purge_items()
+        except Exception as error:  # pragma: no cover - session bus optional
+            log.warning("Could not clear recent files: %s", error)
+
     def on_save_action(self, *_args):
         win = self.props.active_window
         if win is not None:
@@ -218,6 +397,26 @@ class MdSplitApplication(Adw.Application):
         win = self.props.active_window
         if win is not None:
             win.save_as_document()
+
+    def on_find_action(self, *_args):
+        win = self.props.active_window
+        if win is not None:
+            win.show_find()
+
+    def on_find_next_action(self, *_args):
+        win = self.props.active_window
+        if win is not None:
+            win.find_next()
+
+    def on_find_previous_action(self, *_args):
+        win = self.props.active_window
+        if win is not None:
+            win.find_previous()
+
+    def on_replace_action(self, *_args):
+        win = self.props.active_window
+        if win is not None:
+            win.show_replace()
 
     def on_export_html_action(self, *_args):
         win = self.props.active_window
@@ -285,6 +484,8 @@ class MdSplitApplication(Adw.Application):
             )
 
     def on_quit_action(self, *_args):
+        self._write_session()
+        self._session_written = True
         windows = self.get_windows()
         if not windows:
             self.quit()
