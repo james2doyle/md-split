@@ -196,6 +196,22 @@ with tempfile.TemporaryDirectory() as tmp:
     ]
     assert "Image is too large" in all_text(oversized)
 
+    # Preview images cannot escape the document directory either.
+    escaped_image = Path(tmp).parent / f"md-split-escaped-{os.getpid()}.png"
+    escaped_image.write_bytes(make_png(8, 8))
+    try:
+        escaped_renderer = MarkdownRenderer()
+        escaped_root = escaped_renderer.render(
+            f"![Escaped](../{escaped_image.name})", base_dir=Path(tmp)
+        )
+    finally:
+        escaped_image.unlink()
+    assert not escaped_renderer._local_pending
+    assert not [
+        widget for widget in walk(escaped_root) if isinstance(widget, Gtk.Picture)
+    ]
+    assert "[Image: Escaped]" in all_text(escaped_root)
+
     code_labels = [
         w
         for w in labels(root)

@@ -63,19 +63,13 @@ def _local_path(
     parsed = _parsed(value)
     if parsed is None or parsed.scheme or value.startswith("//"):
         return None
+    root = document_root(base_dir, base_file)
+    if root is None:
+        return None
     path = Path(unquote(parsed.path))
-    if path.is_absolute():
-        return path
-    if base_dir is not None:
-        return (base_dir / path).resolve()
-    if base_file is not None:
-        parent = base_file.get_parent()
-        if parent is None:
-            return None
-        local = parent.get_path()
-        if local:
-            return (Path(local) / path).resolve()
-    return None
+    if not path.is_absolute():
+        path = root / path
+    return contained_file(path, root)
 
 
 def _resolve_link(

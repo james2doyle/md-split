@@ -2,11 +2,14 @@
 
 import os
 import sys
+import tempfile
 import time
 from pathlib import Path
 
 SOURCE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, SOURCE_ROOT)
+
+from gi.repository import Gio
 
 from src.renderer import MarkdownRenderer
 
@@ -94,5 +97,47 @@ assert (
 assert renderer._resolve_link("//example.com/path") is None
 assert renderer._resolve_link("http://[") is None
 assert renderer._resolve_image("http://[") is None
+
+# Relative paths may not escape the document directory.
+with tempfile.TemporaryDirectory() as docs, tempfile.TemporaryDirectory() as outside:
+    docs_path = Path(docs)
+    outside_path = Path(outside)
+    (docs_path / "guide.md").write_text("# Guide", encoding="utf-8")
+    (docs_path / "dot.png").write_bytes(b"png")
+    (outside_path / "secret.png").write_bytes(b"png")
+    escape = str(outside_path / "secret.png")
+
+    renderer._base_dir = docs_path
+    renderer._base_file = None
+    assert renderer._resolve_link("guide.md") == (
+        (docs_path / "guide.md").as_uri()
+    )
+    assert renderer._resolve_link("sub/../guide.md") == (
+        (docs_path / "guide.md").as_uri()
+    )
+    for href in ("../outside.md", "%2E%2E/outside.md", "/etc/passwd"):
+        assert renderer._resolve_link(href) is None, href
+    for src in (
+        "../secret.png",
+        "%2E%2E/secret.png",
+        escape,
+        "%2Fetc%2Fpasswd",
+    ):
+        assert renderer._resolve_image(src) is None, src
+    assert renderer._resolve_image("dot.png") == ("file", docs_path / "dot.png")
+
+    # The same containment applies when resolution starts from Gio.File.
+    renderer._base_dir = None
+    renderer._base_file = Gio.File.new_for_path(str(docs_path / "doc.md"))
+    assert renderer._resolve_link("guide.md") == (
+        (docs_path / "guide.md").as_uri()
+    )
+    assert renderer._resolve_link("../outside.md") is None
+    assert renderer._resolve_image("dot.png") == (
+        "file",
+        docs_path / "dot.png",
+    )
+    assert renderer._resolve_image("../secret.png") is None
+    renderer._base_file = None
 
 print("ok: headless Markdown markup")

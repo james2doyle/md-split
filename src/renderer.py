@@ -1267,12 +1267,26 @@ class MarkdownRenderer:
             if parent is None:
                 return None
             target = parent.resolve_relative_path(unquote(parsed.path))
-            return target.get_uri() + suffix
+            root = document_root(self._base_dir, self._base_file)
+            if root is None:
+                # No local directory to confine to (for example a remote GIO
+                # mount); keep the existing URI behaviour.
+                uri = target.get_uri()
+                return uri + suffix if uri else None
+            local = target.get_path()
+            if local is None:
+                return None
+            path = contained_file(Path(local), root)
+            if path is None:
+                return None
+            return path.as_uri() + suffix
         if self._base_dir is None:
             return href
-        path = (self._base_dir / unquote(parsed.path)).resolve()
-        uri = Gio.File.new_for_path(str(path)).get_uri()
-        return uri + suffix
+        root = document_root(self._base_dir, self._base_file)
+        path = contained_file(self._base_dir / unquote(parsed.path), root)
+        if path is None:
+            return None
+        return path.as_uri() + suffix
 
     def _resolve_image(
         self, src: str
@@ -1310,7 +1324,12 @@ class MarkdownRenderer:
                     return ("uri", uri) if uri else None
             else:
                 return None
-        return ("file", path)
+        resolved = contained_file(path, document_root(
+            self._base_dir, self._base_file
+        ))
+        if resolved is None:
+            return None
+        return ("file", resolved)
 
     def _plain_text(self, token: Token) -> str:
         parts: list[str] = []

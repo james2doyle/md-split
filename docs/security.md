@@ -22,6 +22,12 @@ preview opens `http`, `https`, and `mailto` links through `Gtk.UriLauncher`.
 Relative links resolve against the document's directory or `Gio.File` parent.
 Internal `#anchors` stay inside the preview.
 
+Relative and absolute local paths in links, preview images and export images
+are confined to the document's directory. `..` segments, percent-encoded
+segments (`%2E%2E`) and symlinks are resolved first, and a target outside that
+directory is rejected (rendered as a plain link or image placeholder instead of
+being opened, loaded or embedded).
+
 HTML and PDF export reject the same unsafe schemes (`javascript`, `vbscript`,
 and `data`). Export does not fetch remote images; remote image URLs are
 preserved in standalone HTML, and only local images are embedded.
@@ -33,6 +39,10 @@ preferences switch enable them for the current document. When enabled:
 
 - only `http` and `https` URLs are accepted;
 - redirects are checked again and must remain HTTP(S);
+- every HTTP(S) host is allowed, including loopback, private and link-local
+  addresses such as `127.0.0.1`, `10.0.0.0/8` or the metadata endpoint
+  `169.254.169.254`; there is no local-network block list, so only enable
+  remote images for documents you trust;
 - 10 MiB per image and 20 megapixels;
 - at most 32 remote images per render;
 - a 15 second request timeout;

@@ -93,6 +93,40 @@ with tempfile.TemporaryDirectory() as tmp:
     assert 'src=""' in unsafe
     assert "missing" in unsafe
 
+    # Images outside the document directory are never embedded.
+    outside = Path(tmp).parent / f"md-split-outside-{os.getpid()}.png"
+    outside.write_bytes(make_png(4, 4))
+    try:
+        escaped = render_html(
+            f"![sibling](../{outside.name})\n\n"
+            f"![absolute]({outside})\n\n"
+            f"![encoded](%2E%2E/{outside.name})\n",
+            title="Escaped",
+            base_dir=root,
+        )
+    finally:
+        outside.unlink()
+    assert "data:image/png;base64," not in escaped, escaped
+    for alt in ("sibling", "absolute", "encoded"):
+        assert f'alt="{alt}"' in escaped, escaped
+
+    # Underline promotion follows the same per-inline-token nesting rules as
+    # the preview, and balanced pairs in other blocks stay promoted.
+    underline = render_html(
+        "**<u>bold</u>**\n\n"
+        "<u>**bold**</u>\n\n"
+        "[<u>link](https://example.com) outside</u>\n\n"
+        "<u>ok</u>\n\n"
+        "<u>unclosed\n",
+        title="Underline",
+    )
+    assert "<strong><u>bold</u></strong>" in underline, underline
+    assert "<u><strong>bold</strong></u>" in underline, underline
+    assert '<a href="https://example.com"><u>link</a>' not in underline
+    assert "&lt;u&gt;link" in underline, underline
+    assert "<p><u>ok</u></p>" in underline, underline
+    assert "&lt;u&gt;unclosed" in underline, underline
+
     pdf = root / "export.pdf"
     pages = write_pdf(
         "# PDF title\n\n"
