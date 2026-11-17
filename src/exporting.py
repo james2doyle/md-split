@@ -11,6 +11,7 @@ import mimetypes
 import re
 from gettext import gettext as _
 from pathlib import Path
+from typing import TYPE_CHECKING
 from urllib.parse import unquote, urlparse
 
 import gi
@@ -28,10 +29,12 @@ except (ImportError, ValueError):
     GdkPixbuf = None
 
 import cairo
-from markdown_it.token import Token
 
 from .markdown_parser import create_parser, has_valid_underline_markup
 from .renderer import MarkdownRenderer
+
+if TYPE_CHECKING:
+    from markdown_it.token import Token
 
 _MAX_EMBED_IMAGE_BYTES = 8 * 1024 * 1024
 _MAX_EMBED_TOTAL_BYTES = 32 * 1024 * 1024

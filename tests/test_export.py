@@ -12,6 +12,12 @@ sys.path.insert(0, SOURCE_ROOT)
 
 from src.exporting import render_html, write_pdf
 
+markdown_it_file = sys.modules["markdown_it"].__file__
+assert markdown_it_file is not None
+assert Path(markdown_it_file).resolve().is_relative_to(
+    Path(SOURCE_ROOT) / "src" / "vendor"
+), markdown_it_file
+
 
 def make_png(width: int, height: int) -> bytes:
     def chunk(kind: bytes, data: bytes) -> bytes:
