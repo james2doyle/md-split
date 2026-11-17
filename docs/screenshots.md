@@ -8,14 +8,15 @@ It is the public face of the app, so update it deliberately.
 - Path: `docs/screenshot.png`
 - Size: `1150 × 770`
 - Format: 8-bit RGB PNG (no alpha)
-- Content: MD Split showing the editor and native preview side by side
+- Content: MD Split showing the editor and native preview side by side in the
+  dark theme
 
 ## Capture checklist
 
 Use a normal desktop session and a clean, representative document:
 
 1. Launch the installed app with the bundled demo or a short Markdown file.
-2. Use the default light Adwaita theme and 100% scaling.
+2. Use the app’s dark theme (`--dark`) and 100% scaling.
 3. Show both panes and enough preview content to demonstrate native rendering.
 4. Avoid personal file names, notifications, browser tabs, and unrelated
    windows.
@@ -28,15 +29,14 @@ Use a normal desktop session and a clean, representative document:
 
 7. Check that the image is sharp at 1× and still readable when scaled down.
 
-GNOME's screenshot UI, Spectacle, Flameshot, or `gnome-screenshot` are all
-acceptable. The important part is the content and dimensions, not the tool.
+Use `gridhand` CLI tool for taking screenshots: `gridhand screenshot --window "MD Split" --output /tmp/md-split-window.png`.
 
 ## AppStream URL
 
 The AppStream screenshot is loaded from the release tag, not from `main`:
 
 ```xml
-<image type="source" width="1150" height="770">https://raw.githubusercontent.com/james2doyle/md-split/v1.0.0/docs/screenshot.png</image>
+<image type="source" width="1150" height="770">https://raw.githubusercontent.com/james2doyle/md-split/v1.1.0/docs/screenshot.png</image>
 ```
 
 When preparing a new release, update the tag in

@@ -48,11 +48,13 @@ changes, and ask first.
 
 Never drive the GUI, synthesize input, or automate the desktop without explicit
 permission for that run. Before launching the app, moving or clicking the
-pointer, typing, sending keyboard shortcuts, or using tools such as `ydotool`,
-`wtype`, `xdotool`, accessibility APIs, or compositor automation, tell the user
-exactly what will happen and ask whether they are ready. Wait for an explicit
-yes. Headless tests and static checks do not require this; visual checks that
-launch the app do.
+pointer, typing, sending keyboard shortcuts, or using tools, accessibility APIs,
+or compositor automation, tell the user exactly what will happen and ask whether
+they are ready. Wait for an explicit yes. Headless tests and static checks do not
+require this; visual checks that launch the app do.
+
+Use `gridhand` CLI tool desktop automation. Run `gridhand --help` for detailed
+list of commands.
 
 ## Hard boundaries
 
