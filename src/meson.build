@@ -45,6 +45,7 @@ md_split_sources = [
   'exporting.py',
   'filechanges.py',
   'fileio.py',
+  'formatting.py',
   'logging_utils.py',
   'main.py',
   'markdown_parser.py',
@@ -101,6 +102,8 @@ test('Session helpers', python3, args: [files('../tests/test_session.py')],
 test('Recovery helpers', python3, args: [files('../tests/test_recovery.py')],
   env: test_env)
 test('Spell-check helpers', python3, args: [files('../tests/test_spellcheck.py')],
+  env: test_env)
+test('Markdown formatting', python3, args: [files('../tests/test_formatting.py')],
   env: test_env)
 test('Window smoke test', python3, args: [files('../tests/test_window.py')],
   depends: test_schemas,
