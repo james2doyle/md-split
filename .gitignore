@@ -2,6 +2,8 @@
 /subprojects/.wraplock
 /build/
 /build-install/
+/build-release/
+/build-release-install/
 /build-flatpak/
 /dist/
 /.flatpak-builder/

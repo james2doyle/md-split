@@ -37,6 +37,20 @@ has no runtime Python dependencies beyond PyGObject.
 - Raw HTML is disabled by default for safe previewing; `<u>...</u>` is the
   only inline HTML tag rendered as formatting
 
+## Documentation
+
+- [Architecture](docs/architecture.md) — module map, edit-to-preview flow, file I/O, rendering, and scroll sync
+- [Testing](docs/testing.md) — test matrix, headless/display behavior, Xvfb, and adding tests
+- [Release builds](docs/releasing.md) — tagged source archives, native release builds, and Flatpak bundles
+- [Flathub checklist](docs/flathub.md) — AppStream, icons, pinned sources, permissions, and submission
+- [Security model](docs/security.md) — raw HTML, links, remote images, limits, and export
+- [Settings](docs/settings.md) — GSettings keys, defaults, persistence, and CLI overrides
+- [Troubleshooting](docs/troubleshooting.md) — local builds, stale UI, Flatpak errors, and display tests
+- [Screenshots](docs/screenshots.md) — capturing and updating the AppStream screenshot
+- [Translations](docs/translations.md) — gettext catalogues and adding a language
+- [Accessibility](docs/accessibility.md) — keyboard, focus, preview semantics, and manual checks
+- [Contributing](CONTRIBUTING.md) — development setup, tests, style, and pull requests
+
 ## Requirements
 
 - Python 3.12+ and PyGObject (`Gtk-4.0`, `Adw-1`, `GtkSource-5` GIRs)
@@ -84,7 +98,7 @@ without extra environment setup.
 | Ctrl+I | Italic |
 | Ctrl+U | Underline |
 | Ctrl+T | Block quote |
-| Ctrl+` | Code |
+| `` Ctrl+` `` | Code |
 | Ctrl+, | Preferences |
 | Ctrl+? | Show shortcuts |
 | Ctrl+Q | Quit |
@@ -200,6 +214,7 @@ No app process is needed. Most tests run completely headless:
 - asynchronous UTF-8 file loading and saving
 - editing helpers, selection wrapping, link completion, and list continuation
 - HTML and PDF export, including pagination and failure cleanup
+- known upstream GTK warning filtering
 - scroll synchronization and feedback-loop suppression
 - packaged gresource content and the bundled demo
 - desktop/AppStream/schema validators
@@ -218,11 +233,10 @@ flatpak-builder --user --install --force-clean build-flatpak com.james2doyle.MdS
 flatpak run com.james2doyle.MdSplit
 ```
 
-The manifest builds from the working tree and allows network access so remote
-Markdown images can load when explicitly enabled. Flathub packaging requires
-the public repository and the `v1.0.0` tag referenced by the AppStream
-screenshot; use a commit-pinned source archive for release builds rather than
-the development manifest's working-tree source.
+The development manifest builds from the working tree and allows network
+access so remote Markdown images can load when explicitly enabled. For a
+reproducible release build, a local `.flatpak` bundle, and Flathub notes, see
+[docs/releasing.md](docs/releasing.md).
 
 ## Third-party licenses
 

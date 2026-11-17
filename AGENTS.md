@@ -42,7 +42,17 @@ launch a separate app process. Headless tests cover the document model,
 Markdown -> Pango markup, editing helpers, export and file I/O; in-process GUI
 tests skip themselves without a display. Launch
 `./build-install/bin/md_split examples/demo.md` only for visual checks after UI
-changes.
+changes, and ask first.
+
+## Desktop automation
+
+Never drive the GUI, synthesize input, or automate the desktop without explicit
+permission for that run. Before launching the app, moving or clicking the
+pointer, typing, sending keyboard shortcuts, or using tools such as `ydotool`,
+`wtype`, `xdotool`, accessibility APIs, or compositor automation, tell the user
+exactly what will happen and ask whether they are ready. Wait for an explicit
+yes. Headless tests and static checks do not require this; visual checks that
+launch the app do.
 
 ## Hard boundaries
 
@@ -136,7 +146,8 @@ settings.set_string('view-mode', 'source')
 ```text
 [UI] src/window.blp, src/preferences-dialog.blp, src/shortcuts-dialog.blp;
   generated: build/src/*.ui
-[App] src/main.py (application/actions/CSS), src/window.py (window/file I/O)
+[App] src/main.py (application/actions/CSS), src/window.py (window/file I/O),
+  src/logging_utils.py (known GTK warning filter)
 [Model] src/document.py (text, file, dirty state), src/fileio.py (async I/O)
 [Edit] src/editing.py (surround/link completion/formatting)
 [Preview] src/renderer.py (tokens -> widgets), src/markdown_view.py (scroll/theme),
@@ -147,10 +158,13 @@ settings.set_string('view-mode', 'source')
   data/icons/hicolor/*/apps/*.svg
 [Vendor] src/vendor/markdown_it, mdit_py_plugins, mdurl, LICENSES
 [Tests] tests/test_document.py, test_markdown.py, test_fileio.py,
-  test_editing.py, test_lists.py, test_export.py, test_resources.py (headless);
+  test_editing.py, test_lists.py, test_export.py, test_logging.py,
+  test_resources.py (headless);
   test_renderer.py, test_window.py, test_lifecycle.py, test_preferences.py,
   test_view_modes.py, test_cli.py, test_scroll_sync.py, test_images.py (display)
 [Scripts] scripts/test.py (sanitized test runner), dev.py, scripts/init.py
+[CI] .github/workflows/ci.yml, .github/workflows/release.yml
+[Docs] README.md, AGENTS.md, CONTRIBUTING.md, docs/*.md
 [Packaging] meson.build, src/meson.build, com.james2doyle.MdSplit.json
 ```
 
