@@ -24,7 +24,7 @@
 
   <screenshots>
     <screenshot type="default">
-      <image type="source" width="1150" height="770">https://raw.githubusercontent.com/james2doyle/md-split/v0.1.0/docs/screenshot.png</image>
+      <image type="source" width="1150" height="770">https://raw.githubusercontent.com/james2doyle/md-split/v1.0.0/docs/screenshot.png</image>
       <caption>Markdown source and rendered preview side by side</caption>
     </screenshot>
   </screenshots>
@@ -64,9 +64,9 @@
   </branding>
 
   <releases>
-    <release version="0.1.0" date="2026-11-16">
+    <release version="1.0.0" date="2026-11-16">
       <description translate="no">
-        <p>Initial development release.</p>
+        <p>First stable release.</p>
       </description>
     </release>
   </releases>

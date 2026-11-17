@@ -220,7 +220,7 @@ flatpak run com.james2doyle.MdSplit
 
 The manifest builds from the working tree and allows network access so remote
 Markdown images can load when explicitly enabled. Flathub packaging requires
-the public repository and the `v0.1.0` tag referenced by the AppStream
+the public repository and the `v1.0.0` tag referenced by the AppStream
 screenshot; use a commit-pinned source archive for release builds rather than
 the development manifest's working-tree source.
 
