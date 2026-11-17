@@ -5,6 +5,7 @@ Run via `meson test`; APP_RESOURCE points at the built gresource.
 
 import os
 import sys
+import threading
 
 SOURCE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RESOURCE = os.environ.get("APP_RESOURCE")
@@ -44,6 +45,29 @@ def walk(widget):
     while child is not None:
         yield from walk(child)
         child = child.get_next_sibling()
+
+
+def wait_until(predicate, timeout_ms=4000):
+    loop = GLib.MainLoop()
+    state = {"timed_out": False}
+
+    def poll():
+        if predicate():
+            loop.quit()
+            return False
+        return True
+
+    def timeout():
+        state["timed_out"] = True
+        loop.quit()
+        return False
+
+    GLib.timeout_add(10, poll)
+    timeout_id = GLib.timeout_add(timeout_ms, timeout)
+    loop.run()
+    if not state["timed_out"]:
+        GLib.source_remove(timeout_id)
+    assert not state["timed_out"], "timed out waiting for background work"
 
 
 window = MdSplitWindow()

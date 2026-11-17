@@ -8,6 +8,7 @@ save/load behaviour can be tested in a normal headless test.
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Callable
 from gettext import gettext as _
 
@@ -35,6 +36,16 @@ def _too_large_error() -> FileTooLargeError:
             size=MAX_DOCUMENT_BYTES // (1024 * 1024)
         )
     )
+
+
+def _decode_document(chunks: list[bytes], etag: str | None, deliver) -> None:
+    """Join and decode a loaded document off the main loop."""
+    try:
+        text = b"".join(chunks).decode("utf-8")
+    except UnicodeDecodeError as error:
+        GLib.idle_add(deliver, None, None, error)
+        return
+    GLib.idle_add(deliver, text.removeprefix("\ufeff"), etag, None)
 
 
 def load_text_async(
@@ -93,13 +104,12 @@ def load_text_async(
                 size = contents.get_size()
                 if size == 0:
                     stream.close(None)
-                    try:
-                        text = b"".join(chunks).decode("utf-8")
-                    except UnicodeDecodeError as error:
-                        deliver(None, None, error)
-                        return
-                    text = text.removeprefix("\ufeff")
-                    deliver(text, etag, None)
+                    threading.Thread(
+                        target=_decode_document,
+                        args=(chunks, etag, deliver),
+                        daemon=True,
+                        name="md-split-decode",
+                    ).start()
                     return
 
                 total += size

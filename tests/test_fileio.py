@@ -4,6 +4,7 @@ import os
 import stat
 import sys
 import tempfile
+import threading
 from pathlib import Path
 
 SOURCE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -77,6 +78,23 @@ with tempfile.TemporaryDirectory() as tmp:
     assert loaded["error"] is None, loaded["error"]
     assert loaded["text"] == text
     assert loaded["etag"] == saved["etag"]
+
+    # Chunk assembly and UTF-8 decoding run off the main loop thread.
+    decode_threads = []
+    original_decode = fileio._decode_document
+
+    def record_decode(*args):
+        decode_threads.append(threading.get_ident())
+        return original_decode(*args)
+
+    fileio._decode_document = record_decode
+    try:
+        loaded = load(file)
+    finally:
+        fileio._decode_document = original_decode
+    assert loaded["text"] == text
+    assert decode_threads, "document decoding did not run"
+    assert decode_threads[0] != threading.get_ident()
 
     path.write_bytes(b"\xef\xbb\xbfBOM text")
     loaded = load(file)

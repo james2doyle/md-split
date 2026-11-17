@@ -57,8 +57,9 @@ images are disabled, nothing in the preview is fetched.
 
 `src/fileio.py` bounds document reads at 64 MiB and reads in 64 KiB chunks.
 Files are decoded as UTF-8; invalid input produces an error dialog instead of a
-partial document. Loads query the ETag so stale async callbacks can be
-discarded.
+partial document. Joining and decoding the chunks runs on a worker thread and
+delivers the result back on the main loop. Loads query the ETag so stale async
+callbacks can be discarded.
 
 Saving uses `Gio.File.replace_contents_async()` for atomic replacement. The
 window serializes saves and invalidates pending callbacks when the document

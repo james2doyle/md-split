@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from collections.abc import Callable
 from gettext import gettext as _
 from gettext import ngettext
@@ -815,23 +816,50 @@ class MdSplitWindow(Adw.ApplicationWindow):
         )
         if file is None:
             return
+        self._confirm_export_overwrite(
+            file,
+            self._export_html_to,
+        )
+
+    def _export_html_to(self, file: Gio.File) -> None:
         try:
             from . import exporting
-
-            content = exporting.render_html(
-                self.get_text(),
-                title=Path(self._document.display_name).stem,
-                base_dir=self._document.directory,
-                base_file=self._document.file,
-            )
-        except Exception as error:  # pragma: no cover - reported to the user
+        except Exception as error:  # pragma: no cover - optional Cairo
             self._show_error(_("Could not export HTML"), str(error))
             return
+        text = self.get_text()
+        title = Path(self._document.display_name).stem
+        base_dir = self._document.directory
+        base_file = self._document.file
+
+        def produce() -> None:
+            try:
+                content = exporting.render_html(
+                    text,
+                    title=title,
+                    base_dir=base_dir,
+                    base_file=base_file,
+                )
+            except Exception as error:  # pragma: no cover - reported to user
+                GLib.idle_add(self._export_failed, "HTML", error)
+                return
+            GLib.idle_add(self._write_export_html, file, content)
+
+        threading.Thread(
+            target=produce,
+            daemon=True,
+            name="md-split-export-html",
+        ).start()
+
+    def _write_export_html(self, file: Gio.File, content: str) -> bool:
+        if self._destroyed:
+            return False
         fileio.save_text_async(
             file,
             content,
             lambda error, _etag: self._on_export_written("HTML", error),
         )
+        return False
 
     def _on_export_pdf_finished(
         self, dialog: Gtk.FileDialog, result
@@ -859,18 +887,45 @@ class MdSplitWindow(Adw.ApplicationWindow):
             return
         try:
             from . import exporting
-
-            exporting.write_pdf(
-                self.get_text(),
-                path,
-                title=Path(self._document.display_name).stem,
-                base_dir=self._document.directory,
-                base_file=self._document.file,
-            )
-        except Exception as error:  # pragma: no cover - reported to the user
+        except Exception as error:  # pragma: no cover - optional Cairo
             self._show_error(_("Could not export PDF"), str(error))
             return
-        self._show_toast(_("Exported PDF"))
+        text = self.get_text()
+        title = Path(self._document.display_name).stem
+        base_dir = self._document.directory
+        base_file = self._document.file
+
+        def produce() -> None:
+            try:
+                exporting.write_pdf(
+                    text,
+                    path,
+                    title=title,
+                    base_dir=base_dir,
+                    base_file=base_file,
+                )
+            except Exception as error:  # pragma: no cover - reported to user
+                GLib.idle_add(self._export_failed, "PDF", error)
+                return
+            GLib.idle_add(self._export_pdf_written)
+
+        threading.Thread(
+            target=produce,
+            daemon=True,
+            name="md-split-export-pdf",
+        ).start()
+
+    def _export_pdf_written(self) -> bool:
+        if not self._destroyed:
+            self._show_toast(_("Exported PDF"))
+        return False
+
+    def _export_failed(self, kind: str, error: Exception) -> bool:
+        if not self._destroyed:
+            self._show_error(
+                _("Could not export {kind}").format(kind=kind), str(error)
+            )
+        return False
 
     def _on_export_written(self, kind: str, error: Exception | None) -> None:
         if error is not None:
