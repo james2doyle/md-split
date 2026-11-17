@@ -18,6 +18,7 @@ Settings use the GSettings schema `com.james2doyle.MdSplit` with path
 | `load-demo-on-startup` | bool | `true` | Load bundled demo when opened without a file |
 | `sync-scroll` | bool | `true` | Keep editor and preview scroll positions aligned |
 | `autocomplete-links` | bool | `true` | Expand a typed `[]` to `[]()` |
+| `format-on-save` | bool | `true` | Normalize Markdown source before writing a file |
 | `last-folder` | string | `""` | Last file-chooser directory |
 | `restore-session` | bool | `true` | Reopen file windows from the last session |
 | `session-files` | string list | `[]` | Paths of open file windows from the last run |
@@ -34,8 +35,12 @@ Settings use the GSettings schema `com.james2doyle.MdSplit` with path
 
 - `view-mode` is written when the user picks a mode or cycles with F9.
 - `remote-images` is written by the menu action and preferences switch.
-- `sync-scroll`, `autocomplete-links`, `load-demo-on-startup`, and
-  `appearance` are bound in the preferences dialog.
+- `sync-scroll`, `autocomplete-links`, `format-on-save`,
+  `load-demo-on-startup`, and `appearance` are bound in the preferences
+  dialog.
+- `format-on-save` applies the same formatter as the manual Format Document
+  command before a save writes its snapshot. It formats the whole document,
+  never only a selection, and runs as one undoable edit.
 - `window-width`, `window-height`, and `paned-position` are written when the
   window receives a close request. Values are clamped to the ranges above
   before they are stored, so a display larger than the schema maximum still

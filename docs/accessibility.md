@@ -13,6 +13,8 @@ checklist, not a certification or a completed audit.
 - `Ctrl+F`, `Ctrl+G`, `Ctrl+Shift+G`, and `Ctrl+H` open find, find next,
   find previous, and replace. Escape closes the search bar and returns focus to
   the editor.
+- `Ctrl+Shift+R` formats the selection or the whole document. Large changes
+  open a dialog with a diff preview; Cancel leaves the source untouched.
 - `Ctrl+,` opens Preferences; `Ctrl+?` opens the shortcuts dialog.
 - `Ctrl+Q` quits with the normal dirty-document confirmation.
 - Preferences closes with Escape, the close button, or a click outside.

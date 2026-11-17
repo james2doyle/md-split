@@ -42,6 +42,7 @@ xvfb-run --auto-servernum python3 scripts/test.py
 | Session helpers | Headless |
 | Recovery helpers | Headless |
 | Spell-check helpers | Headless |
+| Markdown formatting | Headless |
 | Editing helpers | Headless |
 | List continuation | Headless |
 | Packaged resources | Headless |
@@ -83,6 +84,8 @@ Headless tests cover pure logic and file/resource behavior:
   callback handling
 - editing helpers: wrapping, link completion, list continuation, formatting,
   search matching, and replace-all
+- Markdown formatting: headings, lists, task markers, block quotes, fences,
+  tables, front matter, hard breaks, idempotence, and diff summaries
 - recovery draft write/read/clear, backup retention, session path pruning, and
   recent-file ordering
 - external-change event classification and self-save filtering
@@ -103,6 +106,8 @@ Display tests construct GTK widgets in-process and inspect:
 - preview widget trees, links, images, theme changes, and nested list indentation
 - window lifecycle, focus, view modes, preview render counts, and paned positions
 - selection statistics, reading time, find/replace, and search-bar focus
+- document and selection formatting, confirmation previews, undo, and
+  format-on-save payloads
 - autosave drafts, recovery prompts, session restore, and recent-file menus
 - external-change prompts and spell-check no-backend fallback
 - preferences bindings and dialog dismissal

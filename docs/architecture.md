@@ -17,6 +17,7 @@ is a tree of ordinary GTK widgets.
 | `src/session.py` | Session path pruning, deduplication, and recent-file ordering |
 | `src/spellcheck.py` | Optional libspelling backend, language discovery and fallback |
 | `src/editing.py` | Pure `TextEdit` helpers: wrapping, link completion, formatting, list continuation, search, and replace-all |
+| `src/formatting.py` | Pure Markdown source normalizer: headings, lists, block quotes, fences, tables, blank lines and diff summaries |
 | `src/markdown_parser.py` | Shared `markdown-it-py` + GFM parser configuration |
 | `src/renderer.py` | Markdown tokens to native GTK widgets, links, images, code blocks |
 | `src/markdown_view.py` | Scrollable preview, empty/oversized states, theme rerendering, scroll fraction |
@@ -83,6 +84,25 @@ large-document threshold stay paused.
   alive until GIO finishes reading it.
 - The window keeps a serialized save queue and an operation epoch/generation
   counter so stale callbacks cannot apply text to a different document.
+
+## Formatting
+
+`src/formatting.py` normalizes Markdown source without rewriting inline
+content, link destinations, front matter or code block contents. It uses the
+shared GFM parser to locate headings, list items, block quotes, fenced code
+and tables, then applies line-based changes only inside those ranges. List
+marker characters are preserved because changing `*` and `+` can merge two
+adjacent lists and alter the rendered structure. Tables are padded for visual
+alignment; cell text and escaped pipes stay intact.
+
+Manual formatting uses the selection when one exists and the whole document
+otherwise. Changes above `CONFIRM_CHANGE_LINES` open an `Adw.AlertDialog` with
+a unified-diff preview and a Cancel option. Applying a format is one
+`TextEdit` user action, so a single undo restores the previous source.
+
+`format-on-save` runs the same formatter on the whole document before the save
+queue snapshots the buffer. It is enabled by default and can be disabled in
+Preferences.
 
 ## Find and replace
 

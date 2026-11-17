@@ -27,6 +27,9 @@ has no runtime Python dependencies beyond PyGObject.
 - Selection wrapping for brackets, braces, backticks and quotes
 - Automatic list continuation on Return and `[]` to `[]()` completion
 - Bold, italic, underline, block quote and code formatting shortcuts
+- Format Document normalizes headings, list spacing, block quotes, tables,
+  blank lines and code fences, with a preview for large changes
+- Format on save is enabled by default and can be disabled in Preferences
 - In-document find and replace with case, whole-word, regex and wrap options
 - Selection counts and document or selection reading time in the status bar
 - Autosave recovery drafts, startup recovery, and optional timestamped backups
@@ -106,6 +109,7 @@ without extra environment setup.
 | Ctrl+G | Find next |
 | Ctrl+Shift+G | Find previous |
 | Ctrl+H | Replace |
+| Ctrl+Shift+R | Format document or selection |
 | F9 | Cycle view mode |
 | Ctrl+B | Bold |
 | Ctrl+I | Italic |
