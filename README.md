@@ -99,23 +99,33 @@ modes.
 ## Command-line options
 
 ```sh
-md_split --preview-only --dark notes.md
-md_split --no-source
-md_split --source-only --light
+md_split [OPTION…] [FILE…]
+md_split --help
 ```
 
-| Option | Effect |
-| --- | --- |
-| `--no-source` | Start with the preview pane only |
-| `--no-preview` | Start with the source editor only |
-| `--source-only` | Start with the source editor only |
-| `--preview-only` | Start with the preview pane only |
-| `--light` | Force light mode for this run |
-| `--dark` | Force dark mode for this run |
+| Option | Alias | Effect |
+| --- | --- | --- |
+| `--no-source` | `--preview-only` | Start with the preview pane only |
+| `--no-preview` | `--source-only` | Start with the source editor only |
+| `--light` | | Force light mode for this run |
+| `--dark` | | Force dark mode for this run |
+| `-h`, `--help` | | Show the available options |
 
-Command-line view modes and appearance overrides apply only to that run; they
-do not overwrite the saved settings. `--source-only` conflicts with
-`--preview-only` (and `--light` with `--dark`).
+Examples:
+
+```sh
+md_split notes.md
+md_split --preview-only --dark notes.md
+md_split --no-preview --light notes.md
+```
+
+`FILE` arguments open as documents; multiple files open in separate windows.
+View and appearance flags apply to every window opened by that invocation; they
+do not overwrite the saved settings.
+
+The aliases are exact synonyms. Any source-only flag combined with any
+preview-only flag is rejected, as is `--light` with `--dark`; conflicts exit
+with status 1 before a window opens.
 
 ## Markdown support
 
