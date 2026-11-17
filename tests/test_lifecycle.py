@@ -149,6 +149,36 @@ finally:
     fileio.save_text_async = original_save
     window.destroy()
 
+# A callback-less save interleaved after a continuation keeps the continuation.
+window = MdSplitWindow(application=app)
+file = Gio.File.new_for_path("/tmp/opencode/interleaved-save.md")
+window.document.load("saved", file)
+pending = []
+continuations = []
+fileio.save_text_async = fake_save
+try:
+    window.set_text("first")
+    window.save_document_then(lambda: continuations.append("open"))
+    window.set_text("second")
+    window.save_document()
+    assert len(pending) == 1
+
+    first_payload, finish_first = pending.pop(0)
+    finish_first(None, "etag-one")
+    assert first_payload == "first"
+    assert len(pending) == 1
+    assert not continuations
+
+    second_payload, finish_second = pending.pop(0)
+    assert second_payload == "second"
+    finish_second(None, "etag-two")
+    assert continuations == ["open"], continuations
+    assert not window.document.is_dirty
+finally:
+    fileio.save_text_async = original_save
+    window._force_close = True
+    window.destroy()
+
 # A stale write completing after New must not touch the new document.
 window = MdSplitWindow(application=app)
 old_file = Gio.File.new_for_path("/tmp/opencode/stale-save.md")

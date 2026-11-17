@@ -966,6 +966,32 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self._remember_folder(requested_file)
         self._update_ui()
 
+        # A queued save without a continuation must not swallow an earlier
+        # continuation (open-after-save, close-after-save): carry the latest
+        # pending continuation forward to the tail save.
+        if callback is not None:
+            current = [
+                (index, entry)
+                for index, entry in enumerate(self._save_queue)
+                if entry[2] == self._document_epoch
+            ]
+            if current:
+                tail_index, tail = current[-1]
+                if tail[1] is None:
+                    carried = next(
+                        (
+                            entry[1]
+                            for _index, entry in reversed(current)
+                            if entry[1] is not None
+                        ),
+                        callback,
+                    )
+                    self._save_queue[tail_index] = (
+                        tail[0],
+                        carried,
+                        tail[2],
+                    )
+
         has_queued_save = bool(self._save_queue)
         self._start_next_save()
         if (
