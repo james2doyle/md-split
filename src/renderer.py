@@ -63,6 +63,7 @@ _MAX_CACHED_IMAGES = 32
 _MAX_CACHED_IMAGE_PIXELS = 20_000_000
 _IMAGE_READ_CHUNK = 64 * 1024
 _IMAGE_TIMEOUT_SECONDS = 15
+_NESTED_LIST_INDENT = 18
 
 
 def _is_cancelled_error(error: Exception) -> bool:
@@ -205,7 +206,7 @@ class MarkdownRenderer:
     # -- block rendering -------------------------------------------------
 
     def _render_blocks(
-        self, tokens: list[Token], start: int, end: int
+        self, tokens: list[Token], start: int, end: int, list_depth: int = 0
     ) -> tuple[list[Gtk.Widget], int]:
         widgets: list[Gtk.Widget] = []
         i = start
@@ -226,7 +227,7 @@ class MarkdownRenderer:
                     widgets.append(widget)
                 i += 3
             elif kind in ("bullet_list_open", "ordered_list_open"):
-                widget, i = self._render_list(tokens, i)
+                widget, i = self._render_list(tokens, i, list_depth)
                 widgets.append(widget)
             elif kind == "blockquote_open":
                 widget, i = self._render_blockquote(tokens, i)
@@ -302,7 +303,9 @@ class MarkdownRenderer:
             label.add_css_class("md-tight")
         return label
 
-    def _render_list(self, tokens: list[Token], start: int) -> tuple[Gtk.Widget, int]:
+    def _render_list(
+        self, tokens: list[Token], start: int, list_depth: int = 0
+    ) -> tuple[Gtk.Widget, int]:
         open_token = tokens[start]
         ordered = open_token.type == "ordered_list_open"
         close_type = "ordered_list_close" if ordered else "bullet_list_close"
@@ -310,6 +313,8 @@ class MarkdownRenderer:
 
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         box.add_css_class("md-list")
+        if list_depth:
+            box.set_margin_start(_NESTED_LIST_INDENT)
 
         if ordered:
             try:
@@ -329,7 +334,9 @@ class MarkdownRenderer:
             item_close = self._find_close(
                 tokens, i, "list_item_open", "list_item_close"
             )
-            blocks, _ignored = self._render_blocks(tokens, i + 1, item_close)
+            blocks, _ignored = self._render_blocks(
+                tokens, i + 1, item_close, list_depth + 1
+            )
 
             content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
             content.set_hexpand(True)
