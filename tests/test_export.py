@@ -78,6 +78,7 @@ with tempfile.TemporaryDirectory() as tmp:
     assert "&lt;script&gt;" in html
     assert "<script>alert" not in html
     assert "<style>" in html and "@media print" in html
+    assert "td code, th code { background: transparent; padding: 0; }" in html
     assert "Tiny dot" in html
     assert "<figure><img" in html
     assert "<figcaption>Tiny dot</figcaption></figure>" in html

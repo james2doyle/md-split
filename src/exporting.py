@@ -405,6 +405,7 @@ pre {
   line-height: 1.45;
 }
 pre code { background: transparent; padding: 0; }
+td code, th code { background: transparent; padding: 0; }
 blockquote {
   border-left: 3px solid var(--md-quote-bar);
   color: var(--md-muted);
@@ -932,7 +933,11 @@ class _PdfWriter:
                 inline = tokens[index + 1] if index + 1 < close else None
                 if inline is not None and inline.type != "inline":
                     inline = None
-                markup = self._inline(inline) if inline is not None else ""
+                markup = (
+                    self._inline(inline, plain_code=True)
+                    if inline is not None
+                    else ""
+                )
                 if kind == "th_open":
                     header = True
                     if markup.strip():
@@ -1460,11 +1465,13 @@ class _PdfWriter:
         self.cr.fill()
         self.cr.restore()
 
-    def _inline(self, token: Token) -> str:
+    def _inline(self, token: Token, *, plain_code: bool = False) -> str:
         return _ANCHOR_TAG.sub(
             "",
             self.renderer.inline_token_markup(
-                token, code_background=_CODE_BG_HEX
+                token,
+                code_background=_CODE_BG_HEX,
+                plain_code=plain_code,
             ),
         )
 

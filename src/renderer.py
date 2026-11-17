@@ -203,6 +203,7 @@ class MarkdownRenderer:
         *,
         dark: bool = False,
         code_background: str | None = None,
+        plain_code: bool = False,
     ) -> str:
         """Convert an existing inline token to Pango markup."""
         self._dark = dark
@@ -214,7 +215,7 @@ class MarkdownRenderer:
             "#3d3f42" if dark else "#eceff1"
         )
         self._muted_color = "#9a9a9a" if dark else "#77767b"
-        return self._render_inline(token)
+        return self._render_inline(token, code_background=not plain_code)
 
     # -- block rendering -------------------------------------------------
 
@@ -463,7 +464,11 @@ class MarkdownRenderer:
 
         for row_index, row in enumerate(rows):
             for column_index, (inline, is_header, align) in enumerate(row):
-                markup = self._render_inline(inline) if inline is not None else ""
+                markup = (
+                    self._render_inline(inline, code_background=False)
+                    if inline is not None
+                    else ""
+                )
                 label = self._make_label(markup)
                 label.set_hexpand(True)
                 label.set_halign(Gtk.Align.FILL)
@@ -1101,7 +1106,9 @@ class MarkdownRenderer:
 
     # -- inline rendering ------------------------------------------------
 
-    def _render_inline(self, token: Token | None) -> str:
+    def _render_inline(
+        self, token: Token | None, *, code_background: bool = True
+    ) -> str:
         if token is None or not token.children:
             return ""
 
@@ -1121,11 +1128,18 @@ class MarkdownRenderer:
             elif kind == "hardbreak":
                 parts.append("\n")
             elif kind == "code_inline":
-                parts.append(
-                    '<span font_family="monospace" background="{}">{}</span>'.format(
-                        self._code_background, _escape(child.content)
+                if code_background:
+                    parts.append(
+                        '<span font_family="monospace" background="{}">{}</span>'.format(
+                            self._code_background, _escape(child.content)
+                        )
                     )
-                )
+                else:
+                    parts.append(
+                        '<span font_family="monospace">{}</span>'.format(
+                            _escape(child.content)
+                        )
+                    )
             elif kind == "em_open":
                 parts.append("<i>")
             elif kind == "em_close":

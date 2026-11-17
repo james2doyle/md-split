@@ -228,6 +228,26 @@ with tempfile.TemporaryDirectory() as tmp:
     assert 'href="#fn-0"' in markups
     assert "<s>strike</s>" in markups
 
+    # Inline code keeps its background in prose but not inside table cells.
+    table_code = MarkdownRenderer().render(
+        "| Code |\n| --- |\n| `x` |"
+    )
+    cells = [
+        label
+        for label in labels(table_code)
+        if "md-table-cell" in label.get_css_classes()
+    ]
+    assert cells, "table cells missing"
+    cell_markup = "\n".join(label.get_label() or "" for label in cells)
+    assert 'font_family="monospace"' in cell_markup, cell_markup
+    assert "background=" not in cell_markup, cell_markup
+
+    prose_code = MarkdownRenderer().render("`x`")
+    prose_markup = "\n".join(
+        label.get_label() or "" for label in labels(prose_code)
+    )
+    assert 'background="' in prose_markup, prose_markup
+
     # A link whose only content is an image renders the image, clickable.
     opened = []
     linked_renderer = MarkdownRenderer()
