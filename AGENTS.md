@@ -180,6 +180,7 @@ settings.set_string('view-mode', 'source')
 [CI] .github/workflows/ci.yml, .github/workflows/release.yml
 [Docs] README.md, AGENTS.md, CONTRIBUTING.md, docs/*.md
 [Packaging] meson.build, src/meson.build, com.james2doyle.MdSplit.json,
+  scripts/compile-bytecode.py (install-time unchecked-hash .pyc),
   packaging/appimage/AppImageBuilder.yml, scripts/build-appimage.sh
 ```
 
