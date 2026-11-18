@@ -616,18 +616,21 @@ assert window._vim_controller not in controllers(window.editor_view)
 assert not window.label_vim.get_visible()
 assert window._vim_insert_mode()
 
+preview_nav = window.preview_vim
+assert preview_nav is not None
+
 window.settings.set_boolean("vim-mode", True)
 spin()
 assert window.vim_enabled
 assert window._vim_controller in controllers(window.editor_view)
 assert window.label_vim.get_visible()
-assert window.preview_vim.enabled
+assert preview_nav.enabled
 
 window.settings.set_boolean("vim-mode", False)
 spin()
 assert not window.vim_enabled
 assert window._vim_controller not in controllers(window.editor_view)
-assert not window.preview_vim.enabled
+assert not preview_nav.enabled
 window.settings.set_boolean("vim-mode", True)
 spin()
 
@@ -713,7 +716,11 @@ assert window.label_vim.get_label() == "", window.label_vim.get_label()
 vim_type("/zzz")
 vim_enter()
 assert window.label_vim.get_label() == "Pattern not found: zzz"
-vim_type("l")
+# Real input clears the message in the window helper before Vim sees the key.
+# "l" alone may not move at the end of a line, so exercise the helper directly
+# instead of relying on the cursor-moved signal.
+assert window._on_key_pressed(None, Gdk.KEY_l, 0, 0) is False
+window._on_vim_text()
 assert window.label_vim.get_label() == ""
 
 # :w <path> writes through the normal save path; :q closes a clean window.
@@ -725,6 +732,7 @@ with tempfile.TemporaryDirectory() as tmp:
     wait_until(lambda: not window.document.is_dirty)
     with open(target, encoding="utf-8") as handle:
         assert handle.read() == "# Vim\n"
+    assert window.document.file is not None
     assert window.document.file.get_path() == target
 
     # Commands the window does not handle fall through to GtkSourceView.
@@ -760,6 +768,15 @@ wait_until(
 spin()
 window.preview.scroll_to_value(0, sync=False)
 vim = window.preview_vim
+assert vim is not None
+
+
+def highlighted_text() -> str:
+    assert vim is not None
+    assert vim._highlighted is not None
+    return vim._highlighted.get_text()
+
+
 vim.perform(PreviewAction("scroll-down", 3))
 assert adjustment.get_value() > 100, adjustment.get_value()
 vim.perform(PreviewAction("bottom"))
@@ -801,19 +818,19 @@ window.preview.scroll_to_value(0, sync=False)
 statuses = []
 vim._on_status = statuses.append
 assert vim.search("needle")
-assert window.preview_vim._highlighted.get_text() == "The needle is here."
+assert highlighted_text() == "The needle is here."
 assert statuses[-1].endswith("[1/2]"), statuses
 vim.perform(PreviewAction("next-match"))
-assert vim._highlighted.get_text() == "Another Needle appears."
+assert highlighted_text() == "Another Needle appears."
 assert statuses[-1].endswith("[2/2]"), statuses
 vim.perform(PreviewAction("next-match"))
 assert "continuing at TOP" in statuses[-1], statuses
-assert vim._highlighted.get_text() == "The needle is here."
+assert highlighted_text() == "The needle is here."
 vim.perform(PreviewAction("previous-match"))
-assert vim._highlighted.get_text() == "Another Needle appears."
+assert highlighted_text() == "Another Needle appears."
 window.preview.scroll_to_value(0, sync=False)
 assert vim.search("Needle")
-assert vim._highlighted.get_text() == "Another Needle appears."
+assert highlighted_text() == "Another Needle appears."
 assert statuses[-1].endswith("[1/1]"), statuses
 assert not vim.search("missing")
 assert "Pattern not found" in statuses[-1]
@@ -834,7 +851,8 @@ window._buffer.place_cursor(window._buffer.get_start_iter())
 window.preview.grab_focus()
 spin()
 assert window.view_mode == "preview"
-assert window.preview.get_scroll_fraction() > 0.2
+fraction = window.preview.get_scroll_fraction()
+assert fraction is not None and fraction > 0.2
 assert vim._on_key_pressed(None, Gdk.KEY_i, 0, 0)
 spin()
 assert window.view_mode == "both"
