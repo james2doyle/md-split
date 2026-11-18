@@ -13,6 +13,7 @@ A native GNOME Markdown editor with a live **GitHub-Flavored Markdown** preview.
 - [x] GFM tables, task lists, alerts, autolinks and footnotes
 - [x] Synchronized scrolling and three view modes
 - [x] Find, replace and Format Document
+- [x] Optional Vim keybindings for the editor and preview
 - [x] Autosave recovery, session restore and external-change warnings
 - [x] Standalone HTML and styled PDF export
 - [ ] Your next note
@@ -52,7 +53,8 @@ Inline code such as `Ctrl+Shift+R` formats the document or selection.
 1. Open a Markdown file with **Ctrl+O**.
 2. Press **F9** to change the view.
 3. Format the document with **Ctrl+Shift+R**.
-4. Export HTML or a styled PDF from the main menu.
+4. Enable **Vim keybindings** in Preferences, then try `j`/`k` and `/` here.
+5. Export HTML or a styled PDF from the main menu.
 
 ## Keyboard shortcuts
 
@@ -67,6 +69,42 @@ Inline code such as `Ctrl+Shift+R` formats the document or selection.
 | Ctrl+Shift+R | Format document or selection |
 | F9 | Cycle view mode |
 | Ctrl+, | Preferences |
+
+## Vim mode
+
+Vim keybindings are optional and off by default. Enable **Vim keybindings** in
+Preferences (**Ctrl+,**).
+
+**Editor.** The source pane uses GtkSourceView's built-in Vim emulation:
+Normal, Insert, Visual and Replace modes, motions, text objects, registers,
+`/` search and `:` commands. The status bar shows the current mode and any
+pending keys.
+
+| Command | Effect |
+|:--------|:-------|
+| `:w` / `:w FILE` | Save, or save to a path |
+| `:e FILE` / `:e` | Open a file, or reload the current one |
+| `:q` / `:q!` / `:wq` / `:x` | Close, discard and close, or save and close |
+| `gq{motion}` | Format the covered lines |
+| `Ctrl+W w` / `Ctrl+W l` | Move focus to the preview |
+
+**Preview.** The preview becomes a Vim-style viewer, including in preview-only
+mode:
+
+| Keys | Action |
+|:-----|:-------|
+| `j` / `k`, `Ctrl+E` / `Ctrl+Y` | Scroll down / up, with an optional count such as `5j` |
+| `Ctrl+D` / `Ctrl+U`, `Ctrl+F` / `Ctrl+B` | Half page, then full page |
+| `gg` / `G`, `{n}G` | Top / bottom, or jump to `n` percent |
+| `]]` / `[[` | Next / previous heading |
+| `/` / `?`, `n` / `N` | Search and step through matches |
+| `i`, `e` | Focus the editor at the part you are reading |
+| `Ctrl+W w`, `Ctrl+W h` / `Ctrl+W l` | Switch pane / focus editor / focus preview |
+
+> [!TIP]
+> While the editor has focus, Vim's Ctrl keys take precedence over MD Split
+> shortcuts such as **Ctrl+B** and **Ctrl+F**. Use the menus for those actions,
+> or use them from the preview.
 
 ## Export and recovery
 
