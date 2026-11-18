@@ -382,18 +382,44 @@ with tempfile.TemporaryDirectory() as tmp:
         pass
 
 # Startup loads the bundled demo as clean untitled content when enabled.
-
+# The window is presented first; the demo fills in from an idle callback.
 app.settings.set_boolean("load-demo-on-startup", True)
-app.do_activate()
-window = app.props.active_window
-assert window is not None
-assert window.get_text().startswith("# MD Split"), window.get_text()[:40]
-assert not window.document.is_dirty
-assert window.document.file is None
-window._force_close = True
-window.destroy()
-while GLib.MainContext.default().iteration(False):
-    pass
+events = []
+original_present = MdSplitWindow.present
+original_load_demo = MdSplitWindow.load_demo_document
+
+
+def record_present(self):
+    events.append("present")
+    return original_present(self)
+
+
+def record_load_demo(self):
+    events.append("load")
+    return original_load_demo(self)
+
+
+MdSplitWindow.present = record_present
+MdSplitWindow.load_demo_document = record_load_demo
+try:
+    app.do_activate()
+    window = app.props.active_window
+    assert window is not None
+    assert events == ["present"], events
+    assert window.get_text() == ""
+    while GLib.MainContext.default().iteration(False):
+        pass
+    assert events == ["present", "load"], events
+    assert window.get_text().startswith("# MD Split"), window.get_text()[:40]
+    assert not window.document.is_dirty
+    assert window.document.file is None
+    window._force_close = True
+    window.destroy()
+    while GLib.MainContext.default().iteration(False):
+        pass
+finally:
+    MdSplitWindow.present = original_present
+    MdSplitWindow.load_demo_document = original_load_demo
 
 app.settings.set_boolean("load-demo-on-startup", False)
 app.do_activate()

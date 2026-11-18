@@ -137,6 +137,8 @@ test('Scroll sync', python3, args: [files('../tests/test_scroll_sync.py')],
   env: test_env)
 test('Packaged resources', python3, args: [files('../tests/test_resources.py')],
   env: test_env)
+test('Lazy startup imports', python3, args: [files('../tests/test_startup.py')],
+  env: test_env)
 test('Remote image policy', python3, args: [files('../tests/test_images.py')],
   env: test_env)
 test('Editing helpers', python3, args: [files('../tests/test_editing.py')],

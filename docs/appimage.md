@@ -60,6 +60,89 @@ The release workflow starts the extracted AppRun under Xvfb with
 `examples/demo.md` and treats a timeout as success, because the editor stays
 open until the user closes it.
 
+## Profiling
+
+The bundle carries its own Python and GTK runtime, so profile the extracted
+AppDir. `AppRun` sets `PYTHONHOME`, `PYTHONPATH` and the library path the
+bundled interpreter needs; invoking `squashfs-root/usr/bin/python3` directly
+does not work. Profiling the mounted AppImage also includes FUSE mount time,
+which is not application time.
+
+Extract the release artifact once:
+
+```sh
+VERSION=1.2.0
+mkdir -p /tmp/md-split-profile && cd /tmp/md-split-profile
+gh release download "v$VERSION" --repo james2doyle/md-split \
+  --pattern '*x86_64.AppImage'
+chmod +x "md_split-$VERSION-x86_64.AppImage"
+"./md_split-$VERSION-x86_64.AppImage" --appimage-extract
+```
+
+### Import and startup timing
+
+`--help` exits before a window is created, so this measures the launcher and
+package imports without opening the app:
+
+```sh
+PYTHONPROFILEIMPORTTIME=1 ./squashfs-root/AppRun --help 2>importtime.txt
+sort -t'|' -k2 -nr importtime.txt | head -20
+```
+
+To include the window, renderer and first preview, start normally and capture
+stderr until the timeout stops it:
+
+```sh
+PYTHONPROFILEIMPORTTIME=1 timeout 5s \
+  ./squashfs-root/AppRun examples/demo.md 2>importtime.txt
+```
+
+`timeout` exits with status 124 because the editor stays open; that is
+expected. The output is chronological, with inclusive microseconds in the
+second column, so sort or filter it for the modules you are investigating.
+Release installs ship `unchecked-hash` bytecode, so this measures real start
+cost rather than first-run compilation.
+
+### Python CPU sampling
+
+[py-spy](https://github.com/benfred/py-spy) 0.4.2 or newer supports the
+Python 3.14 runtime in the bundle. Sampling needs no changes to the AppDir:
+
+```sh
+uvx py-spy record -o md-split.svg --rate 100 --duration 10 \
+  -- ./squashfs-root/AppRun examples/demo.md
+```
+
+Open `md-split.svg` in a browser. The child is stopped when sampling ends. Use
+`-f raw` to write collapsed stacks instead, or attach to a running AppImage:
+
+```sh
+uvx py-spy top --pid "$(pgrep -n -f 'md_split examples/demo.md')"
+```
+
+Launching through py-spy works with the default `ptrace_scope=1`. Attaching to
+an already-running process may require `sudo`, or lowering
+`kernel.yama.ptrace_scope`.
+
+### GTK and native work
+
+For rendering, layout and main-loop time, use Sysprof with the GTK trace
+points:
+
+```sh
+sysprof-cli --gtk --use-trace-fd md-split.syscap -- \
+  ./squashfs-root/AppRun examples/demo.md
+```
+
+Open the `.syscap` file in Sysprof. This records native stacks and GTK
+frame-clock data when the bundled GTK is built with tracing support. Sysprof
+needs perf event access, so it may require elevated privileges on locked-down
+hosts.
+
+`cProfile` also works, but `AppRun` hardcodes `usr/bin/md_split` as the entry
+script, so it needs a wrapper or a `sitecustomize.py` in the extracted tree.
+py-spy is usually preferable because it samples the unmodified bundle.
+
 ## Runtime behavior
 
 - Settings, session state and recovery drafts use the normal XDG directories.
@@ -81,6 +164,9 @@ open until the user closes it.
 - It relies on the host desktop for fonts, input methods, the GL/EGL loader
   and GPU drivers. Desktop installs already provide these; minimal containers
   need `libgl1` and `libegl1`.
+- The runtime mounts the payload with FUSE on every launch. On some hosts the
+  mount and unmount dominate startup; compare the mounted app with an extracted
+  `AppRun`. If the difference is large, use the Flatpak or an extracted install.
 - Some hosts still need FUSE or the extract-and-run option.
 - Flatpak remains the recommended distribution format for a fully sandboxed
   install and desktop integration.

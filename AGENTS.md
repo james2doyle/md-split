@@ -173,7 +173,8 @@ settings.set_string('view-mode', 'source')
 [Tests] tests/test_document.py, test_markdown.py, test_fileio.py,
   test_editing.py, test_lists.py, test_export.py, test_logging.py,
   test_filechanges.py, test_session.py, test_recovery.py, test_spellcheck.py,
-  test_formatting.py, test_resources.py, test_preview_vim.py (headless);
+  test_formatting.py, test_resources.py, test_preview_vim.py,
+  test_startup.py (headless);
   test_renderer.py, test_window.py, test_lifecycle.py, test_preferences.py,
   test_view_modes.py, test_cli.py, test_scroll_sync.py, test_images.py (display)
 [Scripts] scripts/test.py (sanitized test runner), dev.py, scripts/init.py
@@ -239,5 +240,10 @@ settings.set_string('view-mode', 'source')
   added after the Markdown helper controller so helpers see Insert-mode keys
   first. `VimIMContext.execute_command()` does not emit `write`/`execute-command`;
   tests type commands through `filter_key` instead.
+- First-frame startup work is deferred: the bundled demo, Markdown syntax
+  highlighting and the first preview render run from idles after `present()`.
+  Display tests must drain `GLib.MainContext` before asserting demo,
+  highlighting or preview state; headless import tests guard the lazy parser
+  and renderer imports.
 - If a UI change does not show up, touch the `.blp` or remove stale
   `build/src/*.ui`; `ninja -C build -d explain` shows why.

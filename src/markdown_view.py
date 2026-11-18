@@ -7,6 +7,7 @@ from __future__ import annotations
 import logging
 from gettext import gettext as _
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import gi
 
@@ -16,7 +17,8 @@ gi.require_version("Gio", "2.0")
 
 from gi.repository import Adw, Gio, GLib, GObject, Gtk
 
-from .renderer import MarkdownRenderer
+if TYPE_CHECKING:
+    from .renderer import MarkdownRenderer
 
 log = logging.getLogger(__name__)
 
@@ -39,7 +41,7 @@ class MarkdownView(Gtk.ScrolledWindow):
 
     def __init__(self) -> None:
         super().__init__()
-        self._renderer = MarkdownRenderer()
+        self._renderer: MarkdownRenderer | None = None
         self._dark = False
         self._remote_images = False
         self._paused = False
@@ -117,7 +119,7 @@ class MarkdownView(Gtk.ScrolledWindow):
 
         cancellable = Gio.Cancellable()
         self._render_cancellable = cancellable
-        content = self._renderer.render(
+        content = self._ensure_renderer().render(
             text,
             dark=self._dark,
             base_dir=base_dir,
@@ -163,7 +165,18 @@ class MarkdownView(Gtk.ScrolledWindow):
         self._cancel_restore()
         self._release_content_focus()
         self._clamp.set_child(None)
-        self._renderer.shutdown()
+        if self._renderer is not None:
+            self._renderer.shutdown()
+
+    def _ensure_renderer(self) -> MarkdownRenderer:
+        """Import and construct the parser-backed renderer on first use."""
+        renderer = self._renderer
+        if renderer is None:
+            from .renderer import MarkdownRenderer
+
+            renderer = MarkdownRenderer()
+            self._renderer = renderer
+        return renderer
 
     def _cancel_render(self) -> None:
         if self._render_cancellable is not None:
@@ -201,7 +214,7 @@ class MarkdownView(Gtk.ScrolledWindow):
 
     @property
     def renderer(self) -> MarkdownRenderer:
-        return self._renderer
+        return self._ensure_renderer()
 
     def _on_scroll_changed(self, _adjustment) -> None:
         if not self._syncing_scroll and not self._paused:
@@ -277,7 +290,10 @@ class MarkdownView(Gtk.ScrolledWindow):
             self._set_adjustment_value(fraction * maximum)
 
     def _scroll_to_anchor(self, name: str) -> None:
-        widget = self._renderer.get_anchor(name)
+        renderer = self._renderer
+        if renderer is None:
+            return
+        widget = renderer.get_anchor(name)
         if widget is not None:
             self.scroll_to_widget(widget, sync=False)
 

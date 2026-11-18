@@ -12,7 +12,7 @@ from collections.abc import Callable
 from gettext import gettext as _
 from gettext import ngettext
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import gi
 
@@ -31,7 +31,6 @@ from . import (
     editing,
     filechanges,
     fileio,
-    formatting,
     preview_vim,
     recovery,
     session,
@@ -40,6 +39,9 @@ from . import (
 from .document import Document, text_statistics
 from .markdown_view import MarkdownView
 from .paths import ensure_file_extension
+
+if TYPE_CHECKING:
+    from . import formatting
 
 log = logging.getLogger(__name__)
 
@@ -122,6 +124,7 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self._document = Document()
         self._loading = False
         self._preview_timeout = 0
+        self._language_idle = 0
         self._stats_timeout = 0
         self._search_timeout = 0
         self._search_previous_mode: str | None = None
@@ -183,12 +186,13 @@ class MdSplitWindow(Adw.ApplicationWindow):
 
     def _setup_editor(self) -> None:
         self._buffer = GtkSource.Buffer()
-        language = GtkSource.LanguageManager.get_default().get_language("markdown")
-        if language is not None:
-            self._buffer.set_language(language)
-        self._buffer.set_highlight_syntax(True)
         self.editor_view.set_buffer(self._buffer)
         self._apply_editor_scheme()
+        # Creating the Markdown highlighter costs ~50 ms; attach it after the
+        # first frame instead of delaying window construction.
+        self._language_idle = GLib.idle_add(
+            self._attach_markdown_language, priority=GLib.PRIORITY_LOW
+        )
 
         controller = Gtk.EventControllerKey()
         controller.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
@@ -206,6 +210,18 @@ class MdSplitWindow(Adw.ApplicationWindow):
             self._setup_spellcheck_idle, priority=GLib.PRIORITY_LOW
         )
         self._setup_vim()
+
+    def _attach_markdown_language(self) -> bool:
+        self._language_idle = 0
+        if self._destroyed:
+            return False
+        language = GtkSource.LanguageManager.get_default().get_language(
+            "markdown"
+        )
+        if language is not None:
+            self._buffer.set_language(language)
+        self._buffer.set_highlight_syntax(True)
+        return False
 
     # -- vim mode --------------------------------------------------------
 
@@ -506,6 +522,8 @@ class MdSplitWindow(Adw.ApplicationWindow):
         return False
 
     def _on_vim_format(self, _im, start: Gtk.TextIter, end: Gtk.TextIter) -> None:
+        from . import formatting
+
         begin = start.copy()
         finish = end.copy()
         if begin.compare(finish) > 0:
@@ -801,6 +819,12 @@ class MdSplitWindow(Adw.ApplicationWindow):
 
     def load_demo_document(self) -> None:
         """Load the bundled demo as clean, untitled scratch content."""
+        if (
+            self._destroyed
+            or self._document.is_dirty
+            or self._document.file is not None
+        ):
+            return
         try:
             data = Gio.resources_lookup_data(
                 "/com/james2doyle/MdSplit/demo.md",
@@ -816,7 +840,11 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self._set_buffer_text(text)
         self._clear_recovery()
         self._note_session_file(None)
-        self._update_ui(render_preview=True)
+        self._update_ui()
+        # Let the first frame paint before building the demo preview tree.
+        GLib.idle_add(
+            self._render_preview, priority=GLib.PRIORITY_DEFAULT_IDLE
+        )
         self._buffer.place_cursor(self._buffer.get_start_iter())
         self.focus_primary_pane()
 
@@ -1076,6 +1104,8 @@ class MdSplitWindow(Adw.ApplicationWindow):
     def _format_scope(
         self, *, confirm: bool, notify: bool, selection: bool
     ) -> bool:
+        from . import formatting
+
         bounds = self._buffer.get_selection_bounds() if selection else None
         if bounds:
             source = self._buffer.get_text(bounds[0], bounds[1], True)
@@ -2541,6 +2571,9 @@ class MdSplitWindow(Adw.ApplicationWindow):
         if getattr(self, "_spell_idle", 0):
             GLib.source_remove(self._spell_idle)
             self._spell_idle = 0
+        if self._language_idle:
+            GLib.source_remove(self._language_idle)
+            self._language_idle = 0
         if getattr(self, "_spell_handler", 0):
             self._settings.disconnect(self._spell_handler)
             self._spell_handler = 0

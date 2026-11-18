@@ -229,9 +229,13 @@ class MdSplitApplication(Adw.Application):
 
         if not restored:
             win = self._new_window()
-            if self.settings.get_boolean("load-demo-on-startup"):
-                win.load_demo_document()
             win.present()
+            if self.settings.get_boolean("load-demo-on-startup"):
+                # Let the window paint before parsing and rendering the demo.
+                GLib.idle_add(
+                    win.load_demo_document,
+                    priority=GLib.PRIORITY_HIGH_IDLE,
+                )
 
         if target is not None:
             target.present()

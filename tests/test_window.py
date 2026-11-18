@@ -85,9 +85,16 @@ from src import spellcheck
 window = MdSplitWindow()
 assert "MD Split" in window.get_title(), window.get_title()
 assert not window.document.is_dirty
+# Syntax highlighting attaches from a low-priority idle after construction.
+assert window._buffer.get_language() is None
 # Spell checking attaches from a low-priority idle after construction.
 while GLib.MainContext.default().iteration(False):
     pass
+assert window._buffer.get_language() is not None
+assert window._buffer.get_language().get_id() == "markdown"
+assert window._buffer.get_highlight_syntax()
+# The Markdown renderer and parser load with the first preview render.
+assert "src.renderer" not in sys.modules
 if not spellcheck.backend_available():
     assert window.spell_adapter is None
 else:
@@ -103,6 +110,7 @@ else:
     assert window.spell_adapter.get_enabled()
 
 window.set_text("# Native preview\n\n**bold** and [link](https://example.com)")
+assert "src.renderer" in sys.modules
 assert window.get_text().startswith("# Native preview")
 assert window.document.is_dirty
 assert "Untitled.md" in window.window_title.get_title()
@@ -413,6 +421,19 @@ assert not window.document.is_dirty
 assert window.document.file is None
 window.set_text(window.get_text() + "\nchanged")
 assert window.document.is_dirty
+window.destroy()
+
+# The demo preview renders from an idle, not before the window can paint.
+window = MdSplitWindow()
+window.set_view_mode("both", persist=False)
+rendered = []
+window._preview.set_markdown = lambda *args, **kwargs: rendered.append(True)
+window.load_demo_document()
+assert window.get_text().startswith("# MD Split"), window.get_text()[:40]
+assert not rendered, "demo preview should not render before the main loop"
+while GLib.MainContext.default().iteration(False):
+    pass
+assert rendered, "demo preview should render after the main loop runs"
 window.destroy()
 
 # Typing ] after an empty [ completes a link with the cursor inside ().
