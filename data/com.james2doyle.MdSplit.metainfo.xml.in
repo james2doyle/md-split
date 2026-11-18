@@ -24,7 +24,7 @@
 
   <screenshots>
     <screenshot type="default">
-      <image type="source" width="1150" height="770">https://raw.githubusercontent.com/james2doyle/md-split/v1.2.0/docs/screenshot.png</image>
+      <image type="source" width="1150" height="770">https://raw.githubusercontent.com/james2doyle/md-split/v1.3.0/docs/screenshot.png</image>
       <caption>Markdown source and rendered preview side by side</caption>
     </screenshot>
   </screenshots>
@@ -64,6 +64,17 @@
   </branding>
 
   <releases>
+    <release version="1.3.0" date="2026-11-18">
+      <description translate="no">
+        <p>Startup, Vim and packaging update.</p>
+        <ul>
+          <li>Preview rendering and syntax highlighting wait for the first frame.</li>
+          <li>Vim mode no longer shows a block cursor when Vim is inactive.</li>
+          <li>Simpler preferences dialog and quieter libenchant log output.</li>
+          <li>AppImage ships the pinned official type2 runtime.</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.2.0" date="2026-11-18">
       <description translate="no">
         <p>Navigation and performance update.</p>
