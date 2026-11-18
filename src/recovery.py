@@ -4,10 +4,7 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 import os
-import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,6 +14,9 @@ import gi
 gi.require_version("GLib", "2.0")
 
 from gi.repository import GLib
+
+# hashlib, json and tempfile load on first use: they are not needed to show
+# the first window.
 
 
 @dataclass
@@ -49,11 +49,15 @@ def backup_directory(base: Path | None = None) -> Path:
 
 def draft_key(path: str | None, token: str) -> str:
     """Return a stable draft key for a file path or an untitled token."""
+    import hashlib
+
     value = f"file:{Path(path).expanduser()}" if path else f"untitled:{token}"
     return hashlib.sha256(value.encode("utf-8")).hexdigest()[:32]
 
 
 def _atomic_write(path: Path, data: bytes, mode: int = 0o600) -> None:
+    import tempfile
+
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary_name = tempfile.mkstemp(
         prefix=f".{path.name}.", dir=path.parent
@@ -70,6 +74,8 @@ def _atomic_write(path: Path, data: bytes, mode: int = 0o600) -> None:
 
 
 def write_draft(draft: Draft, directory: Path | None = None) -> Path:
+    import json
+
     target = recovery_directory(directory)
     target.mkdir(parents=True, exist_ok=True)
     metadata = {
@@ -87,13 +93,15 @@ def write_draft(draft: Draft, directory: Path | None = None) -> Path:
 
 
 def read_draft(key: str, directory: Path | None = None) -> Draft | None:
+    import json
+
     target = recovery_directory(directory)
     metadata_path = target / f"{key}.json"
     text_path = target / f"{key}.md"
     try:
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
         text = text_path.read_text(encoding="utf-8")
-    except (OSError, ValueError, json.JSONDecodeError):
+    except (OSError, ValueError):  # JSONDecodeError is a ValueError
         return None
     return Draft(
         key=key,
@@ -132,6 +140,8 @@ def write_backup(
     now: float | None = None,
 ) -> Path | None:
     """Write a timestamped backup and delete older ones beyond retention."""
+    import hashlib
+
     target = backup_directory(directory)
     target.mkdir(parents=True, exist_ok=True)
     timestamp = time.strftime(

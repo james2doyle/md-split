@@ -85,6 +85,9 @@ from src import spellcheck
 window = MdSplitWindow()
 assert "MD Split" in window.get_title(), window.get_title()
 assert not window.document.is_dirty
+# Spell checking attaches from a low-priority idle after construction.
+while GLib.MainContext.default().iteration(False):
+    pass
 if not spellcheck.backend_available():
     assert window.spell_adapter is None
 else:

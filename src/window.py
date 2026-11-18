@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import threading
 import time
 from collections.abc import Callable
@@ -12,7 +13,6 @@ from gettext import gettext as _
 from gettext import ngettext
 from pathlib import Path
 from typing import Any
-from uuid import uuid4
 
 import gi
 
@@ -131,7 +131,7 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self._ignore_monitor_until = 0.0
         self._last_prompted_etag: str | None = None
         self._pending_monitor_kind = "changed"
-        self._draft_token = uuid4().hex
+        self._draft_token = os.urandom(16).hex()
         self._last_draft_key: str | None = None
         self._autosave_timeout = 0
         self._recovery_generation = 0
@@ -200,7 +200,11 @@ class MdSplitWindow(Adw.ApplicationWindow):
         # helpers always see keys before the Vim IM controller on the view.
         self.editor_scroller.add_controller(controller)
         self._key_controller = controller
-        self._setup_spellcheck()
+        # libspelling and dictionary loading can take a while; let the first
+        # frame paint before spell checking attaches to the buffer.
+        self._spell_idle = GLib.idle_add(
+            self._setup_spellcheck_idle, priority=GLib.PRIORITY_LOW
+        )
         self._setup_vim()
 
     # -- vim mode --------------------------------------------------------
@@ -525,6 +529,12 @@ class MdSplitWindow(Adw.ApplicationWindow):
                 offset,
             )
         )
+
+    def _setup_spellcheck_idle(self) -> bool:
+        self._spell_idle = 0
+        if not self._destroyed:
+            self._setup_spellcheck()
+        return GLib.SOURCE_REMOVE
 
     def _setup_spellcheck(self) -> None:
         self.spell_adapter = spellcheck.create_adapter(self._buffer)
@@ -2528,6 +2538,9 @@ class MdSplitWindow(Adw.ApplicationWindow):
         if getattr(self, "_autosave_interval_handler", 0):
             self._settings.disconnect(self._autosave_interval_handler)
             self._autosave_interval_handler = 0
+        if getattr(self, "_spell_idle", 0):
+            GLib.source_remove(self._spell_idle)
+            self._spell_idle = 0
         if getattr(self, "_spell_handler", 0):
             self._settings.disconnect(self._spell_handler)
             self._spell_handler = 0

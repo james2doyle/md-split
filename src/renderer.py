@@ -19,9 +19,7 @@ import threading
 from collections.abc import Callable
 from gettext import gettext as _
 from pathlib import Path
-from urllib.error import HTTPError, URLError
 from urllib.parse import unquote, urlparse
-from urllib.request import Request, urlopen
 
 import gi
 
@@ -797,6 +795,11 @@ class MarkdownRenderer:
         timeout_id: int,
     ) -> None:
         """Read an image off the UI thread, with a hard byte limit."""
+        # Loaded on first use: urllib.request pulls in ssl and http.client,
+        # which would otherwise slow down startup for every document.
+        from urllib.error import HTTPError, URLError
+        from urllib.request import Request, urlopen
+
         chunks: list[bytes] = []
         total = 0
         error: Exception | None = None

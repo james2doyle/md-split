@@ -28,11 +28,25 @@ _DICTIONARY_DIRS = (
 )
 _DICTIONARY_SUFFIXES = {".dic", ".aff", ".rws", ".wl"}
 
-try:
-    gi.require_version("Spelling", "1")
-    from gi.repository import Spelling
-except (ImportError, ValueError):
-    Spelling = None
+# libspelling (and libenchant behind it) loads on first use, and only once a
+# dictionary source exists, so the first window is not held up by it.
+_UNLOADED: Any = object()
+Spelling: Any = _UNLOADED
+# Provider languages, cached after the first non-empty listing.
+_choices: list[tuple[str, str]] | None = None
+
+
+def _load_spelling() -> Any:
+    """Return the Spelling GI namespace, or ``None`` when unavailable."""
+    global Spelling
+    if Spelling is _UNLOADED:
+        try:
+            gi.require_version("Spelling", "1")
+            from gi.repository import Spelling as namespace
+        except (ImportError, ValueError):
+            namespace = None
+        Spelling = namespace
+    return Spelling
 
 
 def _warn_unavailable(reason: str) -> None:
@@ -67,6 +81,9 @@ def has_dictionary_sources(
 
 def language_choices() -> list[tuple[str, str]]:
     """Return ``(code, name)`` pairs exposed by the system provider."""
+    global _choices
+    if _choices is not None and Spelling not in (None, _UNLOADED):
+        return list(_choices)
     if Spelling is None:
         _warn_unavailable(
             "the libspelling GI namespace is not available"
@@ -76,6 +93,11 @@ def language_choices() -> list[tuple[str, str]]:
         _warn_unavailable(
             "no dictionary sources found; install hunspell, aspell, or "
             "nuspell dictionaries"
+        )
+        return []
+    if _load_spelling() is None:
+        _warn_unavailable(
+            "the libspelling GI namespace is not available"
         )
         return []
     try:
@@ -96,15 +118,15 @@ def language_choices() -> list[tuple[str, str]]:
             _warn_unavailable(
                 "the provider lists no usable dictionaries"
             )
-        return choices
+        else:
+            _choices = choices
+        return list(choices)
     except Exception as error:  # pragma: no cover - backend specific
         _warn_unavailable(f"backend error: {error}")
         return []
 
 
 def backend_available() -> bool:
-    if Spelling is None:
-        return False
     return bool(language_choices())
 
 
@@ -124,7 +146,7 @@ def create_adapter(buffer) -> Any | None:
     """Create a ``Spelling.TextBufferAdapter`` when a dictionary exists."""
     if not backend_available():
         return None
-    assert Spelling is not None
+    assert Spelling not in (None, _UNLOADED)
     try:
         checker = Spelling.Checker.get_default()
         return Spelling.TextBufferAdapter.new(buffer, checker)

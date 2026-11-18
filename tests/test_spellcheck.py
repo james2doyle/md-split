@@ -58,9 +58,9 @@ finally:
     spellcheck.log.removeHandler(handler)
 assert len(messages) == 1, messages
 assert "Spell checking disabled" in messages[0], messages
-if spellcheck.Spelling is None:
-    assert "libspelling" in messages[0].lower(), messages
-else:
-    assert "dictionary" in messages[0].lower(), messages
+# Dictionaries are checked before libspelling loads, so that is the reason.
+assert "dictionary" in messages[0].lower(), messages
+# Without dictionaries the GI namespace is never imported.
+assert spellcheck.Spelling is spellcheck._UNLOADED or spellcheck.Spelling is None
 
 print("ok: spell checking helpers")
