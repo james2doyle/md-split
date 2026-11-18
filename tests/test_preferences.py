@@ -39,6 +39,25 @@ def wait_for(predicate, timeout=2.0):
         time.sleep(0.01)
     return False
 
+
+def walk(widget):
+    yield widget
+    child = widget.get_first_child()
+    while child is not None:
+        yield from walk(child)
+        child = child.get_next_sibling()
+
+
+def close_buttons(dialog):
+    return [
+        widget
+        for widget in walk(dialog)
+        if isinstance(widget, Gtk.Button)
+        and widget.get_parent() is not None
+        and widget.get_parent().get_css_name() == "windowcontrols"
+        and widget.get_visible()
+    ]
+
 from src.main import MdSplitApplication
 from src.window import MdSplitWindow
 
@@ -58,11 +77,13 @@ def open_preferences():
         pass
     dialog = app._preferences_dialog
     assert dialog is not None
+    assert wait_for(dialog.get_mapped), "dialog was not mapped"
     return dialog
 
 
 dialog = open_preferences()
-assert dialog.close_button.get_visible()
+# AdwPreferencesDialog's header bar supplies the only close button.
+assert len(close_buttons(dialog)) == 1
 assert app.settings.get_string("appearance") == "system"
 assert dialog.switch_sync_scroll.get_active()
 assert dialog.switch_autocomplete_links.get_active()
@@ -148,12 +169,14 @@ while GLib.MainContext.default().iteration(False):
     pass
 assert app._preferences_dialog is None
 
-# The close button closes the dialog and clears the application reference.
+# The header bar close button closes the dialog and clears the application
+# reference.
 dialog = open_preferences()
 assert dialog.appearance_row.get_selected() == 1
 app.settings.set_string("appearance", "system")
 app.settings.set_boolean("sync-scroll", True)
-dialog.close_button.emit("clicked")
+assert wait_for(lambda: close_buttons(dialog)[0].get_mapped())
+close_buttons(dialog)[0].emit("clicked")
 assert wait_for(lambda: not dialog.get_mapped()), "dialog stayed mapped"
 while GLib.MainContext.default().iteration(False):
     pass

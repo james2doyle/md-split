@@ -38,7 +38,6 @@ class MdSplitPreferencesDialog(Adw.PreferencesDialog):
     switch_format_on_save = Gtk.Template.Child("switch_format_on_save")
     switch_remote_images = Gtk.Template.Child("switch_remote_images")
     switch_vim_mode = Gtk.Template.Child("switch_vim_mode")
-    close_button = Gtk.Template.Child("close_button")
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -57,7 +56,6 @@ class MdSplitPreferencesDialog(Adw.PreferencesDialog):
         self.appearance_row.connect(
             "notify::selected", self._on_appearance_selected
         )
-        self.close_button.connect("clicked", self._on_close_clicked)
         click = Gtk.GestureClick()
         click.set_button(Gdk.BUTTON_PRIMARY)
         click.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
@@ -237,9 +235,6 @@ class MdSplitPreferencesDialog(Adw.PreferencesDialog):
         index = self.appearance_row.get_selected()
         if 0 <= index < len(_APPEARANCES):
             self._settings.set_string("appearance", _APPEARANCES[index])
-
-    def _on_close_clicked(self, _button) -> None:
-        self.close()
 
     def _on_background_clicked(
         self, _gesture, _n_press: int, x: float, y: float

@@ -29,7 +29,8 @@ assert len(demo) > 200
 preferences = contents(
     "/com/james2doyle/MdSplit/preferences-dialog.ui"
 ).decode("utf-8")
-assert "close_button" in preferences
+assert "switch_vim_mode" in preferences
+assert "close_button" not in preferences
 
 window = contents("/com/james2doyle/MdSplit/window.ui").decode("utf-8")
 assert "view_menu" in window
