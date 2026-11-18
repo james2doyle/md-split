@@ -24,7 +24,7 @@
 
   <screenshots>
     <screenshot type="default">
-      <image type="source" width="1150" height="770">https://raw.githubusercontent.com/james2doyle/md-split/v1.1.0/docs/screenshot.png</image>
+      <image type="source" width="1150" height="770">https://raw.githubusercontent.com/james2doyle/md-split/v1.2.0/docs/screenshot.png</image>
       <caption>Markdown source and rendered preview side by side</caption>
     </screenshot>
   </screenshots>
@@ -64,6 +64,16 @@
   </branding>
 
   <releases>
+    <release version="1.2.0" date="2026-11-18">
+      <description translate="no">
+        <p>Navigation and performance update.</p>
+        <ul>
+          <li>Optional Vim keybindings for the editor and preview.</li>
+          <li>Faster startup with deferred imports and shipped bytecode.</li>
+          <li>Updated demo document and screenshot.</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.1.0" date="2026-11-17">
       <description translate="no">
         <p>Writing and packaging update.</p>
