@@ -79,6 +79,11 @@ dialog.switch_restore_session.set_active(True)
 dialog.switch_format_on_save.set_active(False)
 assert app.settings.get_boolean("format-on-save") is False
 dialog.switch_format_on_save.set_active(True)
+assert not dialog.switch_vim_mode.get_active()
+dialog.switch_vim_mode.set_active(True)
+assert app.settings.get_boolean("vim-mode") is True
+dialog.switch_vim_mode.set_active(False)
+assert app.settings.get_boolean("vim-mode") is False
 dialog.spin_autosave_interval.set_value(45)
 assert app.settings.get_int("autosave-interval") == 45
 app.settings.set_int("autosave-interval", 20)

@@ -586,4 +586,295 @@ assert window.settings.get_int("window-width") == 4000
 assert window.settings.get_int("window-height") == 3000
 window.destroy()
 
+# -- Vim mode --------------------------------------------------------------
+
+from src.preview_vim import PreviewAction
+
+
+def spin(times=30):
+    for _ in range(times):
+        while GLib.MainContext.default().iteration(False):
+            pass
+
+
+def controllers(widget):
+    model = widget.observe_controllers()
+    return [model.get_item(i) for i in range(model.get_n_items())]
+
+
+window = MdSplitWindow()
+window.set_default_size(900, 500)
+window.present()
+spin()
+assert window.settings.get_boolean("vim-mode") is False
+assert not window.vim_enabled
+assert window.vim_context is not None
+assert window._vim_controller not in controllers(window.editor_view)
+assert not window.label_vim.get_visible()
+assert window._vim_insert_mode()
+
+window.settings.set_boolean("vim-mode", True)
+spin()
+assert window.vim_enabled
+assert window._vim_controller in controllers(window.editor_view)
+assert window.label_vim.get_visible()
+assert window.preview_vim.enabled
+
+window.settings.set_boolean("vim-mode", False)
+spin()
+assert not window.vim_enabled
+assert window._vim_controller not in controllers(window.editor_view)
+assert not window.preview_vim.enabled
+window.settings.set_boolean("vim-mode", True)
+spin()
+
+display = Gdk.Display.get_default()
+keyboard = display.get_default_seat().get_keyboard()
+im = window.vim_context
+
+
+def vim_key(keyval, state=0):
+    ok, keys = display.map_keyval(keyval)
+    assert ok, keyval
+    entry = min(keys, key=lambda key: (key.group, key.level))
+    if entry.level == 1:
+        state |= Gdk.ModifierType.SHIFT_MASK
+    for press in (True, False):
+        surface = window.get_surface()
+        if surface is None:  # the press closed the window (:q)
+            break
+        im.filter_key(
+            press,
+            surface,
+            keyboard,
+            0,
+            entry.keycode,
+            state,
+            entry.group,
+        )
+    spin(5)
+
+
+def vim_type(text):
+    for character in text:
+        vim_key(Gdk.unicode_to_keyval(ord(character)))
+
+
+window.set_text("- one")
+window.editor_view.grab_focus()
+window._buffer.place_cursor(window._buffer.get_end_iter())
+spin()
+
+# The helper controller sits on an ancestor of the view, so GTK's capture
+# phase always runs it before the Vim IM controller on the view itself.
+assert window._key_controller in controllers(window.editor_scroller)
+assert window._key_controller not in controllers(window.editor_view)
+assert window.editor_view.is_ancestor(window.editor_scroller)
+
+# Normal mode: the Markdown helpers stay out of Vim's way.
+assert not window._vim_insert_mode()
+assert window._on_key_pressed(None, Gdk.KEY_Return, 0, 0) is False
+assert window.get_text() == "- one"
+
+# Insert mode: list continuation still runs, and the mode is shown.
+vim_key(Gdk.KEY_A)
+assert window._vim_insert_mode(), im.get_command_bar_text()
+assert "INSERT" in window.label_vim.get_label(), window.label_vim.get_label()
+window._buffer.place_cursor(window._buffer.get_end_iter())
+assert window._on_key_pressed(None, Gdk.KEY_Return, 0, 0) is True
+assert window.get_text() == "- one\n- ", repr(window.get_text())
+vim_key(Gdk.KEY_Escape)
+assert not window._vim_insert_mode()
+
+# Editor "/" search shows a match counter like the preview does. Real input
+# reaches the window's helper controller before Vim, so mirror that order.
+def vim_enter():
+    window._on_key_pressed(None, Gdk.KEY_Return, 0, 0)
+    vim_key(Gdk.KEY_Return)
+    spin()
+
+
+window.set_text("alpha Beta\nbeta gamma\nBETA delta beta\n")
+window._buffer.place_cursor(window._buffer.get_start_iter())
+spin()
+vim_type("/beta")
+assert window.label_vim.get_label() == "/beta"
+vim_enter()
+assert window.label_vim.get_label() == "/beta [1/2]", window.label_vim.get_label()
+vim_type("n")
+assert window.label_vim.get_label() == "/beta [2/2]", window.label_vim.get_label()
+vim_type("n")
+assert window.label_vim.get_label() == "/beta [1/2]", window.label_vim.get_label()
+vim_type("j")
+assert window.label_vim.get_label() == "", window.label_vim.get_label()
+vim_type("/zzz")
+vim_enter()
+assert window.label_vim.get_label() == "Pattern not found: zzz"
+vim_type("l")
+assert window.label_vim.get_label() == ""
+
+# :w <path> writes through the normal save path; :q closes a clean window.
+with tempfile.TemporaryDirectory() as tmp:
+    target = os.path.join(tmp, "vim.md")
+    window.set_text("# Vim\n")
+    vim_type(":w " + target)
+    vim_key(Gdk.KEY_Return)
+    wait_until(lambda: not window.document.is_dirty)
+    with open(target, encoding="utf-8") as handle:
+        assert handle.read() == "# Vim\n"
+    assert window.document.file.get_path() == target
+
+    # Commands the window does not handle fall through to GtkSourceView.
+    vim_type(":set nu")
+    vim_key(Gdk.KEY_Return)
+    assert window.editor_view.get_show_line_numbers()
+
+    closed = []
+    window.connect("close-request", lambda *_args: closed.append(True) or False)
+    vim_type(":q")
+    vim_key(Gdk.KEY_Return)
+    spin()
+    assert closed
+
+# Preview navigation: scrolling, jumps and search on a long document.
+window = MdSplitWindow()
+window.set_default_size(900, 500)
+window.set_view_mode("preview", persist=False)
+window.present()
+window.settings.set_boolean("vim-mode", True)
+sections = []
+for number in range(1, 13):
+    body = "\n\n".join(f"Paragraph {number}.{line} filler text." for line in range(8))
+    sections.append(f"# Section {number}\n\n{body}")
+sections[8] += "\n\nThe needle is here."
+sections[10] += "\n\nAnother Needle appears."
+window.set_text("\n\n".join(sections))
+adjustment = window.preview.get_vadjustment()
+wait_until(
+    lambda: adjustment.get_upper() > adjustment.get_page_size() * 3
+    and window.preview.content_widget() is not None
+)
+spin()
+window.preview.scroll_to_value(0, sync=False)
+vim = window.preview_vim
+vim.perform(PreviewAction("scroll-down", 3))
+assert adjustment.get_value() > 100, adjustment.get_value()
+vim.perform(PreviewAction("bottom"))
+maximum = adjustment.get_upper() - adjustment.get_page_size()
+assert abs(adjustment.get_value() - maximum) < 1
+vim.perform(PreviewAction("top"))
+assert adjustment.get_value() == 0
+vim.perform(PreviewAction("goto-percent", 50))
+assert abs(adjustment.get_value() - maximum / 2) < 1
+
+# Key presses go through the parser: 5j, gg and Ctrl+D.
+window.preview.scroll_to_value(0, sync=False)
+for keyval in (Gdk.KEY_5, Gdk.KEY_j):
+    assert vim._on_key_pressed(None, keyval, 0, 0)
+assert abs(adjustment.get_value() - 200) < 1, adjustment.get_value()
+for keyval in (Gdk.KEY_g, Gdk.KEY_g):
+    assert vim._on_key_pressed(None, keyval, 0, 0)
+assert adjustment.get_value() == 0
+assert vim._on_key_pressed(
+    None, Gdk.KEY_d, 0, Gdk.ModifierType.CONTROL_MASK
+)
+assert adjustment.get_value() > 0
+assert not vim._on_key_pressed(
+    None, Gdk.KEY_s, 0, Gdk.ModifierType.CONTROL_MASK
+), "app shortcuts keep working"
+
+# ]] moves to the next heading below the viewport top.
+window.preview.scroll_to_value(0, sync=False)
+vim.perform(PreviewAction("next-heading"))
+first = adjustment.get_value()
+assert first > 0
+vim.perform(PreviewAction("next-heading"))
+assert adjustment.get_value() > first
+vim.perform(PreviewAction("previous-heading"))
+assert abs(adjustment.get_value() - first) < 1
+
+# / search is smartcase: "needle" finds both, "Needle" only the second.
+window.preview.scroll_to_value(0, sync=False)
+statuses = []
+vim._on_status = statuses.append
+assert vim.search("needle")
+assert window.preview_vim._highlighted.get_text() == "The needle is here."
+assert statuses[-1].endswith("[1/2]"), statuses
+vim.perform(PreviewAction("next-match"))
+assert vim._highlighted.get_text() == "Another Needle appears."
+assert statuses[-1].endswith("[2/2]"), statuses
+vim.perform(PreviewAction("next-match"))
+assert "continuing at TOP" in statuses[-1], statuses
+assert vim._highlighted.get_text() == "The needle is here."
+vim.perform(PreviewAction("previous-match"))
+assert vim._highlighted.get_text() == "Another Needle appears."
+window.preview.scroll_to_value(0, sync=False)
+assert vim.search("Needle")
+assert vim._highlighted.get_text() == "Another Needle appears."
+assert statuses[-1].endswith("[1/1]"), statuses
+assert not vim.search("missing")
+assert "Pattern not found" in statuses[-1]
+assert vim._highlighted is None
+
+# The prompt opens on / and runs the search on Enter.
+assert vim._on_key_pressed(None, Gdk.KEY_slash, 0, 0)
+assert vim.prompt_open
+assert window.preview_prompt_prefix.get_label() == "/"
+window.preview_prompt_entry.set_text("needle")
+window.preview_prompt_entry.emit("activate")
+assert not vim.prompt_open
+assert vim._highlighted is not None
+
+# Pane switching: i from preview-only reveals and focuses the editor; the
+# status line drops the preview search text.
+window._buffer.place_cursor(window._buffer.get_start_iter())
+window.preview.grab_focus()
+spin()
+assert window.view_mode == "preview"
+assert window.preview.get_scroll_fraction() > 0.2
+assert vim._on_key_pressed(None, Gdk.KEY_i, 0, 0)
+spin()
+assert window.view_mode == "both"
+assert window.get_focus() is window.editor_view
+assert "needle" not in window.label_vim.get_label()
+# The cursor follows the part being read instead of staying at the top.
+wait_until(
+    lambda: window._buffer.get_iter_at_mark(window._buffer.get_insert()).get_line() > 0
+)
+
+# Ctrl+W w from the editor's Normal mode moves to the preview, and back.
+ctrl = Gdk.ModifierType.CONTROL_MASK
+assert window._on_key_pressed(None, Gdk.KEY_w, 0, ctrl)
+assert window._on_key_pressed(None, Gdk.KEY_w, 0, 0)
+spin()
+assert window.get_focus() is not None
+assert window.get_focus() is window.preview or window.get_focus().is_ancestor(
+    window.preview
+)
+assert vim._on_key_pressed(None, Gdk.KEY_w, 0, ctrl)
+assert vim._on_key_pressed(None, Gdk.KEY_w, 0, 0)
+spin()
+assert window.get_focus() is window.editor_view
+
+# Ctrl+W l from source-only reveals the preview.
+window.set_view_mode("source", persist=False)
+window.focus_editor()
+spin()
+assert window._on_key_pressed(None, Gdk.KEY_w, 0, ctrl)
+assert window._on_key_pressed(None, Gdk.KEY_l, 0, 0)
+spin()
+assert window.view_mode == "both"
+assert window.get_focus() is window.preview or window.get_focus().is_ancestor(
+    window.preview
+)
+
+# With Vim mode off the preview ignores the keys.
+window.settings.set_boolean("vim-mode", False)
+spin()
+window.preview.scroll_to_value(0, sync=False)
+assert window._vim_controller not in controllers(window.editor_view)
+assert vim._controller not in controllers(window.preview)
+window.destroy()
+window.settings.reset("vim-mode")
+
 print("ok: native window")

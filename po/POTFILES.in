@@ -12,6 +12,7 @@ src/main.py
 src/markdown_view.py
 src/preferences-dialog.blp
 src/preferences.py
+src/preview_vim.py
 src/renderer.py
 src/shortcuts-dialog.blp
 src/window.blp

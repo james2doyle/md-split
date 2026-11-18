@@ -103,6 +103,11 @@
 			<range min="1" max="50"/>
 			<default>5</default>
 		</key>
+		<key name="vim-mode" type="b">
+			<summary>Use Vim keybindings</summary>
+			<description>Enable modal Vim editing in the source editor and Vim-style navigation and search in the preview.</description>
+			<default>false</default>
+		</key>
 		<key name="spell-check" type="b">
 			<summary>Check spelling while typing</summary>
 			<description>Underline words that are not in the selected dictionary.</description>
