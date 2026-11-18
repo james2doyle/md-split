@@ -56,9 +56,9 @@ For X11/Xwayland, ibus can crash with a segmentation fault in
 GTK_IM_MODULE=gtk-im-context-simple xvfb-run --auto-servernum python3 scripts/test.py
 ```
 
-## GTK warnings about GtkGizmo or Wayland text input
+## Noisy GTK and libenchant warnings
 
-Two noisy upstream GTK warnings are filtered because they do not indicate a
+These noisy upstream warnings are filtered because they do not indicate a
 document error:
 
 - `Trying to snapshot GtkGizmo ... without a current allocation` comes from
@@ -68,10 +68,14 @@ document error:
 - `gtkimcontextwayland.c:...:notify_surrounding_text: code should not be
   reached` comes from the Wayland text-input protocol's 4 KiB surrounding-text
   window when a large selection is active. It is harmless.
+- `libenchant-WARNING ...: Error loading plugin: ...: cannot open shared
+  object file` appears while the spelling backend probes provider plugins that
+  are not installed. Dictionaries still load through an available provider
+  such as hunspell.
 
-The filter matches only those exact messages in the `Gtk` log domain; other GTK
-warnings still appear. Set `MD_SPLIT_SHOW_GTK_WARNINGS=1` to disable the filter
-while debugging.
+The filter matches only those exact messages in the `Gtk` and `libenchant` log
+domains; other warnings still appear. Set `MD_SPLIT_SHOW_WARNINGS=1` to disable
+the filter while debugging.
 
 ## Collect Python debug logs
 

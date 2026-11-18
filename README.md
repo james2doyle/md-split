@@ -71,7 +71,8 @@ has no runtime Python dependencies beyond PyGObject.
 - GTK 4 and libadwaita 1.9+ (the Flatpak runtime provides 1.10)
 - GtkSourceView 5
 - Pycairo for PDF export
-- Optional: libspelling with a system dictionary for spell checking
+- Optional: libspelling, a libenchant provider (hunspell, aspell, nuspell, or
+  voikko), and a dictionary for spell checking
 - `meson`, `ninja`, `blueprint-compiler`
 - `gettext` (`msgfmt`); optional validators: `desktop-file-validate`,
   `appstreamcli`, `glib-compile-schemas`
@@ -79,6 +80,20 @@ has no runtime Python dependencies beyond PyGObject.
 - podman or Docker for AppImage builds
 
 The Markdown parser is vendored; install no parser packages.
+
+Spell checking is optional. It needs the libspelling typelib, one libenchant
+provider, and at least one dictionary. For example:
+
+```sh
+# Debian/Ubuntu
+sudo apt install gir1.2-spelling-1 libspelling-1-2 hunspell hunspell-en-us
+# Fedora
+sudo dnf install libspelling hunspell hunspell-en
+# Arch
+sudo pacman -S libspelling hunspell hunspell-en_us
+```
+
+Leaving the other libenchant providers uninstalled is fine.
 
 ## Build and run
 

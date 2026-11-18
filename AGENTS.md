@@ -153,7 +153,7 @@ settings.set_string('view-mode', 'source')
   generated: build/src/*.ui
 [App] src/main.py (application/actions/icons, session/recent/recovery),
   src/window.py (window/file I/O, search, autosave, file monitor, spell check),
-  src/logging_utils.py (known GTK warning filter)
+  src/logging_utils.py (known GTK/libenchant warning filter)
 [Model] src/document.py (text, file, dirty state, counts, reading time),
   src/fileio.py (async I/O)
 [State] src/session.py (session/recent paths), src/recovery.py (drafts/backups),

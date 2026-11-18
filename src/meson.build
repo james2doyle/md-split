@@ -147,5 +147,5 @@ test('Preview Vim helpers', python3, args: [files('../tests/test_preview_vim.py'
   env: test_env)
 test('HTML and PDF export', python3, args: [files('../tests/test_export.py')],
   env: test_env)
-test('GTK warning filters', python3, args: [files('../tests/test_logging.py')],
+test('Warning filters', python3, args: [files('../tests/test_logging.py')],
   env: test_env)

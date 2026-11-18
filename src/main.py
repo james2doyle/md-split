@@ -17,7 +17,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
 from . import APP_ID, VIEW_MODES, recovery, session
-from .logging_utils import install_known_gtk_warning_filter
+from .logging_utils import install_known_warning_filter
 
 # The window and preferences modules (GtkSource, the Markdown parser and the
 # renderer) load on first use. A second launch that only forwards files to
@@ -564,7 +564,7 @@ class MdSplitApplication(Adw.Application):
 
 def main(version):
     """The application's entry point."""
-    install_known_gtk_warning_filter()
+    install_known_warning_filter()
     debug = os.environ.get("MD_SPLIT_DEBUG", "")
     level = logging.DEBUG if debug else logging.INFO
     logging.basicConfig(level=level, format="%(name)s: %(message)s")
