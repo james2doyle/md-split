@@ -207,7 +207,13 @@ jobs:
           test -x "$appimage"
           runtime_info=$("$appimage" --appimage-version 2>&1)
           echo "$runtime_info"
-          grep -q "type2-runtime" <<<"$runtime_info"
+          case "$runtime_info" in
+            *type2-runtime*) ;;
+            *)
+              echo "Unexpected AppImage runtime: $runtime_info" >&2
+              exit 1
+              ;;
+          esac
           "$appimage" --appimage-extract >/dev/null
           test -f squashfs-root/AppRun
           test -f squashfs-root/usr/share/applications/com.james2doyle.MdSplit.desktop
