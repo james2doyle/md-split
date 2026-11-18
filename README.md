@@ -36,6 +36,8 @@ has no runtime Python dependencies beyond PyGObject.
 - Session restore, recent files, and a clear-recent action
 - External file-change warnings with reload or keep-editing choices
 - Spell checking with libspelling and a system dictionary when available
+- Optional Vim mode: modal editing in the source pane and Vim-style
+  scrolling, heading jumps and `/` search in the preview
 - Standalone HTML and styled PDF export, with extension enforcement and
   overwrite confirmation
 - Command-line view and appearance overrides
@@ -121,6 +123,52 @@ without extra environment setup.
 | Ctrl+, | Preferences |
 | Ctrl+? | Show shortcuts |
 | Ctrl+Q | Quit |
+
+## Vim mode
+
+Turn on **Vim keybindings** in Preferences (the `vim-mode` setting). It is off
+by default.
+
+**Editor.** The source pane uses GtkSourceView's built-in Vim emulation:
+Normal, Insert, Visual and Replace modes, motions, text objects, registers,
+`/` search and `:` commands. The current mode and pending command appear in
+the status bar. MD Split handles these commands:
+
+| Command | Effect |
+| --- | --- |
+| `:w` | Save (Save As for an untitled document) |
+| `:w FILE` | Save to `FILE`, relative to the document's folder |
+| `:e FILE` / `:e` | Open `FILE` / reload the current file |
+| `:q`, `:q!` | Close the window (prompting for unsaved changes) / discard changes and close |
+| `:wq`, `:x` | Save and close |
+| `gq{motion}` | Run Format Document on the lines covered |
+| `Ctrl+W w` / `Ctrl+W l` | Move focus to the preview (showing it if hidden) |
+
+Other `:` commands such as `:s`, `:set` and `:{line}` work as in GtkSourceView.
+Editor `/` and `?` searches are case-sensitive regular expressions; while the
+cursor sits on a match the status bar shows `/pattern [n/total]`.
+The Markdown typing helpers (list continuation, selection wrapping, `[]()`
+completion) run only in Insert mode. While the editor has focus, Vim's Ctrl
+keys take precedence over MD Split shortcuts that use the same keys: `Ctrl+B`,
+`Ctrl+U`, `Ctrl+F`, `Ctrl+O`, `Ctrl+R` and `Ctrl+V`. Use the menus, or the same
+shortcuts from outside the editor, for those actions.
+
+**Preview.** With Vim mode on, the preview, including preview-only mode,
+works as a Vim-style viewer:
+
+| Keys | Action |
+| --- | --- |
+| `j` / `k`, `Ctrl+E` / `Ctrl+Y` | Scroll down / up (accepts a count, e.g. `5j`) |
+| `Ctrl+D` / `Ctrl+U` | Half page down / up |
+| `Ctrl+F` / `Ctrl+B`, `Space` / `Shift+Space` | Page down / up |
+| `gg` / `G` | Top / bottom |
+| `{n}G` | Jump to `n` percent of the document |
+| `]]` / `[[` | Next / previous heading |
+| `/` / `?` | Search forward / backward (smartcase, Python regex) |
+| `n` / `N` | Next / previous match |
+| `Esc` | Clear the match highlight and pending keys |
+| `Ctrl+W w`, `Ctrl+W h` / `Ctrl+W l` | Switch pane / focus editor / focus preview |
+| `i`, `e` | Focus the editor at the part you are reading (showing it if hidden) |
 
 ## View modes
 

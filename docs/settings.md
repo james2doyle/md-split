@@ -28,6 +28,7 @@ Settings use the GSettings schema `com.james2doyle.MdSplit` with path
 | `autosave-interval` | int | `30` | Seconds between drafts; range 5–300 |
 | `backup-files` | bool | `false` | Keep timestamped backups on save |
 | `backup-retention` | int | `5` | Backups per file; range 1–50 |
+| `vim-mode` | bool | `false` | Vim keybindings in the editor and Vim navigation in the preview |
 | `spell-check` | bool | `true` | Check spelling when a backend and dictionary exist |
 | `spell-language` | string | `""` | Dictionary code; empty uses the provider default |
 

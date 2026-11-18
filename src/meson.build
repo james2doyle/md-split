@@ -52,6 +52,7 @@ md_split_sources = [
   'markdown_view.py',
   'paths.py',
   'preferences.py',
+  'preview_vim.py',
   'recovery.py',
   'renderer.py',
   'session.py',
@@ -132,6 +133,8 @@ test('Packaged resources', python3, args: [files('../tests/test_resources.py')],
 test('Remote image policy', python3, args: [files('../tests/test_images.py')],
   env: test_env)
 test('Editing helpers', python3, args: [files('../tests/test_editing.py')],
+  env: test_env)
+test('Preview Vim helpers', python3, args: [files('../tests/test_preview_vim.py')],
   env: test_env)
 test('HTML and PDF export', python3, args: [files('../tests/test_export.py')],
   env: test_env)

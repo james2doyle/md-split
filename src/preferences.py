@@ -37,6 +37,7 @@ class MdSplitPreferencesDialog(Adw.PreferencesDialog):
     switch_autocomplete_links = Gtk.Template.Child("switch_autocomplete_links")
     switch_format_on_save = Gtk.Template.Child("switch_format_on_save")
     switch_remote_images = Gtk.Template.Child("switch_remote_images")
+    switch_vim_mode = Gtk.Template.Child("switch_vim_mode")
     close_button = Gtk.Template.Child("close_button")
 
     def __init__(self, **kwargs):
@@ -79,6 +80,7 @@ class MdSplitPreferencesDialog(Adw.PreferencesDialog):
             ("autocomplete-links", self.switch_autocomplete_links),
             ("format-on-save", self.switch_format_on_save),
             ("remote-images", self.switch_remote_images),
+            ("vim-mode", self.switch_vim_mode),
         ):
             key = "backup-files" if setting == "backups" else setting
             self._settings.bind(

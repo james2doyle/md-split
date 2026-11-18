@@ -278,17 +278,73 @@ class MarkdownView(Gtk.ScrolledWindow):
 
     def _scroll_to_anchor(self, name: str) -> None:
         widget = self._renderer.get_anchor(name)
-        if widget is None:
+        if widget is not None:
+            self.scroll_to_widget(widget, sync=False)
+
+    # -- navigation helpers (used by Vim navigation) ---------------------
+
+    def content_widget(self) -> Gtk.Widget | None:
+        """Return the rendered content tree, or None when nothing is shown."""
+        if self._stack.get_visible_child_name() != "content":
+            return None
+        return self._clamp.get_child()
+
+    def iter_labels(self):
+        """Yield the rendered labels in document order."""
+        content = self.content_widget()
+        if content is None:
             return
+        stack = [content]
+        while stack:
+            widget = stack.pop()
+            if isinstance(widget, Gtk.Label):
+                yield widget
+            children = []
+            child = widget.get_first_child()
+            while child is not None:
+                children.append(child)
+                child = child.get_next_sibling()
+            stack.extend(reversed(children))
+
+    def widget_y(self, widget: Gtk.Widget) -> float | None:
+        """Return the top of ``widget`` in scrollable content coordinates."""
         try:
             success, rect = widget.compute_bounds(self._clamp)
         except (TypeError, AttributeError):
-            return
+            return None
         if not success:
+            return None
+        return rect.get_y()
+
+    def scroll_to_value(self, value: float, *, sync: bool = True) -> None:
+        """Scroll to ``value``, clamped to the content.
+
+        With ``sync`` the change is reported through
+        ``scroll-fraction-changed`` like a user scroll.
+        """
+        adjustment = self.get_vadjustment()
+        if adjustment is None:
             return
+        self._cancel_restore()
+        maximum = adjustment.get_upper() - adjustment.get_page_size()
+        value = max(adjustment.get_lower(), min(value, max(0.0, maximum)))
+        if sync:
+            adjustment.set_value(value)
+        else:
+            self._set_adjustment_value(value)
+
+    def scroll_by(self, delta: float) -> None:
         adjustment = self.get_vadjustment()
         if adjustment is not None:
-            self._set_adjustment_value(max(0.0, rect.get_y() - 12))
+            self.scroll_to_value(adjustment.get_value() + delta)
+
+    def scroll_to_widget(
+        self, widget: Gtk.Widget, offset: float = 0.0, *, sync: bool = True
+    ) -> None:
+        """Scroll so ``widget`` (plus ``offset`` pixels) sits near the top."""
+        y = self.widget_y(widget)
+        if y is not None:
+            self.scroll_to_value(max(0.0, y + offset - 12), sync=sync)
 
     def _open_external(self, uri: str) -> None:
         launcher = Gtk.UriLauncher.new(uri)

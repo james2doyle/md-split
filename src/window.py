@@ -32,6 +32,7 @@ from . import (
     filechanges,
     fileio,
     formatting,
+    preview_vim,
     recovery,
     session,
     spellcheck,
@@ -91,9 +92,13 @@ class MdSplitWindow(Adw.ApplicationWindow):
     editor_view = Gtk.Template.Child("editor_view")
     paned = Gtk.Template.Child("paned")
     preview_container = Gtk.Template.Child("preview_container")
+    preview_prompt_revealer = Gtk.Template.Child("preview_prompt_revealer")
+    preview_prompt_prefix = Gtk.Template.Child("preview_prompt_prefix")
+    preview_prompt_entry = Gtk.Template.Child("preview_prompt_entry")
     placeholder_label = Gtk.Template.Child("placeholder_label")
     label_cursor = Gtk.Template.Child("label_cursor")
     label_stats = Gtk.Template.Child("label_stats")
+    label_vim = Gtk.Template.Child("label_vim")
     toast_overlay = Gtk.Template.Child("toast_overlay")
     search_bar = Gtk.Template.Child("search_bar")
     search_entry = Gtk.Template.Child("search_entry")
@@ -151,6 +156,18 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self._saved_paned_position = None
         self._key_controller = None
         self._signal_handlers: list[tuple[object, int]] = []
+        self._vim_im: GtkSource.VimIMContext | None = None
+        self._vim_controller: Gtk.EventControllerKey | None = None
+        self._vim_attached = False
+        self._vim_mode_handler = 0
+        self._editor_ctrl_w = False
+        self._preview_vim: preview_vim.PreviewVim | None = None
+        # Editor "/" search mirrored for the status-bar match counter.
+        self._vim_search: tuple[str, str] | None = None
+        self._vim_search_context: GtkSource.SearchContext | None = None
+        self._vim_search_handler = 0
+        self._vim_search_message = ""
+        self._vim_search_check = False
 
         self.set_icon_name(APP_ID)
         self._preview = MarkdownView()
@@ -178,9 +195,336 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self._signal_handlers.append(
             (controller, controller.connect("key-pressed", self._on_key_pressed))
         )
-        self.editor_view.add_controller(controller)
+        # Attach to the scroller, an ancestor of the view: capture-phase
+        # controllers run on ancestors before the target, so the Markdown
+        # helpers always see keys before the Vim IM controller on the view.
+        self.editor_scroller.add_controller(controller)
         self._key_controller = controller
         self._setup_spellcheck()
+        self._setup_vim()
+
+    # -- vim mode --------------------------------------------------------
+
+    def _setup_vim(self) -> None:
+        """Create the Vim contexts; they attach when ``vim-mode`` is on.
+
+        The Markdown helper controller sits on the editor's scroller, so in
+        Insert mode it still sees Return and ``]`` before Vim does.
+        """
+        im = GtkSource.VimIMContext.new()
+        im.set_client_widget(self.editor_view)
+        controller = Gtk.EventControllerKey()
+        controller.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        controller.set_im_context(im)
+        self._vim_im = im
+        self._vim_controller = controller
+        self._signal_handlers.extend(
+            [
+                (im, im.connect("notify::command-bar-text", self._on_vim_text)),
+                (im, im.connect("notify::command-text", self._on_vim_text)),
+                (
+                    self._buffer,
+                    self._buffer.connect(
+                        "notify::cursor-position", self._on_vim_cursor_moved
+                    ),
+                ),
+                (im, im.connect("write", self._on_vim_write)),
+                (im, im.connect("edit", self._on_vim_edit)),
+                (im, im.connect("execute-command", self._on_vim_command)),
+                (im, im.connect("format-text", self._on_vim_format)),
+            ]
+        )
+        focus = Gtk.EventControllerFocus()
+        self._signal_handlers.append(
+            (focus, focus.connect("enter", self._on_editor_focus_enter))
+        )
+        self.editor_view.add_controller(focus)
+        self._editor_focus_controller = focus
+        self._preview_vim = preview_vim.PreviewVim(
+            self._preview,
+            prompt_revealer=self.preview_prompt_revealer,
+            prompt_prefix=self.preview_prompt_prefix,
+            prompt_entry=self.preview_prompt_entry,
+            on_status=self._set_vim_status,
+            on_focus=self._focus_vim_pane,
+        )
+        self._preview_focusable = self._preview.get_focusable()
+        self._vim_mode_handler = self._settings.connect(
+            "changed::vim-mode", self._on_vim_mode_changed
+        )
+        self._apply_vim_mode()
+
+    @property
+    def vim_enabled(self) -> bool:
+        return self._vim_attached
+
+    @property
+    def vim_context(self) -> GtkSource.VimIMContext | None:
+        return self._vim_im
+
+    @property
+    def preview_vim(self) -> preview_vim.PreviewVim | None:
+        return self._preview_vim
+
+    def _on_vim_mode_changed(self, *_args) -> None:
+        self._apply_vim_mode()
+
+    def _apply_vim_mode(self) -> None:
+        enabled = self._settings.get_boolean("vim-mode")
+        if self._vim_controller is None or self._vim_im is None:
+            return
+        if enabled and not self._vim_attached:
+            self.editor_view.add_controller(self._vim_controller)
+            self._vim_attached = True
+        elif not enabled and self._vim_attached:
+            self._vim_im.reset()
+            self.editor_view.remove_controller(self._vim_controller)
+            self._vim_attached = False
+            self.editor_view.set_overwrite(False)
+        self._editor_ctrl_w = False
+        self._preview.set_focusable(enabled or self._preview_focusable)
+        if self._preview_vim is not None:
+            self._preview_vim.set_enabled(enabled)
+        self.label_vim.set_visible(enabled)
+        self._set_vim_status("")
+        if enabled:
+            self._on_vim_text()
+
+    def _vim_insert_mode(self) -> bool:
+        """True when typing helpers should run: Vim off, or in Insert mode."""
+        if not self._vim_attached or self._vim_im is None:
+            return True
+        text = self._vim_im.get_command_bar_text() or ""
+        insert = GLib.dgettext("gtksourceview-5", "-- INSERT --")
+        return text.startswith(insert) or text.startswith("-- INSERT --")
+
+    def _on_vim_text(self, *_args) -> None:
+        if self._vim_im is None or not self._vim_attached:
+            return
+        bar = self._vim_im.get_command_bar_text() or ""
+        command = self._vim_im.get_command_text() or ""
+        text = f"{bar} {command}".strip()
+        if not text:
+            text = self._vim_search_message or self._vim_search_status()
+        self._set_vim_status(text)
+
+    def _on_vim_cursor_moved(self, *_args) -> None:
+        if self._vim_attached and self.editor_view.has_focus():
+            self._vim_search_message = ""
+            self._on_vim_text()
+
+    # GtkSourceView's Vim search reports no match count, so mirror the last
+    # "/" or "?" pattern in our own search context. Its search is regex and
+    # case-sensitive, like Vim without ignorecase.
+
+    def _capture_vim_search(self) -> None:
+        """Called on Return, before Vim runs the command bar."""
+        if self._vim_im is None:
+            return
+        bar = self._vim_im.get_command_bar_text() or ""
+        if not bar or bar[0] not in "/?":
+            return
+        pattern = bar[1:]
+        if not pattern and self._vim_search is not None:
+            pattern = self._vim_search[1]
+        if not pattern:
+            return
+        self._set_vim_search(bar[0], pattern)
+        self._vim_search_check = True
+        GLib.idle_add(self._check_vim_search)
+
+    def _set_vim_search(self, prefix: str, pattern: str) -> None:
+        if self._vim_search == (prefix, pattern):
+            return
+        self._vim_search = (prefix, pattern)
+        settings = GtkSource.SearchSettings()
+        settings.set_case_sensitive(True)
+        settings.set_wrap_around(True)
+        try:
+            GLib.Regex.new(pattern, 0, 0)
+            settings.set_regex_enabled(True)
+        except GLib.Error:
+            settings.set_regex_enabled(False)
+        settings.set_search_text(pattern)
+        self._drop_vim_search_context()
+        context = GtkSource.SearchContext.new(self._buffer, settings)
+        context.set_highlight(False)
+        self._vim_search_context = context
+        self._vim_search_handler = context.connect(
+            "notify::occurrences-count", self._on_vim_occurrences
+        )
+
+    def _drop_vim_search_context(self) -> None:
+        if self._vim_search_context is not None and self._vim_search_handler:
+            self._vim_search_context.disconnect(self._vim_search_handler)
+        self._vim_search_context = None
+        self._vim_search_handler = 0
+
+    def _on_vim_occurrences(self, *_args) -> None:
+        if self._vim_search_check:
+            self._check_vim_search()
+        else:
+            self._on_vim_text()
+
+    def _check_vim_search(self) -> bool:
+        context = self._vim_search_context
+        if context is None or self._vim_search is None:
+            return False
+        count = context.get_occurrences_count()
+        if count < 0:
+            return False  # still scanning; notify::occurrences-count follows
+        self._vim_search_check = False
+        if count == 0:
+            self._vim_search_message = _("Pattern not found: {pattern}").format(
+                pattern=self._vim_search[1]
+            )
+        self._on_vim_text()
+        return False
+
+    def _vim_search_status(self) -> str:
+        context = self._vim_search_context
+        if (
+            context is None
+            or self._vim_search is None
+            or self._vim_insert_mode()
+        ):
+            return ""
+        count = context.get_occurrences_count()
+        if count <= 0:
+            return ""
+        cursor = self._buffer.get_iter_at_mark(self._buffer.get_insert())
+        found, start, end, _wrapped = context.forward(cursor)
+        if not found or not start.equal(cursor):
+            return ""
+        position = context.get_occurrence_position(start, end)
+        if position <= 0:
+            return ""
+        prefix, pattern = self._vim_search
+        return f"{prefix}{pattern} [{position}/{count}]"
+
+    def _on_editor_focus_enter(self, *_args) -> None:
+        if self._vim_attached:
+            self._on_vim_text()
+
+    def _set_vim_status(self, text: str) -> None:
+        self.label_vim.set_label(text)
+        self.label_vim.set_tooltip_text(text or None)
+
+    def _focus_vim_pane(self, target: str) -> None:
+        """Move focus between panes, revealing a hidden pane first."""
+        if target == "other":
+            focus = self.get_focus()
+            in_editor = focus is not None and (
+                focus is self.editor_view or focus.is_ancestor(self.editor_view)
+            )
+            target = "preview" if in_editor else "editor"
+        hidden = "preview" if target == "editor" else "source"
+        if self._view_mode == hidden:
+            self.set_view_mode("both", persist=False)
+        if target == "editor":
+            from_preview = self._view_mode == "both"
+            self.focus_editor()
+            if from_preview:
+                # Let the paned allocate and sync-scroll settle, then put the
+                # cursor where the reader is looking instead of jumping back
+                # to the old cursor on the first keystroke.
+                GLib.idle_add(self._place_cursor_at_view_top)
+        else:
+            self._preview.grab_focus()
+
+    def _place_cursor_at_view_top(self, attempts: int = 10) -> bool:
+        """Move the cursor to the top of what the editor shows.
+
+        A pane that was just revealed may not be allocated yet; retry for a
+        few frames, then fall back to the preview's scroll fraction.
+        """
+        if self._destroyed:
+            return False
+        rect = self.editor_view.get_visible_rect()
+        if rect.height <= 0:
+            if attempts > 0:
+                GLib.timeout_add(16, self._place_cursor_at_view_top, attempts - 1)
+                return False
+            fraction = self._preview.get_scroll_fraction() or 0.0
+            line = round(fraction * max(0, self._buffer.get_line_count() - 1))
+            _found, target = self._buffer.get_iter_at_line(line)
+            self._buffer.place_cursor(target)
+            return False
+        insert = self._buffer.get_iter_at_mark(self._buffer.get_insert())
+        _found, top = self.editor_view.get_iter_at_location(rect.x, rect.y)
+        _found, bottom = self.editor_view.get_iter_at_location(
+            rect.x, rect.y + rect.height - 1
+        )
+        if insert.in_range(top, bottom) or insert.equal(bottom):
+            return False
+        if not top.starts_line():
+            top.forward_line()
+        self._buffer.place_cursor(top)
+        return False
+
+    def _vim_file(self, path: str) -> Gio.File:
+        candidate = Path(path).expanduser()
+        if not candidate.is_absolute():
+            directory = self._document.directory
+            if directory is None:
+                folder = self._initial_folder()
+                directory = Path(folder.get_path()) if folder else Path.home()
+            candidate = directory / candidate
+        return Gio.File.new_for_path(str(candidate))
+
+    def _on_vim_write(self, _im, _view, path: str | None) -> None:
+        if path:
+            self._document.set_text(self.get_text())
+            self._write_file(self._vim_file(path), None)
+        else:
+            self.save_document()
+
+    def _on_vim_edit(self, _im, _view, path: str | None) -> None:
+        if path:
+            self.open_file(self._vim_file(path))
+        elif self._document.file is not None:
+            self.open_file(self._document.file)
+
+    def _on_vim_command(self, _im, command: str) -> bool:
+        name = command.strip().lstrip(":").strip()
+        if name in ("q", "quit", "clo", "close"):
+            self.close()
+            return True
+        if name in ("q!", "quit!"):
+            self._close_now()
+            return True
+        if name in ("wq", "x", "xit", "exit", "wq!", "x!"):
+            if name.startswith("x") and not self._document.is_dirty:
+                self.close()
+            else:
+                self.save_document_then(self._close_now)
+            return True
+        return False
+
+    def _on_vim_format(self, _im, start: Gtk.TextIter, end: Gtk.TextIter) -> None:
+        begin = start.copy()
+        finish = end.copy()
+        if begin.compare(finish) > 0:
+            begin, finish = finish, begin
+        begin.set_line_offset(0)
+        if not finish.ends_line():
+            finish.forward_to_line_end()
+        source = self._buffer.get_text(begin, finish, True)
+        formatted = formatting.format_markdown(
+            source, ensure_final_newline=source.endswith("\n")
+        )
+        if formatted == source:
+            return
+        offset = begin.get_offset()
+        self._apply_text_edit(
+            editing.TextEdit(
+                offset,
+                finish.get_offset(),
+                formatted,
+                offset,
+                offset,
+            )
+        )
 
     def _setup_spellcheck(self) -> None:
         self.spell_adapter = spellcheck.create_adapter(self._buffer)
@@ -589,6 +933,14 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self, _controller, keyval: int, _keycode: int, state: Gdk.ModifierType
     ) -> bool:
         modifiers = state & Gtk.accelerator_get_default_mod_mask()
+        if self._vim_attached:
+            self._vim_search_message = ""
+            if keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter):
+                self._capture_vim_search()
+        if self._vim_attached and self._handle_vim_window_keys(keyval, modifiers):
+            return True
+        if not self._vim_insert_mode():
+            return False
         blocked = (
             Gdk.ModifierType.CONTROL_MASK
             | Gdk.ModifierType.ALT_MASK
@@ -635,6 +987,24 @@ class MdSplitWindow(Adw.ApplicationWindow):
             if edit is not None:
                 self._apply_text_edit(edit)
                 return True
+        return False
+
+    def _handle_vim_window_keys(
+        self, keyval: int, modifiers: Gdk.ModifierType
+    ) -> bool:
+        """Handle Ctrl+W pane switching from the editor's Normal mode."""
+        ctrl = bool(modifiers & Gdk.ModifierType.CONTROL_MASK)
+        name = preview_vim.key_name(keyval)
+        if self._editor_ctrl_w:
+            if name in ("Shift_L", "Shift_R", "Control_L", "Control_R"):
+                return False
+            self._editor_ctrl_w = False
+            if name in ("w", "W", "p", "l") or (ctrl and name in ("w", "l")):
+                self._focus_vim_pane("preview")
+            return True
+        if ctrl and name in ("w", "W") and not self._vim_insert_mode():
+            self._editor_ctrl_w = True
+            return True
         return False
 
     def format_selection(self, kind: str) -> None:
@@ -2172,8 +2542,23 @@ class MdSplitWindow(Adw.ApplicationWindow):
         if app is not None and hasattr(app, "forget_window"):
             app.forget_window(self)
         if self._key_controller is not None:
-            self.editor_view.remove_controller(self._key_controller)
+            self.editor_scroller.remove_controller(self._key_controller)
             self._key_controller = None
+        if getattr(self, "_editor_focus_controller", None) is not None:
+            self.editor_view.remove_controller(self._editor_focus_controller)
+            self._editor_focus_controller = None
+        if self._vim_mode_handler:
+            self._settings.disconnect(self._vim_mode_handler)
+            self._vim_mode_handler = 0
+        self._drop_vim_search_context()
+        if self._vim_attached and self._vim_controller is not None:
+            self.editor_view.remove_controller(self._vim_controller)
+            self._vim_attached = False
+        if self._vim_im is not None:
+            self._vim_im.set_client_widget(None)
+        if self._preview_vim is not None:
+            self._preview_vim.shutdown()
+            self._preview_vim = None
         self._preview.shutdown()
 
     def _on_close_request(self, *_args) -> bool:

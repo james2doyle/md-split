@@ -179,8 +179,44 @@ template $MdSplitWindow: Adw.ApplicationWindow {
         }
       };
 
-      end-child: Adw.Bin preview_container {
-        hexpand: true;
+      end-child: Gtk.Overlay preview_pane {
+        child: Adw.Bin preview_container {
+          hexpand: true;
+        };
+
+        [overlay]
+        Revealer preview_prompt_revealer {
+          visible: false;
+          valign: end;
+          transition-type: slide_up;
+
+          child: Box preview_prompt {
+            orientation: horizontal;
+            spacing: 4;
+            margin-start: 6;
+            margin-end: 6;
+            margin-bottom: 6;
+            styles [
+              "toolbar",
+              "osd",
+            ]
+
+            Label preview_prompt_prefix {
+              label: C_("vim search prompt", "/");
+              styles [
+                "monospace",
+              ]
+            }
+
+            Entry preview_prompt_entry {
+              hexpand: true;
+              placeholder-text: _("Search preview");
+              styles [
+                "monospace",
+              ]
+            }
+          };
+        }
       };
     };
 
@@ -202,6 +238,17 @@ template $MdSplitWindow: Adw.ApplicationWindow {
         styles [
           "caption",
           "dim-label",
+        ]
+      }
+
+      Label label_vim {
+        visible: false;
+        xalign: 0;
+        ellipsize: end;
+        styles [
+          "caption",
+          "dim-label",
+          "numeric",
         ]
       }
 
