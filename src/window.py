@@ -232,7 +232,6 @@ class MdSplitWindow(Adw.ApplicationWindow):
         Insert mode it still sees Return and ``]`` before Vim does.
         """
         im = GtkSource.VimIMContext.new()
-        im.set_client_widget(self.editor_view)
         controller = Gtk.EventControllerKey()
         controller.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
         controller.set_im_context(im)
@@ -294,12 +293,16 @@ class MdSplitWindow(Adw.ApplicationWindow):
         if self._vim_controller is None or self._vim_im is None:
             return
         if enabled and not self._vim_attached:
+            # Setting the client widget enters Vim's Normal mode, which turns
+            # on the block cursor. Only do that while Vim is actually active.
+            self._vim_im.set_client_widget(self.editor_view)
             self.editor_view.add_controller(self._vim_controller)
             self._vim_attached = True
         elif not enabled and self._vim_attached:
-            self._vim_im.reset()
-            self.editor_view.remove_controller(self._vim_controller)
             self._vim_attached = False
+            self._vim_im.reset()
+            self._vim_im.set_client_widget(None)
+            self.editor_view.remove_controller(self._vim_controller)
             self.editor_view.set_overwrite(False)
         self._editor_ctrl_w = False
         self._preview.set_focusable(enabled or self._preview_focusable)

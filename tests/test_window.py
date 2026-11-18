@@ -635,6 +635,7 @@ assert not window.vim_enabled
 assert window.vim_context is not None
 assert window._vim_controller not in controllers(window.editor_view)
 assert not window.label_vim.get_visible()
+assert not window.editor_view.get_overwrite()
 assert window._vim_insert_mode()
 
 preview_nav = window.preview_vim
@@ -645,12 +646,14 @@ spin()
 assert window.vim_enabled
 assert window._vim_controller in controllers(window.editor_view)
 assert window.label_vim.get_visible()
+assert window.editor_view.get_overwrite()
 assert preview_nav.enabled
 
 window.settings.set_boolean("vim-mode", False)
 spin()
 assert not window.vim_enabled
 assert window._vim_controller not in controllers(window.editor_view)
+assert not window.editor_view.get_overwrite()
 assert not preview_nav.enabled
 window.settings.set_boolean("vim-mode", True)
 spin()
