@@ -93,10 +93,12 @@ flattened and Meson fails with `first statement must be a call to project()`.
 
 The AppImage is built from the tagged source in an Ubuntu 26.04 container. The
 build script reads the version from `pyproject.toml`; set `VERSION` only when
-testing a tag checkout whose version matches.
+testing a tag checkout whose version matches. It pins `appimagetool` and the
+official type2 runtime, verifies their SHA-256 sums, and repacks the AppDir
+with that runtime.
 
 ```sh
-export VERSION=1.0.0
+export VERSION=1.2.0
 
 ./scripts/build-appimage.sh
 sha256sum "dist/md_split-$VERSION-x86_64.AppImage"
@@ -111,6 +113,7 @@ Smoke-test the artifact without installing it:
 
 ```sh
 APPIMAGE="dist/md_split-$VERSION-x86_64.AppImage"
+"$APPIMAGE" --appimage-version
 "$APPIMAGE" --appimage-extract
 ./squashfs-root/AppRun --help
 ```
@@ -158,8 +161,9 @@ The workflow:
 - builds the Flatpak with `--buildtype=release`;
 - installs the built bundle into a temporary `FLATPAK_USER_DIR` and smoke-runs
   `flatpak run com.james2doyle.MdSplit --help`;
-- builds the AppImage in an Ubuntu 26.04 container, extracts it, and
-  smoke-runs `AppRun --help` plus an Xvfb launch;
+- builds the AppImage in an Ubuntu 26.04 container with the pinned
+  `appimagetool` and type2 runtime, extracts it, checks
+  `--appimage-version`, and smoke-runs `AppRun --help` plus an Xvfb launch;
 - uploads the source archive, release manifest, Flatpak, AppImage, and
   `SHA256SUMS` to a GitHub Release;
 - updates assets with `--clobber` if the release already exists, making

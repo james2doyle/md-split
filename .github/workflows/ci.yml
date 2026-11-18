@@ -44,6 +44,9 @@ jobs:
           meson setup build --prefix="$PWD/build-install"
           meson compile -C build
 
+      - name: Check AppImage build script
+        run: sh -n scripts/build-appimage.sh
+
       - name: Test
         run: xvfb-run --auto-servernum python3 scripts/test.py
 

@@ -39,6 +39,27 @@ fi
 
 VERSION=${APPIMAGE_VERSION:?APPIMAGE_VERSION is required inside the build container}
 
+# Pinned so release artifacts are reproducible. Bump these together with their
+# SHA-256 values and rerun the release smoke test.
+APPIMAGETOOL_VERSION=1.9.1
+APPIMAGETOOL_SHA256=ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0
+TYPE2_RUNTIME_RELEASE=20251108
+TYPE2_RUNTIME_SHA256=2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d
+APPIMAGETOOL_URL="https://github.com/AppImage/appimagetool/releases/download/$APPIMAGETOOL_VERSION/appimagetool-x86_64.AppImage"
+TYPE2_RUNTIME_URL="https://github.com/AppImage/type2-runtime/releases/download/$TYPE2_RUNTIME_RELEASE/runtime-x86_64"
+
+verify_sha256() {
+    file=$1
+    expected=$2
+    actual=$(sha256sum "$file" | cut -d' ' -f1)
+    if [ "$actual" != "$expected" ]; then
+        echo "SHA-256 mismatch for $file" >&2
+        echo "expected $expected" >&2
+        echo "actual   $actual" >&2
+        exit 1
+    fi
+}
+
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y -qq \
@@ -48,6 +69,7 @@ apt-get install -y -qq \
     curl \
     desktop-file-utils \
     fakeroot \
+    file \
     gettext \
     git \
     libadwaita-1-dev \
@@ -126,13 +148,20 @@ if old not in text:
 path.write_text(text.replace(old, new))
 PY
 
-if ! command -v appimagetool >/dev/null 2>&1; then
-    curl -Lsf \
-        -o /opt/appimagetool \
-        https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
-    chmod 0755 /opt/appimagetool
-    (cd /opt && ./appimagetool --appimage-extract >/dev/null)
-    ln -sf /opt/squashfs-root/AppRun /usr/local/bin/appimagetool
+# appimage-builder calls appimagetool. Use the pinned build rather than the
+# old AppImageKit binary it historically downloaded.
+if [ ! -x /opt/squashfs-root/AppRun ]; then
+    curl -LfsS -o /opt/appimagetool.AppImage "$APPIMAGETOOL_URL"
+    verify_sha256 /opt/appimagetool.AppImage "$APPIMAGETOOL_SHA256"
+    chmod 0755 /opt/appimagetool.AppImage
+    rm -rf /opt/squashfs-root
+    (cd /opt && ./appimagetool.AppImage --appimage-extract >/dev/null)
+fi
+ln -sf /opt/squashfs-root/AppRun /usr/local/bin/appimagetool
+
+if [ ! -f /opt/type2-runtime-x86_64 ]; then
+    curl -LfsS -o /opt/type2-runtime-x86_64 "$TYPE2_RUNTIME_URL"
+    verify_sha256 /opt/type2-runtime-x86_64 "$TYPE2_RUNTIME_SHA256"
 fi
 
 rm -rf packaging/appimage/AppDir packaging/appimage/md_split-*.AppImage
@@ -141,12 +170,26 @@ rm -rf packaging/appimage/AppDir packaging/appimage/md_split-*.AppImage
     appimage-builder --recipe AppImageBuilder.yml --skip-tests
 )
 
-mkdir -p dist
-APPIMAGE="packaging/appimage/md_split-${VERSION}-x86_64.AppImage"
-if [ ! -f "$APPIMAGE" ]; then
-    echo "AppImage was not produced at $APPIMAGE" >&2
+if [ ! -x packaging/appimage/AppDir/AppRun ]; then
+    echo "appimage-builder did not leave a usable AppDir" >&2
     exit 1
 fi
-mv "$APPIMAGE" "dist/md_split-${VERSION}-x86_64.AppImage"
-chmod 0755 "dist/md_split-${VERSION}-x86_64.AppImage"
-echo "Wrote dist/md_split-${VERSION}-x86_64.AppImage"
+
+mkdir -p dist
+APPIMAGE="dist/md_split-${VERSION}-x86_64.AppImage"
+rm -f "$APPIMAGE"
+# appimage-builder 1.1.0 has no runtime override, so repack its AppDir with
+# the pinned static type2 runtime (squashfuse_ll + libfuse3).
+ARCH=x86_64 appimagetool \
+    --runtime-file /opt/type2-runtime-x86_64 \
+    --comp zstd \
+    packaging/appimage/AppDir "$APPIMAGE"
+chmod 0755 "$APPIMAGE"
+rm -f packaging/appimage/md_split-*.AppImage
+
+RUNTIME_INFO=$("$APPIMAGE" --appimage-version 2>&1 || true)
+if ! printf '%s\n' "$RUNTIME_INFO" | grep -q 'type2-runtime'; then
+    echo "Unexpected AppImage runtime: $RUNTIME_INFO" >&2
+    exit 1
+fi
+echo "Wrote $APPIMAGE ($RUNTIME_INFO)"

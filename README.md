@@ -329,9 +329,10 @@ reproducible release build, a local `.flatpak` bundle, and Flathub notes, see
 
 The AppImage build runs in an Ubuntu 26.04 container and bundles Python,
 GTK 4, libadwaita, GtkSourceView 5, Pycairo and the optional spell-check
-backend. It requires podman or Docker and network access. See
-[docs/appimage.md](docs/appimage.md) for the runtime contents, FUSE fallback,
-and limitations.
+backend. It uses the official static type2 runtime with low-level squashfuse
+and libfuse3, so libfuse2 is not required. It requires podman or Docker and
+network access. See [docs/appimage.md](docs/appimage.md) for the runtime
+contents, FUSE fallback, and limitations.
 
 ## Third-party licenses
 

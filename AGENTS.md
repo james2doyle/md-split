@@ -236,6 +236,10 @@ settings.set_string('view-mode', 'source')
 - The installed launcher resolves `share/md_split` and translations from
   `APPDIR` when it is set. Preserve that relocation path for AppImage builds;
   system and Flatpak installs use the configured prefix.
+- AppImage builds repack the `appimage-builder` AppDir with the pinned official
+  `appimagetool` and type2 runtime in `scripts/build-appimage.sh`. Bump the
+  version constants and SHA-256 sums together; the release smoke test checks
+  that the embedded runtime reports `type2-runtime`.
 - Vim mode: `GtkSource.VimIMContext` on a second CAPTURE key controller,
   added after the Markdown helper controller so helpers see Insert-mode keys
   first. `VimIMContext.execute_command()` does not emit `write`/`execute-command`;

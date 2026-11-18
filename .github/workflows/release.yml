@@ -205,6 +205,9 @@ jobs:
             libegl1 libgl1 libwayland-client0 libx11-6 xauth xvfb
           appimage="dist/md_split-$VERSION-x86_64.AppImage"
           test -x "$appimage"
+          runtime_info=$("$appimage" --appimage-version 2>&1)
+          echo "$runtime_info"
+          grep -q "type2-runtime" <<<"$runtime_info"
           "$appimage" --appimage-extract >/dev/null
           test -f squashfs-root/AppRun
           test -f squashfs-root/usr/share/applications/com.james2doyle.MdSplit.desktop

@@ -7,7 +7,9 @@ libspelling and an English dictionary.
 
 The build is intentionally not run on the host. `appimage-builder` resolves
 runtime packages from Ubuntu 26.04 and uses its AppRun runtime to select a
-compatible glibc at launch. A podman or Docker installation is required.
+compatible glibc at launch. The final artifact is repacked with the official
+statically linked type2 runtime (`squashfuse_ll` plus libfuse3), so libfuse2 is
+no longer required. A podman or Docker installation is required.
 
 ## Build
 
@@ -23,7 +25,13 @@ The script:
 4. installs `appimage-builder` 1.1.0 with a Python 3.12 tool environment;
 5. builds the app with `--buildtype=release` and installs it into the AppDir;
 6. bundles runtime packages from the Ubuntu 26.04 archive;
-7. writes `dist/md_split-<version>-x86_64.AppImage`.
+7. verifies and unpacks the pinned official `appimagetool` and type2 runtime;
+8. repacks the AppDir with the type2 runtime and writes
+   `dist/md_split-<version>-x86_64.AppImage`.
+
+The tool versions and their SHA-256 sums live in
+`scripts/build-appimage.sh`. Update both together when bumping the runtime, and
+rerun the release AppImage smoke test.
 
 The first build downloads the container image and package metadata, so it
 needs network access and takes several minutes. Later builds reuse the podman
@@ -38,21 +46,28 @@ VERSION=1.2.3 ./scripts/build-appimage.sh
 ## Run and verify
 
 ```sh
-chmod +x dist/md_split-1.0.0-x86_64.AppImage
-./dist/md_split-1.0.0-x86_64.AppImage examples/demo.md
+chmod +x dist/md_split-1.2.0-x86_64.AppImage
+./dist/md_split-1.2.0-x86_64.AppImage examples/demo.md
+```
+
+Confirm the embedded runtime without mounting the payload:
+
+```sh
+./dist/md_split-1.2.0-x86_64.AppImage --appimage-version
+# AppImage runtime version: https://github.com/AppImage/type2-runtime/commit/...
 ```
 
 Without FUSE, use the runtime's extract-and-run option:
 
 ```sh
-./dist/md_split-1.0.0-x86_64.AppImage --appimage-extract-and-run \
+./dist/md_split-1.2.0-x86_64.AppImage --appimage-extract-and-run \
   examples/demo.md
 ```
 
 Extract and check the launcher without a display:
 
 ```sh
-./dist/md_split-1.0.0-x86_64.AppImage --appimage-extract
+./dist/md_split-1.2.0-x86_64.AppImage --appimage-extract
 ./squashfs-root/AppRun --help
 ```
 
@@ -65,7 +80,7 @@ open until the user closes it.
 The bundle carries its own Python and GTK runtime, so profile the extracted
 AppDir. `AppRun` sets `PYTHONHOME`, `PYTHONPATH` and the library path the
 bundled interpreter needs; invoking `squashfs-root/usr/bin/python3` directly
-does not work. Profiling the mounted AppImage also includes FUSE mount time,
+does not work. Profiling the mounted AppImage also includes FUSE file I/O,
 which is not application time.
 
 Extract the release artifact once:
@@ -145,6 +160,8 @@ py-spy is usually preferable because it samples the unmodified bundle.
 
 ## Runtime behavior
 
+- The payload is mounted by the statically linked official type2 runtime. It
+  uses `squashfuse_ll` and libfuse3, so the host does not need libfuse2.
 - Settings, session state and recovery drafts use the normal XDG directories.
   The AppImage does not write into its own mount.
 - `APPDIR` makes the installed launcher resolve `share/md_split`, translations,
@@ -164,10 +181,12 @@ py-spy is usually preferable because it samples the unmodified bundle.
 - It relies on the host desktop for fonts, input methods, the GL/EGL loader
   and GPU drivers. Desktop installs already provide these; minimal containers
   need `libgl1` and `libegl1`.
-- The runtime mounts the payload with FUSE on every launch. On some hosts the
-  mount and unmount dominate startup; compare the mounted app with an extracted
-  `AppRun`. If the difference is large, use the Flatpak or an extracted install.
-- Some hosts still need FUSE or the extract-and-run option.
+- The runtime still mounts the payload with FUSE on every launch. If FUSE file
+  I/O dominates startup, compare the mounted app with an extracted `AppRun` and
+  use the Flatpak or an extracted install if needed.
+- A working FUSE3 setup (`/dev/fuse` and `fusermount3`) is still required for
+  the default mount mode. Hosts without it can use
+  `--appimage-extract-and-run`.
 - Flatpak remains the recommended distribution format for a fully sandboxed
   install and desktop integration.
 

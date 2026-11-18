@@ -131,7 +131,9 @@ runtime:
 ./dist/md_split-*.AppImage --appimage-extract-and-run
 ```
 
-The release workflow uses `--appimage-extract` and runs
+The AppImage uses a static type2 runtime with FUSE3, so libfuse2 is not
+required; the host still needs `/dev/fuse` and `fusermount3` for the default
+mount mode. The release workflow uses `--appimage-extract` and runs
 `squashfs-root/AppRun` directly, which avoids FUSE entirely. If GTK reports a
 missing display or graphics library, confirm the host has working X11 or
 Wayland and GPU drivers; the AppImage intentionally uses host graphics
@@ -141,9 +143,11 @@ drivers.
 
 `scripts/build-appimage.sh` requires podman or Docker, network access, and a
 working Ubuntu 26.04 container. Remove `packaging/appimage/AppDir` and
-`packaging/appimage/appimage-build` before retrying a failed run. The script
-pins `appimage-builder` 1.1.0. See the container output for missing packages
-or key-verification errors.
+`build-appimage` before retrying a failed run. The script pins
+`appimage-builder`, `appimagetool`, and the type2 runtime, and verifies their
+SHA-256 sums before repacking. See the container output for missing packages,
+download failures, or checksum mismatches. The exact pinned versions live in
+`scripts/build-appimage.sh`.
 
 ## Spell checking is unavailable
 

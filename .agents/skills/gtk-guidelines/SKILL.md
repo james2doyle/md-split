@@ -6,10 +6,10 @@ description: Write and edit GNOME Blueprint UI files (.blp) for GTK 4 and libadw
 # GNOME Blueprint
 
 Blueprint is a declarative markup language that compiles to GtkBuilder XML
-(`blueprint-compiler`). Everything here is grounded in GTK 4 / libadwaita 1.10+.
-A canonical set of runnable examples lives in the Workbench demos repo
-(`src/<Demo Name>/main.blp`; directory names contain spaces). Mimic those
-patterns.
+(`blueprint-compiler`). Everything here is grounded in GTK 4 / libadwaita 1.9+
+(the Flatpak runtime provides 1.10). A canonical set of runnable examples lives
+in the Workbench demos repo (`src/<Demo Name>/main.blp`; directory names contain
+spaces). Mimic those patterns.
 
 ## Additional documentation
 
@@ -48,7 +48,7 @@ Adw.Window window {
 
 - Always start with `using Gtk 4.0;`; add `using Adw 1;` when using libadwaita
   (version is just `1`, never `1.x`). Other namespaces seen in practice:
-  `using GtkSource 5;`, `using WebKit 6.0;`, `using Shumate 1.0;`, `using Pango 1.0;`.
+  `using GtkSource 5;`, `using Shumate 1.0;`, `using Pango 1.0;`.
 - The first top-level object is the root widget. Auxiliary top-level objects go
   below it, unindented: `menu ... {}`, `Adw.Dialog {}`, `Adw.PreferencesDialog {}`,
   `Gtk.ShortcutsWindow {}`, `Popover {}`, `FileFilter {}`, `template $Name {}`,
@@ -219,8 +219,8 @@ menu demo_menu {
 
 ## Dialog responses
 
-`Adw.AlertDialog` / `Adw.MessageDialog` buttons come from the `responses`
-extension block:
+`Adw.AlertDialog` buttons come from the `responses` extension block
+(`Adw.MessageDialog` is deprecated since libadwaita 1.6):
 
 ```blp
 Adw.AlertDialog {
@@ -407,7 +407,7 @@ Other recurring shapes:
 | Adw.OverlaySplitView | `sidebar:`/`content:`, `show-sidebar: bind toggle.active` |
 | Adw.TabView / TabBar / TabOverview | tie via `view: tab_view`; page is `Adw.TabPage { title, child: }` |
 | Adw.Dialog | put `Adw.ToolbarView` + `Adw.HeaderBar` inside; `presentation-mode: bind combo_row.selected as <Adw.DialogPresentationMode>;` |
-| Adw.AlertDialog / Adw.MessageDialog | `responses [...]` block with flags `destructive`/`suggested`/`disabled` |
+| Adw.AlertDialog | responses [...] block with flags `destructive`/`suggested`/`disabled`; replaces deprecated `Adw.MessageDialog` |
 | Adw.Avatar | `size`, `show-initials: true`, `text: _("Jay Doe")` |
 | Adw.SplitButton | `label`/`icon-name` + `menu-model:` or `popover:` |
 | Adw.ButtonContent | icon+label helper inside Button/MenuButton/ToggleButton |
@@ -424,9 +424,44 @@ Other recurring shapes:
 | Calendar | `show-day-names`, `show-week-numbers`, `show-heading`, `day` |
 | ShortcutLabel | `accelerator: "<Super><Alt>s"` |
 | Shumate.SimpleMap | `show-zoom-buttons: true`; markers as top-level `Shumate.Marker` |
-| WebKit.WebView | `zoom-level: 0.8`; class `"view"` |
 | Adw.Bin | `css-name: "button"` to reuse widget CSS for custom widgets; `accessible-role: toggle_button` |
 | Adw.MultiLayoutView | layouts are `Adw.Layout { name: "x"; content: Widget { ... }; };`; shared children are `[slot-id]` blocks under the view; slots are `Adw.LayoutSlot { id: "slot-id"; }`; switch via breakpoint setter `view.layout-name: "x";` (since 1.8) |
+
+## Startup performance
+
+The first frame is part of the UI. Build the window, then do expensive work
+after it is presented:
+
+- Defer `GtkSource.Buffer.set_language()` and syntax highlighting to a
+  low-priority idle. Creating the Markdown highlighter can take tens of
+  milliseconds; do not pay that cost before `present()`.
+- Defer parser imports and large widget trees, including the Markdown preview,
+  until after the first frame. Import the renderer on first use rather than at
+  window-module import time.
+- Keep `__init__` limited to layout, signals, and cheap state. Use
+  `GLib.idle_add(..., priority=GLib.PRIORITY_LOW)` for follow-up work, and
+  guard callbacks with a destroyed-window check.
+- Presenting an empty shell before loading the demo is usually better perceived
+  startup than building all content first, provided the content arrives
+  promptly.
+- Measure first paint with `GDK_DEBUG=frames` and release-workflow smoke runs.
+  Headless tests can guard lazy imports with fresh subprocesses; display tests
+  must drain `GLib.MainContext` before asserting deferred state.
+
+## Modern replacements
+
+Target current stable GTK 4 and libadwaita. Prefer these replacements over
+deprecated APIs and archived examples:
+
+| Deprecated | Current |
+| --- | --- |
+| `Adw.MessageDialog` (deprecated 1.6) | `Adw.AlertDialog` |
+| `Adw.Leaflet`, `Adw.Flap` | `Adw.OverlaySplitView` / `Adw.NavigationSplitView` with `Adw.Breakpoint` |
+| `Gtk.ComboBoxText` (deprecated 4.10) | `Gtk.DropDown` |
+| `Gtk.Dialog`, `Gtk.MessageDialog` (deprecated 4.10) | `Adw.AlertDialog`, `Adw.Dialog`, or a window-specific dialog |
+
+When a project still contains a legacy widget, check the linked migration guide
+and migrate the touched area instead of copying the old pattern forward.
 
 ## Gotchas
 
@@ -454,6 +489,8 @@ Other recurring shapes:
   `"dim-label"`, `"boxed-list"`, `"boxed-list-separate"`, `"pill"`, `"circular"`,
   `"suggested-action"`, `"destructive-action"`, `"opaque"`, accent/success/warning/error).
 - The `using Adw 1;` import has no minor version; `Gtk` is `4.0`.
+- MD Split's preview is a native widget tree. Do not add WebKit, a WebView, or a
+  web runtime; render Markdown with GTK widgets.
 - StringList items are plain values; mark translatable ones: `strings [_("Up"), _("Down")]`.
 - Prefer `Adw.StatusPage` as a page root and `Adw.Clamp` around forms; the demos
   root almost everything in one of those two.
