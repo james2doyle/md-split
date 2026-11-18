@@ -69,6 +69,13 @@ install_subdir('vendor',
 
 python3 = python.find_installation('python3')
 
+# Ship bytecode: read-only installs would otherwise recompile on every launch.
+meson.add_install_script(
+  python3,
+  files('../scripts/compile-bytecode.py'),
+  get_option('datadir') / meson.project_name(),
+)
+
 test_env = [
   'PYTHONPATH=' + meson.project_source_root(),
   'APP_RESOURCE=' + md_split_resources[0].full_path(),

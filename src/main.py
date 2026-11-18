@@ -1,9 +1,12 @@
 # SPDX-License-Identifier: MIT
 
+from __future__ import annotations
+
 import logging
 import os
 import sys
 from gettext import gettext as _
+from typing import TYPE_CHECKING
 
 import gi
 
@@ -15,8 +18,12 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
 from . import APP_ID, VIEW_MODES, recovery, session
 from .logging_utils import install_known_gtk_warning_filter
-from .preferences import MdSplitPreferencesDialog
-from .window import MdSplitWindow
+
+# The window and preferences modules (GtkSource, the Markdown parser and the
+# renderer) load on first use. A second launch that only forwards files to
+# the running instance over D-Bus then skips them entirely.
+if TYPE_CHECKING:
+    from .window import MdSplitWindow
 
 log = logging.getLogger(__name__)
 
@@ -49,9 +56,11 @@ class MdSplitApplication(Adw.Application):
         self._recovery_prompted = False
         self._recovery_dialog = None
         self._missing_dialog = None
+        # Adw.StyleManager setup is deferred to startup: a forwarding second
+        # instance never needs it.
+        self._started = False
         self._register_options()
         self.connect("handle-local-options", self._on_handle_local_options)
-        self._apply_appearance()
         self.settings.connect("changed::appearance", self._on_appearance_changed)
         self.create_action("new", self.on_new_action, ["<control>n"])
         self.create_action("open", self.on_open_action, ["<control>o"])
@@ -166,7 +175,8 @@ class MdSplitApplication(Adw.Application):
             self._cli_color_scheme = Adw.ColorScheme.FORCE_DARK
         else:
             self._cli_color_scheme = None
-        self._apply_appearance()
+        if self._started:
+            self._apply_appearance()
         return -1
 
     def _apply_appearance(self) -> None:
@@ -187,6 +197,8 @@ class MdSplitApplication(Adw.Application):
 
     def do_startup(self):
         Adw.Application.do_startup(self)
+        self._started = True
+        self._apply_appearance()
         display = Gdk.Display.get_default()
         if display is not None:
             icon_theme = Gtk.IconTheme.get_for_display(display)
@@ -354,6 +366,8 @@ class MdSplitApplication(Adw.Application):
             win.present()
 
     def _new_window(self) -> MdSplitWindow:
+        from .window import MdSplitWindow
+
         return MdSplitWindow(
             application=self, initial_view_mode=self._cli_view_mode
         )
@@ -447,6 +461,8 @@ class MdSplitApplication(Adw.Application):
         if self._preferences_dialog is not None:
             self._preferences_dialog.present(self.props.active_window)
             return
+        from .preferences import MdSplitPreferencesDialog
+
         dialog = MdSplitPreferencesDialog()
         dialog.connect("closed", self._on_preferences_closed)
         self._preferences_dialog = dialog

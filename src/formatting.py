@@ -10,7 +10,6 @@ and code block contents are never rewritten.
 
 from __future__ import annotations
 
-import difflib
 import re
 import unicodedata
 from dataclasses import dataclass
@@ -392,6 +391,8 @@ def summarize_changes(before: str, after: str, *, limit: int = 12) -> ChangeSumm
     """Count changed lines and build a short unified-diff preview."""
     if before == after:
         return ChangeSummary(0, "")
+    import difflib  # only needed when formatting, not at startup
+
     before_lines = before.splitlines()
     after_lines = after.splitlines()
     matcher = difflib.SequenceMatcher(

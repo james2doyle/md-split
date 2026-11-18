@@ -8,7 +8,6 @@ script:
   - rm -rf "$TARGET_APPDIR"
   - DESTDIR="$TARGET_APPDIR" meson install -C build-appimage
   - rm -rf build-appimage
-  - find "$TARGET_APPDIR" -type d -name __pycache__ -prune -exec rm -rf {} +
 
 AppDir:
   path: ./AppDir
