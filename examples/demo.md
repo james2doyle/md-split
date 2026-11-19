@@ -43,7 +43,7 @@ Inline code such as `Ctrl+Shift+R` formats the document or selection.
 ## Formatting
 
 **Bold**, *italic*, ~~strikethrough~~, <u>underline</u>, and
-[a link to the project](https://github.com/james2doyle/md-split).
+[a link to the project](https://github.com/james2doyle/mdsplit).
 
 > Markdown is a lightweight markup language for creating formatted text using a
 > plain-text editor.
@@ -120,8 +120,8 @@ Images**; local images are decoded asynchronously with size limits.
 
 ## Learn more
 
-- [Architecture](https://github.com/james2doyle/md-split/blob/main/docs/architecture.md)
-- [Markdown support](https://github.com/james2doyle/md-split#markdown-support)
+- [Architecture](https://github.com/james2doyle/mdsplit/blob/main/docs/architecture.md)
+- [Markdown support](https://github.com/james2doyle/mdsplit#markdown-support)
 - [CommonMark spec](https://commonmark.org/)
 - [GitHub GFM spec](https://github.github.com/gfm/)
 

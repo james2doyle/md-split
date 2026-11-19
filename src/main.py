@@ -570,8 +570,8 @@ class MdSplitApplication(Adw.Application):
                 "A native GNOME Markdown editor with a live, "
                 "GitHub-Flavored Markdown preview."
             ),
-            website="https://github.com/james2doyle/md-split",
-            issue_url="https://github.com/james2doyle/md-split/issues",
+            website="https://github.com/james2doyle/mdsplit",
+            issue_url="https://github.com/james2doyle/mdsplit/issues",
             license_type=Gtk.License.MIT_X11,
             translator_credits=_("translator-credits"),
             developers=["James Doyle"],

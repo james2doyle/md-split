@@ -88,7 +88,7 @@ Extract the release artifact once:
 ```sh
 VERSION=1.2.0
 mkdir -p /tmp/md-split-profile && cd /tmp/md-split-profile
-gh release download "v$VERSION" --repo james2doyle/md-split \
+gh release download "v$VERSION" --repo james2doyle/mdsplit \
   --pattern '*x86_64.AppImage'
 chmod +x "md_split-$VERSION-x86_64.AppImage"
 "./md_split-$VERSION-x86_64.AppImage" --appimage-extract

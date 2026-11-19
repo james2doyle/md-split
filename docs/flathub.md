@@ -1,7 +1,7 @@
 # Flathub checklist
 
 The application repository is public at
-<https://github.com/james2doyle/md-split>. Flathub builds from the manifest in
+<https://github.com/james2doyle/mdsplit>. Flathub builds from the manifest in
 the Flathub repository, not from this repository's development manifest.
 
 ## Required app metadata
@@ -22,7 +22,7 @@ the Flathub repository, not from this repository's development manifest.
 - The release tag is pushed and the screenshot URL resolves, for example:
 
   ```text
-  https://raw.githubusercontent.com/james2doyle/md-split/v1.0.0/docs/screenshot.png
+  https://raw.githubusercontent.com/james2doyle/mdsplit/v1.0.0/docs/screenshot.png
   ```
 
 ## Manifest rules
@@ -34,7 +34,7 @@ and is suitable for local builds only. Flathub requires a pinned source:
 "sources": [
   {
     "type": "archive",
-    "url": "https://github.com/james2doyle/md-split/archive/refs/tags/v1.0.0.tar.gz",
+    "url": "https://github.com/james2doyle/mdsplit/archive/refs/tags/v1.0.0.tar.gz",
     "sha256": "..."
   }
 ]

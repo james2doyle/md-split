@@ -324,14 +324,14 @@ runs them under Xvfb.
 ### Install from the project repository
 
 Stable builds are published to
-[GitHub Pages](https://james2doyle.github.io/md-split), with the application
+[GitHub Pages](https://james2doyle.github.io/mdsplit), with the application
 images in GHCR, by the [AetherPak](https://github.com/aetherpak/actions)
 publish workflow. Add the `md-split` remote and install the app:
 
 ```sh
 flatpak remote-add --user \
-  --signature-lookaside=https://james2doyle.github.io/md-split/sigs \
-  md-split https://james2doyle.github.io/md-split/md-split.flatpakrepo
+  --signature-lookaside=https://james2doyle.github.io/mdsplit/sigs \
+  md-split https://james2doyle.github.io/mdsplit/md-split.flatpakrepo
 flatpak install --user md-split io.github.james2doyle.MdSplit
 ```
 
@@ -347,7 +347,7 @@ unsigned form instead:
 
 ```sh
 flatpak remote-add --if-not-exists --user --no-gpg-verify \
-  md-split oci+https://james2doyle.github.io/md-split
+  md-split oci+https://james2doyle.github.io/mdsplit
 flatpak install --user md-split io.github.james2doyle.MdSplit
 ```
 

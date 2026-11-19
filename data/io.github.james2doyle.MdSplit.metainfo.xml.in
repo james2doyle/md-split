@@ -24,7 +24,7 @@
 
   <screenshots>
     <screenshot type="default">
-      <image type="source" width="1150" height="770">https://raw.githubusercontent.com/james2doyle/md-split/v1.5.0/docs/screenshot.png</image>
+      <image type="source" width="1150" height="770">https://raw.githubusercontent.com/james2doyle/mdsplit/v1.5.0/docs/screenshot.png</image>
       <caption>Markdown source and rendered preview side by side</caption>
     </screenshot>
   </screenshots>
@@ -33,9 +33,9 @@
     <name>James Doyle</name>
   </developer>
 
-  <url type="homepage">https://github.com/james2doyle/md-split</url>
-  <url type="bugtracker">https://github.com/james2doyle/md-split/issues</url>
-  <url type="vcs-browser">https://github.com/james2doyle/md-split</url>
+  <url type="homepage">https://github.com/james2doyle/mdsplit</url>
+  <url type="bugtracker">https://github.com/james2doyle/mdsplit/issues</url>
+  <url type="vcs-browser">https://github.com/james2doyle/mdsplit</url>
 
   <translation type="gettext">md_split</translation>
   <launchable type="desktop-id">io.github.james2doyle.MdSplit.desktop</launchable>

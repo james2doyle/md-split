@@ -27,7 +27,7 @@ jobs:
       branch: stable
       remote-name: md-split
       signing: gpg
-      pages-url: https://james2doyle.github.io/md-split
+      pages-url: https://james2doyle.github.io/mdsplit
     secrets:
       gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
       gpg-private-key-passphrase: ${{ secrets.GPG_PRIVATE_KEY_PASSPHRASE }}

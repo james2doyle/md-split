@@ -115,8 +115,8 @@ The caller workflow is pinned to AetherPak `v3.14.0` by commit SHA.
    GitHub Actions**.
 2. Create a release signing key and add it as the `GPG_PRIVATE_KEY` repository
    secret. Add `GPG_PRIVATE_KEY_PASSPHRASE` as well when the key is protected.
-3. After the first successful publish, make the `md-split` container package
-   public: your profile or organization, then **Packages** → `md-split` →
+3. After the first successful publish, make the `mdsplit` container package
+   public: your profile or organization, then **Packages** → `mdsplit` →
    **Package settings** → **Change visibility** → **Public**. Installs fail
    while the package is private.
 
@@ -139,7 +139,7 @@ Store the armored output as the secret and keep it out of the repository:
 
 ```sh
 gpg --armor --export-secret-keys releases@example.org |
-  gh secret set GPG_PRIVATE_KEY --repo james2doyle/md-split
+  gh secret set GPG_PRIVATE_KEY --repo james2doyle/mdsplit
 ```
 
 Signing is requested with `signing: gpg` in the workflow. AetherPak's
