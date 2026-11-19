@@ -42,6 +42,31 @@ assert is_known_warning(
     "notify_surrounding_text: code should not be reached",
 )
 
+# A compositor throttling hint can arrive while GDK is still preparing a
+# frame. GTK logs its internal check as a warning.
+assert is_known_warning(
+    "Gdk",
+    "(../gtk/gdk/gdkframetimings.c:443):"
+    "gdk_frame_timings_throttling_hint: runtime check failed: "
+    "(self->result != GDK_FRAME_PREPARING)",
+)
+assert is_known_warning(
+    "Gdk",
+    "(/build/gtk/gdk/gdkframetimings.c:443):"
+    "gdk_frame_timings_throttling_hint: runtime check failed: "
+    "(self->result != GDK_FRAME_PREPARING)",
+)
+assert is_known_warning(
+    "Gdk",
+    "Duplicate call to gdk_frame_timings_presented() with different "
+    "values: presentation time is 50.5ms off from expected",
+)
+assert is_known_warning(
+    "Gdk",
+    "Duplicate call to gdk_frame_timings_presented() with different "
+    "values: presentation time is 16.650ms off from expected",
+)
+
 # libenchant warns for provider plugins that are not installed. Other
 # providers (for example hunspell) still supply dictionaries.
 assert is_known_warning(
@@ -76,6 +101,33 @@ assert not is_known_warning(
     "(../gtk/gtk/gtkimcontextwayland.c:410):"
     "notify_surrounding_text: code should not be reached: extra",
 )
+assert not is_known_warning("Gdk", "Some other GDK warning")
+assert not is_known_warning(
+    "Gtk",
+    "(../gtk/gdk/gdkframetimings.c:443):"
+    "gdk_frame_timings_throttling_hint: runtime check failed: "
+    "(self->result != GDK_FRAME_PREPARING)",
+)
+assert not is_known_warning(
+    "Gdk",
+    "(../gtk/gdk/gdkframetimings.c:443):"
+    "gdk_frame_timings_throttling_hint: runtime check failed: "
+    "(some other check)",
+)
+assert not is_known_warning(
+    "Gdk",
+    "Duplicate call to gdk_frame_timings_submitted() with different values.",
+)
+assert not is_known_warning(
+    "Gdk",
+    "Duplicate call to gdk_frame_timings_presented() with different "
+    "values: presentation time is soon",
+)
+assert not is_known_warning(
+    "Gtk",
+    "Duplicate call to gdk_frame_timings_presented() with different "
+    "values: presentation time is 50.5ms off from expected",
+)
 assert not is_known_warning(
     "libenchant",
     "broker.vala:159: Error loading plugin: libaspell.so.15: "
@@ -107,6 +159,21 @@ try:
         GLib.LogLevelFlags.LEVEL_WARNING,
         "broker.vala:159: Error loading plugin: libaspell.so.15: "
         "cannot open shared object file: No such file or directory",
+    )
+    assert calls == []
+    _on_known_warning(
+        "Gdk",
+        GLib.LogLevelFlags.LEVEL_WARNING,
+        "(../gtk/gdk/gdkframetimings.c:443):"
+        "gdk_frame_timings_throttling_hint: runtime check failed: "
+        "(self->result != GDK_FRAME_PREPARING)",
+    )
+    assert calls == []
+    _on_known_warning(
+        "Gdk",
+        GLib.LogLevelFlags.LEVEL_WARNING,
+        "Duplicate call to gdk_frame_timings_presented() with different "
+        "values: presentation time is 50.5ms off from expected",
     )
     assert calls == []
     _on_known_warning(

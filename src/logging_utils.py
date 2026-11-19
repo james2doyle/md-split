@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: MIT
 
-"""Targeted filtering for known benign GTK and libenchant warnings.
+"""Targeted filtering for known benign GTK, GDK and libenchant warnings.
 
-Three upstream warnings are noisy but do not indicate a document or
+Five upstream warnings are noisy but do not indicate a document or
 data-loss problem:
 
 - ``GtkTextView`` updates scrollbar adjustments during snapshot
@@ -10,6 +10,12 @@ data-loss problem:
 - The Wayland text-input context warns when a selection exceeds its 4 KiB
   surrounding-text window, producing ``notify_surrounding_text: code should
   not be reached``.
+- The GDK frame clock can receive a compositor throttling hint while the
+  frame is still being prepared, producing a
+  ``gdk_frame_timings_throttling_hint: runtime check failed`` warning.
+- A compositor can report the same presented frame twice with slightly
+  different timestamps, producing a ``Duplicate call to
+  gdk_frame_timings_presented()`` warning.
 - libenchant warns about provider plugins that are not installed while it
   initializes the spelling backend. The dictionaries that are available still
   load through their working plugin.
@@ -37,6 +43,15 @@ _WAYLAND_IM_WARNING = re.compile(
     r"^\(.*gtkimcontextwayland\.c:\d+\):"
     r"notify_surrounding_text: code should not be reached$"
 )
+_GDK_THROTTLING_WARNING = re.compile(
+    r"^\(.*gdkframetimings\.c:\d+\):"
+    r"gdk_frame_timings_throttling_hint: runtime check failed: "
+    r"\(self->result != GDK_FRAME_PREPARING\)$"
+)
+_GDK_PRESENTED_WARNING = re.compile(
+    r"^Duplicate call to gdk_frame_timings_presented\(\) with different "
+    r"values: presentation time is -?\d+(?:\.\d+)?ms off from expected$"
+)
 _ENCHANT_PLUGIN_WARNING = re.compile(
     r"^broker\.vala:\d+: Error loading plugin: "
     r"lib[^:\s]+\.so(?:\.\d+)*: "
@@ -45,13 +60,18 @@ _ENCHANT_PLUGIN_WARNING = re.compile(
 
 
 def is_known_warning(domain: str | None, message: str | None) -> bool:
-    """Return True for the known harmless GTK and libenchant messages."""
+    """Return True for the known harmless GTK, GDK and libenchant messages."""
     if not message:
         return False
     if domain == "Gtk":
         return bool(
             _SNAPSHOT_WARNING.match(message)
             or _WAYLAND_IM_WARNING.match(message)
+        )
+    if domain == "Gdk":
+        return bool(
+            _GDK_THROTTLING_WARNING.match(message)
+            or _GDK_PRESENTED_WARNING.match(message)
         )
     if domain == "libenchant":
         return bool(_ENCHANT_PLUGIN_WARNING.match(message))
@@ -75,7 +95,7 @@ def install_known_warning_filter() -> None:
     """Install the narrow warning filter once for the application run."""
     if os.environ.get("MD_SPLIT_SHOW_WARNINGS") == "1":
         return
-    for domain in ("Gtk", "libenchant"):
+    for domain in ("Gtk", "Gdk", "libenchant"):
         GLib.log_set_handler(
             domain, GLib.LogLevelFlags.LEVEL_WARNING, _on_known_warning
         )
