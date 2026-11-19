@@ -104,8 +104,8 @@
 			<default>5</default>
 		</key>
 		<key name="export-font-size" type="i">
-			<summary>Export font size</summary>
-			<description>Base text size in points for PDF and printed HTML exports. Headings, code, tables and captions scale with it.</description>
+			<summary>PDF export font size</summary>
+			<description>Base text size in points for PDF exports. Headings, code, tables and captions scale with it.</description>
 			<range min="8" max="18"/>
 			<default>11</default>
 		</key>

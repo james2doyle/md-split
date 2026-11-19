@@ -46,9 +46,8 @@ _MAX_EMBED_TOTAL_BYTES = 32 * 1024 * 1024
 _MAX_PDF_IMAGE_PIXELS = 20_000_000
 _ANCHOR_TAG = re.compile(r"</?a\b[^>]*>")
 
-# One source of truth for the exported light theme. The HTML stylesheet is
-# generated from these values and the PDF writer reads the same palette and
-# type scale, so the two outputs cannot drift apart.
+# PDF palette used by the Cairo writer. The HTML export theme lives in
+# export.css and follows the viewer's color scheme.
 _TEXT_HEX = "#1b1b1f"
 _MUTED_HEX = "#5e5c64"
 _BORDER_HEX = "#d8d8dc"
@@ -60,10 +59,6 @@ _QUOTE_BAR_HEX = "#c0bfbc"
 _SUCCESS_HEX = "#2ec27e"
 _WARNING_HEX = "#e5a50a"
 _ERROR_HEX = "#c01c28"
-_ACCENT_TINT_HEX = "#eef4fc"
-_SUCCESS_TINT_HEX = "#eaf7f1"
-_WARNING_TINT_HEX = "#fdf5e6"
-_ERROR_TINT_HEX = "#fdeced"
 _BODY_FONT_SIZE = 11.0
 # Secondary sizes scale with the configurable body size instead of standing
 # alone, so a larger export stays proportional.
@@ -113,10 +108,6 @@ class _TypeScale:
 
     def heading(self, level: int) -> float:
         return self.body * _HEADING_SCALES.get(level, 1.0)
-
-
-def _css_number(value: float) -> str:
-    return f"{value:.3f}".rstrip("0").rstrip(".")
 
 
 _EXPORT_CSS = Path(__file__).with_name("export.css").read_text(encoding="utf-8")
@@ -352,7 +343,6 @@ def render_html(
     title: str,
     base_dir: Path | None = None,
     base_file: Gio.File | None = None,
-    base_font_size: float = _BODY_FONT_SIZE,
 ) -> str:
     """Render a complete, standalone HTML document."""
     parser = create_parser()
@@ -424,7 +414,7 @@ def render_html(
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{escaped_title}</title>
 <style>
-{_export_css(base_font_size)}
+{_EXPORT_CSS}
 </style>
 </head>
 <body>
@@ -434,41 +424,6 @@ def render_html(
 </body>
 </html>
 """
-
-
-def _export_css(base_font_size: float = _BODY_FONT_SIZE) -> str:
-    variables = [
-        ("text", _TEXT_HEX),
-        ("muted", _MUTED_HEX),
-        ("border", _BORDER_HEX),
-        ("surface", _SURFACE_HEX),
-        ("zebra", _ZEBRA_HEX),
-        ("accent", _ACCENT_HEX),
-        ("code-bg", _CODE_BG_HEX),
-        ("quote-bar", _QUOTE_BAR_HEX),
-        ("success", _SUCCESS_HEX),
-        ("warning", _WARNING_HEX),
-        ("error", _ERROR_HEX),
-        ("accent-tint", _ACCENT_TINT_HEX),
-        ("success-tint", _SUCCESS_TINT_HEX),
-        ("warning-tint", _WARNING_TINT_HEX),
-        ("error-tint", _ERROR_TINT_HEX),
-        *(
-            (f"h{level}", f"{_css_number(scale)}em")
-            for level, scale in _HEADING_SCALES.items()
-        ),
-        ("print-size", f"{_css_number(base_font_size)}pt"),
-    ]
-    declarations = "\n".join(
-        f"  --md-{name}: {value};" for name, value in variables
-    )
-    return (
-        ":root {\n"
-        "  color-scheme: light;\n"
-        f"{declarations}\n"
-        "}\n\n"
-        f"{_EXPORT_CSS}"
-    )
 
 
 def _find_close(

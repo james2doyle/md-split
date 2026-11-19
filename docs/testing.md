@@ -156,12 +156,12 @@ pass:
 1. Open a document with a short table, a long table, a tall cell, code,
    quotes, alerts and an image, then export both HTML and PDF.
 2. HTML: check the measure, link treatment, table borders and zebra rows,
-   figure captions, callout backgrounds, and print preview at A4 and Letter.
+   figure captions, callout backgrounds, and both light and dark viewer themes.
 3. PDF: check the same table rules, header repetition after a page break, row
    splitting for tall cells, rounded code boxes, quote/alert bars, centered
    images with captions, and the title/page-number footer.
-4. Confirm exports stay light-themed and no cell text is clipped or overlaps a
-   neighbouring row.
+4. Confirm PDF exports stay light-themed and no cell text is clipped or overlaps
+   a neighbouring row.
 
 ## CI
 

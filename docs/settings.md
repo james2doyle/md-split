@@ -28,7 +28,7 @@ Settings use the GSettings schema `com.james2doyle.MdSplit` with path
 | `autosave-interval` | int | `30` | Seconds between drafts; range 5–300 |
 | `backup-files` | bool | `false` | Keep timestamped backups on save |
 | `backup-retention` | int | `5` | Backups per file; range 1–50 |
-| `export-font-size` | int | `11` | Base PDF/print font size in points; range 8–18 |
+| `export-font-size` | int | `11` | Base PDF font size in points; range 8–18 |
 | `vim-mode` | bool | `false` | Vim keybindings in the editor and Vim navigation in the preview |
 | `spell-check` | bool | `true` | Check spelling when a backend and dictionary exist |
 | `spell-language` | string | `""` | Dictionary code; empty uses the provider default |
@@ -57,10 +57,10 @@ Settings use the GSettings schema `com.james2doyle.MdSplit` with path
   `backup-retention`, `export-font-size`, `spell-check`, and `spell-language`
   are bound in the preferences dialog. Numeric rows clamp to the schema ranges.
   Spell settings have no effect when no dictionary provider is available.
-- `export-font-size` is the base text size for PDF export and the print
-  stylesheet of HTML export. Headings, code, tables, captions and footer sizes
-  are derived from it, so the export scales proportionally. The screen
-  stylesheet of HTML export keeps its fixed web size.
+- `export-font-size` is the base text size for PDF export only. Headings, code,
+  tables, captions and footer sizes are derived from it. HTML export uses the
+  fixed web type scale in `src/export.css` and follows the viewer's light or
+  dark preference.
 - Recovery drafts live under
   `$XDG_STATE_HOME/md-split/recovery`. Timestamped backups live under
   `$XDG_STATE_HOME/md-split/backups`.

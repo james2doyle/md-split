@@ -212,15 +212,14 @@ See [security.md](security.md) for the full policy.
 ## Export
 
 HTML export builds a standalone document with embedded local images; PDF export
-lays the same tokens out with Pango and Cairo. Both read one palette and
-type-scale block in `src/exporting.py`, so the CSS and the PDF drawing constants
-cannot drift. The HTML stylesheet lives in `src/export.css` and is inlined at
-export time with generated `--md-*` custom properties. The base font size comes
-from the `export-font-size` setting; `_TypeScale` derives every other size from
-it. Exported files are light-themed; the appearance setting only changes the
-native preview. HTML gets measure-limited typography, bordered and
-zebra-striped tables, figures with captions, callout styling and print rules
-(`@page`, widows/orphans, break avoidance, wrapped code). PDF uses the same
+lays the same tokens out with Pango and Cairo. The HTML theme lives in
+`src/export.css`, adapted from [new.css](https://github.com/xz/new.css) (MIT),
+and is inlined at export time. It follows the viewer's
+`prefers-color-scheme`. PDF uses the palette and type scale in
+`src/exporting.py`; `export-font-size` controls only the PDF base size and
+`_TypeScale` derives the rest. The application appearance setting only changes
+the native preview. HTML gets measure-limited typography, bordered and
+zebra-striped tables, figures with captions and callout styling. PDF uses its
 palette for headings, code boxes, tables and quote bars.
 
 `_PdfWriter` gives tables a real cell grid: columns fill the content width,

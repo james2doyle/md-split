@@ -85,25 +85,29 @@ with tempfile.TemporaryDirectory() as tmp:
     assert "data:image/png;base64," in html
     assert "&lt;script&gt;" in html
     assert "<script>alert" not in html
-    assert "<style>" in html and "@media print" in html
+    assert "<style>" in html and "@media (prefers-color-scheme: dark)" in html
+    assert "Adapted from new.css" in html
+    assert "Copyright (c) 2020 Brendan Hersh" in html
+    assert "MIT License" in html
     assert (
-        'font-family: system-ui, -apple-system, BlinkMacSystemFont, '
+        "--nc-font-sans: system-ui, -apple-system, BlinkMacSystemFont, "
         '"Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;'
     ) in html
     assert (
-        "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "
-        '"Liberation Mono", "Courier New", monospace'
+        "--nc-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, "
+        'Consolas, "Liberation Mono", "Courier New", monospace;'
     ) in html
-    assert "font-family: var(--md-mono);" in html
-    assert "td code, th code { background: transparent; padding: 0; }" in html
+    assert "font-family: var(--nc-font-mono)" in html
+    assert "code,kbd,pre,samp" in html
     assert "Tiny dot" in html
     assert "<figure><img" in html
     assert "<figcaption>Tiny dot</figcaption></figure>" in html
-    assert "@page" in html
-    assert "break-inside: avoid" in html
-    assert "nth-child(even)" in html
-    assert "--md-print-size: 11pt;" in html
-    assert "--md-h1: 2em;" in html
+    assert "@media print" not in html
+    assert "@page" not in html
+    assert "break-inside: avoid" not in html
+    assert "nth-child(2n)" in html
+    assert "color-scheme: dark;" in html
+    assert "--md-accent: #1c71d8;" in html
     inline_image = render_html(
         "Text before ![Tiny dot](dot.png) after",
         title="Inline image",
@@ -215,12 +219,6 @@ with tempfile.TemporaryDirectory() as tmp:
         base_font_size=18.0,
     )
     assert small_pages < large_pages, (small_pages, large_pages)
-
-    scaled_html = render_html(
-        "# Scaled", title="Scaled", base_font_size=16.0
-    )
-    assert "--md-print-size: 16pt;" in scaled_html
-    assert "--md-print-size: 16pt;" not in html
 
     # HTML comments are literal text with HTML disabled; PDF export drops them
     # without touching code spans, code blocks or the surrounding text.

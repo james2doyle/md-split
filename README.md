@@ -263,8 +263,9 @@ images are embedded as bounded data URIs, remote images keep their URLs, and
 relative links are resolved against the source document. **Export PDF…** uses
 Cairo and Pango to write a styled A4 PDF with headings, lists, quotes, code,
 tables, local images and footnotes. Export uses the current editor contents,
-including unsaved changes. **Preferences → Export → Base font size** controls
-the PDF and print text size; headings, code, tables and captions scale with it.
+including unsaved changes. **Preferences → Export → PDF font size** controls
+the PDF text size; headings, code, tables and captions scale with it. Exported
+HTML follows the viewer's light or dark preference.
 
 ## Architecture
 
@@ -349,3 +350,6 @@ contents, FUSE fallback, and limitations.
 - The app is MIT licensed; see `COPYING`.
 - `markdown-it-py`, `mdit-py-plugins` and `mdurl` are MIT licensed; their
   license texts are in `src/vendor/LICENSES/`.
+- The HTML export stylesheet is adapted from [new.css](https://github.com/xz/new.css),
+  MIT licensed. The copyright and permission notice is retained in
+  `src/export.css`.
