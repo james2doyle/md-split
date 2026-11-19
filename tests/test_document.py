@@ -68,4 +68,15 @@ assert doc.file is None
 assert doc.text == ""
 assert not doc.is_dirty
 
+# Copy Path uses absolute local paths and falls back to URIs for remote files.
+assert doc.path_or_uri is None
+local = Gio.File.new_for_path("/tmp/copy-path.md")
+doc.load("", local)
+assert doc.path_or_uri == "/tmp/copy-path.md"
+remote = Gio.File.new_for_uri("smb://server/share/note.md")
+doc.load("", remote)
+assert doc.path_or_uri == "smb://server/share/note.md"
+doc.reset()
+assert doc.path_or_uri is None
+
 print("ok: document model")

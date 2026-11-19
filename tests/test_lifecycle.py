@@ -299,6 +299,55 @@ def wait_for(predicate, timeout=2.0):
     return False
 
 
+# Copy Path follows the active document and writes its location to the
+# clipboard; it is disabled for untitled documents.
+copy_action = app.lookup_action("copy-path")
+assert copy_action is not None
+assert copy_action.get_enabled() is False
+assert app.get_accels_for_action("app.copy-path") == []
+
+for existing in app.get_windows():
+    existing._force_close = True
+    existing.destroy()
+while GLib.MainContext.default().iteration(False):
+    pass
+
+with tempfile.TemporaryDirectory() as tmp:
+    target = Path(tmp) / "copy-path.md"
+    target.write_text("# Copy\n", encoding="utf-8")
+    window = MdSplitWindow(application=app)
+    window.present()
+    assert wait_for(lambda: app.props.active_window is window)
+    assert not copy_action.get_enabled()
+
+    window.open_file(Gio.File.new_for_path(str(target)))
+    assert wait_for(lambda: window.document.path_or_uri == str(target))
+    assert copy_action.get_enabled()
+
+    copied = []
+
+    def read_clipboard(source, result):
+        copied.append(source.read_text_finish(result))
+
+    copy_action.activate(None)
+    window.get_clipboard().read_text_async(None, read_clipboard)
+    assert wait_for(lambda: copied), copied
+    assert copied[0] == str(target), copied
+
+    window.new_document()
+    assert not copy_action.get_enabled()
+
+    # A completed save, including Save As, enables the action again.
+    window.document.mark_saved(Gio.File.new_for_path(str(target)))
+    window._update_ui()
+    assert copy_action.get_enabled()
+
+    window._force_close = True
+    window.destroy()
+    while GLib.MainContext.default().iteration(False):
+        pass
+assert not copy_action.get_enabled()
+
 # Session restore reopens file windows and focuses the previous active file.
 for existing in app.get_windows():
     existing._force_close = True

@@ -95,6 +95,18 @@ class Document:
         return parent.get_parse_name() or parent.get_uri() or _("Not saved")
 
     @property
+    def path_or_uri(self) -> str | None:
+        """Return the absolute local path, or a URI for non-local files."""
+        if self.file is None:
+            return None
+        return (
+            self.file.get_path()
+            or self.file.get_parse_name()
+            or self.file.get_uri()
+            or None
+        )
+
+    @property
     def word_count(self) -> int:
         return count_words(self.text)
 

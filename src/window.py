@@ -892,6 +892,33 @@ class MdSplitWindow(Adw.ApplicationWindow):
     def save_as_document(self) -> None:
         self._save_as(None)
 
+    def copy_path(self) -> None:
+        path = self._document.path_or_uri
+        if path is None:
+            self._show_toast(_("This document has no file path"))
+            return
+        clipboard = self.get_clipboard()
+        clipboard.set_content(
+            Gdk.ContentProvider.new_for_bytes(
+                "text/plain;charset=utf-8",
+                GLib.Bytes.new(path.encode("utf-8")),
+            )
+        )
+        self._show_toast(_("Path copied"))
+
+    def sync_copy_path_action(self) -> None:
+        """Enable Copy Path only while the active document has a location."""
+        # The application can make this window active before __init__ finishes.
+        document = getattr(self, "_document", None)
+        if document is None:
+            return
+        app = self.get_application()
+        if app is None or app.props.active_window is not self:
+            return
+        action = app.lookup_action("copy-path")
+        if action is not None:
+            action.set_enabled(document.path_or_uri is not None)
+
     @property
     def view_mode(self) -> str:
         return self._view_mode
@@ -1512,6 +1539,7 @@ class MdSplitWindow(Adw.ApplicationWindow):
             self._update_stats()
         self._update_placeholder()
         self._on_cursor_moved()
+        self.sync_copy_path_action()
         if render_preview:
             self.flush_preview()
 

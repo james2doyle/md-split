@@ -68,6 +68,8 @@ class MdSplitApplication(Adw.Application):
         self.create_action(
             "save-as", self.on_save_as_action, ["<control><shift>s"]
         )
+        self.create_action("copy-path", self.on_copy_path_action)
+        self.lookup_action("copy-path").set_enabled(False)
         self.create_action("find", self.on_find_action, ["<control>f"])
         self.create_action(
             "find-next", self.on_find_next_action, ["<control>g"]
@@ -331,6 +333,11 @@ class MdSplitApplication(Adw.Application):
             path = self._session_files.get(win)
             if path:
                 self._last_active_path = path
+            win.sync_copy_path_action()
+        else:
+            action = self.lookup_action("copy-path")
+            if action is not None:
+                action.set_enabled(False)
 
     def _write_session(self) -> None:
         windows = set(self.get_windows())
@@ -420,6 +427,11 @@ class MdSplitApplication(Adw.Application):
         win = self.props.active_window
         if win is not None:
             win.save_as_document()
+
+    def on_copy_path_action(self, *_args):
+        win = self.props.active_window
+        if win is not None:
+            win.copy_path()
 
     def on_find_action(self, *_args):
         win = self.props.active_window
