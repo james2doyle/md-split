@@ -112,7 +112,9 @@ The caller workflow is pinned to AetherPak `v3.14.0` by commit SHA.
 ### One-time setup
 
 1. Enable Pages with **Settings → Pages → Build and deployment → Source:
-   GitHub Actions**.
+   GitHub Actions**. If the `github-pages` environment uses custom deployment
+   branch policies, add a `v*` tag policy; otherwise deployments from a release
+   tag are rejected.
 2. Create a release signing key and add it as the `GPG_PRIVATE_KEY` repository
    secret. Add `GPG_PRIVATE_KEY_PASSPHRASE` as well when the key is protected.
 3. After the first successful publish, make the `mdsplit` container package
