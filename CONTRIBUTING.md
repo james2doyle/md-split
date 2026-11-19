@@ -14,8 +14,9 @@ meson install -C build
 ./build-install/bin/md_split examples/demo.md
 ```
 
-See [README.md](README.md) for requirements and [docs/testing.md](docs/testing.md)
-for the test matrix and focused test commands.
+See [docs/development.md](docs/development.md) for requirements and
+[docs/testing.md](docs/testing.md) for the test matrix and focused test
+commands. [docs/README.md](docs/README.md) is the documentation index.
 
 ## Where changes belong
 

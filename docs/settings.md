@@ -70,12 +70,20 @@ Settings use the GSettings schema `io.github.james2doyle.MdSplit` with path
 `--source-only`, `--preview-only`, `--no-source`, and `--no-preview` set the
 initial view mode for the windows created by that invocation. `--light` and
 `--dark` force the appearance for that run. These overrides are held on the
-application and are not written to GSettings. Conflicting flags exit with
-status 1 before a window is created.
+application and are not written to GSettings. The aliases are exact synonyms.
+Any source-only flag combined with any preview-only flag is rejected, as is
+`--light` with `--dark`; conflicts exit with status 1 before a window opens.
 
-`--new-instance` starts an independent process rather than forwarding files to
-the running instance. The new process starts with a fresh session and does not
-write the shared session or recovery prompts.
+`FILE` arguments open as documents; multiple files open in separate windows.
+View and appearance flags apply to every window opened by that invocation; they
+do not overwrite the saved settings.
+
+By default MD Split keeps one process per session, and a later launch hands its
+files to the running process. `--new-instance` starts an independent process
+instead. Secondary processes start with a fresh session: they do not restore or
+update the shared session, and they do not prompt for recovery drafts. Avoid
+editing the same file in two processes at once; file monitoring and autosave
+will report external changes.
 
 ## Inspecting and resetting
 

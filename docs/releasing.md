@@ -97,7 +97,16 @@ It runs on every `v*.*.*` tag push. The reusable workflow builds the manifest
 for `x86_64` and `aarch64`, pushes the application images to GHCR, and deploys
 the repository index and landing page to GitHub Pages. Users add the
 `md-split` remote and receive later releases through `flatpak update`; see the
-[README](../README.md#flatpak) for the install and update commands.
+[README](../README.md#install) for the install and update commands.
+
+Verified installs need Flatpak 1.17 or newer. On older clients, use the unsigned
+remote instead:
+
+```sh
+flatpak remote-add --if-not-exists --user --no-gpg-verify \
+  md-split oci+https://james2doyle.github.io/mdsplit
+flatpak install --user md-split io.github.james2doyle.MdSplit
+```
 
 A manual run builds the selected ref, so re-publish a channel from its release
 tag, for example after rotating the signing key. The tag must contain this

@@ -13,6 +13,22 @@ Markdown parsing is done by [markdown-it-py](https://github.com/executablebooks/
 with its composite GFM plugin. Both are vendored under `src/vendor`, so the app
 has no runtime Python dependencies beyond PyGObject.
 
+## Install
+
+```sh
+flatpak remote-add --user \
+  --signature-lookaside=https://james2doyle.github.io/mdsplit/sigs \
+  md-split https://james2doyle.github.io/mdsplit/md-split.flatpakrepo
+flatpak install --user md-split io.github.james2doyle.MdSplit
+```
+
+Every `v*.*.*` release tag publishes a new stable build, so the normal Flatpak
+update picks it up:
+
+```sh
+flatpak update --user io.github.james2doyle.MdSplit
+```
+
 ## Features
 
 - Split view with a GtkSourceView editor and a native live preview
@@ -49,72 +65,6 @@ has no runtime Python dependencies beyond PyGObject.
 - Raw HTML is disabled by default for safe previewing; a balanced,
   correctly nested `<u>...</u>` pair is the only inline HTML rendered as
   formatting
-
-## Documentation
-
-- [Architecture](docs/architecture.md) — module map, edit-to-preview flow, file I/O, rendering, and scroll sync
-- [Testing](docs/testing.md) — test matrix, headless/display behavior, Xvfb, and adding tests
-- [Release builds](docs/releasing.md) — tagged source archives, native release builds, the published Flatpak repository, Flatpak bundles, and AppImages
-- [AppImage](docs/appimage.md) — container build, bundled runtime, verification, and limits
-- [Flathub checklist](docs/flathub.md) — AppStream, icons, pinned sources, permissions, and submission
-- [Security model](docs/security.md) — raw HTML, links, remote images, limits, and export
-- [Settings](docs/settings.md) — GSettings keys, defaults, persistence, and CLI overrides
-- [Troubleshooting](docs/troubleshooting.md) — local builds, stale UI, Flatpak errors, and display tests
-- [Screenshots](docs/screenshots.md) — capturing and updating the AppStream screenshot
-- [Translations](docs/translations.md) — gettext catalogues and adding a language
-- [Accessibility](docs/accessibility.md) — keyboard, focus, preview semantics, and manual checks
-- [Contributing](CONTRIBUTING.md) — development setup, tests, style, and pull requests
-
-## Requirements
-
-- Python 3.12+ and PyGObject (`Gtk-4.0`, `Adw-1`, `GtkSource-5` GIRs)
-- GTK 4 and libadwaita 1.9+ (the Flatpak runtime provides 1.10)
-- GtkSourceView 5
-- Pycairo for PDF export
-- Optional: libspelling, a libenchant provider (hunspell, aspell, nuspell, or
-  voikko), and a dictionary for spell checking
-- `meson`, `ninja`, `blueprint-compiler`
-- `gettext` (`msgfmt`); optional validators: `desktop-file-validate`,
-  `appstreamcli`, `glib-compile-schemas`
-- `flatpak` and `flatpak-builder` for packaging
-- podman or Docker for AppImage builds
-
-The Markdown parser is vendored; install no parser packages.
-
-Spell checking is optional. It needs the libspelling typelib, one libenchant
-provider, and at least one dictionary. For example:
-
-```sh
-# Debian/Ubuntu
-sudo apt install gir1.2-spelling-1 libspelling-1-2 hunspell hunspell-en-us
-# Fedora
-sudo dnf install libspelling hunspell hunspell-en
-# Arch
-sudo pacman -S libspelling hunspell hunspell-en_us
-```
-
-Leaving the other libenchant providers uninstalled is fine.
-
-## Build and run
-
-```sh
-meson setup build --prefix="$PWD/build-install"   # once
-meson compile -C build
-python3 scripts/test.py
-meson install -C build
-./build-install/bin/md_split
-```
-
-Open a document from the command line:
-
-```sh
-./build-install/bin/md_split examples/demo.md
-```
-
-The launcher hard-codes the install prefix, so uninstalled runs need the
-`build-install` prefix and the `meson install` step. It also adds that prefix
-to `GSETTINGS_SCHEMA_DIR` and `XDG_DATA_DIRS`, so schemas and icons resolve
-without extra environment setup.
 
 ## Keyboard shortcuts
 
@@ -216,169 +166,18 @@ md_split --preview-only --dark notes.md
 md_split --no-preview --light notes.md
 ```
 
-`FILE` arguments open as documents; multiple files open in separate windows.
-View and appearance flags apply to every window opened by that invocation; they
-do not overwrite the saved settings.
-
-By default MD Split keeps one process per session, and a later launch hands its
-files to the running process. Pass `--new-instance` to start an independent
-process instead. Secondary processes start with a fresh session: they do not
-restore or update the shared session, and they do not prompt for recovery
-drafts. Avoid editing the same file in two processes at once; file monitoring
-and autosave will report external changes.
-
-The aliases are exact synonyms. Any source-only flag combined with any
-preview-only flag is rejected, as is `--light` with `--dark`; conflicts exit
-with status 1 before a window opens.
-
-## Markdown support
-
-The preview uses the composite GFM plugin from `mdit-py-plugins`:
-
-- CommonMark blocks and inline syntax
-- Tables with per-column alignment
-- Strikethrough with `~~` (and single tildes)
-- GFM autolinks for bare `http://`, `https://`, `www.` and email addresses
-- Task lists with disabled check boxes in the preview
-- GitHub alerts (`> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`,
-  `[!CAUTION]`)
-- Footnotes and block quotes
-- Fenced code blocks with language labels and copy buttons
-- Local and remote images
-- Underline with `<u>...</u>` (the only inline raw HTML tag interpreted)
-
-Pressing Return inside a bullet, ordered, task, or nested list continues the
-list with the next marker; pressing Return on an empty item exits the list.
-
-Relative links and images are resolved against the open document's directory.
-Local images are decoded asynchronously with size and pixel limits. Remote
-images are disabled by default: enable **Load Remote Images** in the main menu
-or Preferences to fetch public HTTP(S) images, subject to byte, pixel, timeout,
-and cache limits.
-
 ## Export
 
 **Export HTML…** writes a standalone HTML document with embedded CSS. Local
 images are embedded as bounded data URIs, remote images keep their URLs, and
-relative links are resolved against the source document. **Export PDF…** uses
+relative links are resolved against the source document.
+
+**Export PDF…** uses
 Cairo and Pango to write a styled A4 PDF with headings, lists, quotes, code,
 tables, local images and footnotes. Export uses the current editor contents,
 including unsaved changes. **Preferences → Export → PDF font size** controls
 the PDF text size; headings, code, tables and captions scale with it. Exported
 HTML follows the viewer's light or dark preference.
-
-## Architecture
-
-```text
-src/main.py             Adw.Application, actions, CSS loading, file activation
-src/window.py           split-view window, file I/O, dialogs, settings
-src/document.py         headless document model (text, file, dirty state)
-src/fileio.py           headless async UTF-8 load/save helpers
-src/editing.py          selection wrapping, link completion, formatting edits
-src/exporting.py        standalone HTML and styled PDF export
-src/export.css          HTML export stylesheet, inlined at export
-src/markdown_parser.py  shared GFM parser configuration
-src/renderer.py         Markdown tokens -> native GTK widgets
-src/markdown_view.py    scrollable preview, empty state, theme rerendering
-src/preferences.py      settings-backed preferences dialog
-src/preferences-dialog.blp  preferences UI
-src/window.blp          Blueprint UI
-src/style.css           preview table, code block, alert, quote styling
-src/vendor/             vendored markdown-it-py, mdit-py-plugins and mdurl
-tests/                  document, renderer and window smoke tests
-```
-
-The renderer is deliberately a standard GTK widget tree rather than a custom
-canvas. That keeps text selectable, links clickable and styling theme-aware
-with normal Adwaita CSS classes and a small app stylesheet.
-
-## Tests
-
-```sh
-python3 scripts/test.py
-```
-
-The wrapper removes stale test logs and runs Meson with a sanitized
-environment so API keys and tokens are not copied into `build/meson-logs`.
-No app process is needed. Most tests run completely headless:
-
-- document model and dirty-state logic
-- Markdown parsing and Pango markup generation
-- asynchronous UTF-8 file loading and saving
-- editing helpers, selection wrapping, link completion, and list continuation
-- HTML and PDF export, including pagination and failure cleanup
-- known upstream GTK warning filtering
-- scroll synchronization and feedback-loop suppression
-- packaged gresource content and the bundled demo
-- desktop/AppStream/schema validators
-
-GUI tests construct widgets and application actions in-process (not a running
-app) to inspect the preview tree, window lifecycle, keyboard focus, scroll
-sync, view modes, list continuation, formatting, preferences, and remote-image
-policy. CLI option parsing and action state are covered without launching a
-separate process. GUI tests skip themselves when no display is available; CI
-runs them under Xvfb.
-
-## Flatpak
-
-### Install from the project repository
-
-Stable builds are published to
-[GitHub Pages](https://james2doyle.github.io/mdsplit), with the application
-images in GHCR, by the [AetherPak](https://github.com/aetherpak/actions)
-publish workflow. Add the `md-split` remote and install the app:
-
-```sh
-flatpak remote-add --user \
-  --signature-lookaside=https://james2doyle.github.io/mdsplit/sigs \
-  md-split https://james2doyle.github.io/mdsplit/md-split.flatpakrepo
-flatpak install --user md-split io.github.james2doyle.MdSplit
-```
-
-Every `v*.*.*` release tag publishes a new stable build, so the normal Flatpak
-update picks it up:
-
-```sh
-flatpak update --user io.github.james2doyle.MdSplit
-```
-
-The verified install needs Flatpak 1.17 or newer. On older releases, use the
-unsigned form instead:
-
-```sh
-flatpak remote-add --if-not-exists --user --no-gpg-verify \
-  md-split oci+https://james2doyle.github.io/mdsplit
-flatpak install --user md-split io.github.james2doyle.MdSplit
-```
-
-The publish workflow, signing key, and one-time repository setup are described
-in [docs/releasing.md](docs/releasing.md#published-flatpak-repository).
-
-### Build and run locally
-
-```sh
-flatpak-builder --user --install --force-clean build-flatpak io.github.james2doyle.MdSplit.json
-flatpak run io.github.james2doyle.MdSplit
-```
-
-The development manifest builds from the working tree and allows network
-access so remote Markdown images can load when explicitly enabled. For a
-reproducible release build, a local `.flatpak` bundle, and Flathub notes, see
-[docs/releasing.md](docs/releasing.md).
-
-## AppImage
-
-```sh
-./scripts/build-appimage.sh
-./dist/md_split-*-x86_64.AppImage
-```
-
-The AppImage build runs in an Ubuntu 26.04 container and bundles Python,
-GTK 4, libadwaita, GtkSourceView 5, Pycairo and the optional spell-check
-backend. It uses the official static type2 runtime with low-level squashfuse
-and libfuse3, so libfuse2 is not required. It requires podman or Docker and
-network access. See [docs/appimage.md](docs/appimage.md) for the runtime
-contents, FUSE fallback, and limitations.
 
 ## Third-party licenses
 

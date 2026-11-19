@@ -2,7 +2,10 @@
 
 MD Split is a native GTK 4 and libadwaita Markdown editor. It deliberately has
 no WebKit, embedded browser, web runtime, or compiled WASM assets. The preview
-is a tree of ordinary GTK widgets.
+is a tree of ordinary GTK widgets. The renderer is deliberately a standard GTK
+widget tree rather than a custom canvas: text stays selectable, links stay
+clickable, and styling stays theme-aware with normal Adwaita CSS classes and a
+small app stylesheet.
 
 ## Module map
 
@@ -27,6 +30,7 @@ is a tree of ordinary GTK widgets.
 | `src/*.blp` | Blueprint UI; compiled to `build/src/*.ui` |
 | `src/style.css` | Preview-specific `md-*` classes and Adwaita theme integration |
 | `src/vendor/` | Vendored markdown-it-py, mdit-py-plugins, mdurl |
+| `tests/` | Headless and display tests for the document, renderer, window and lifecycle |
 
 `AGENTS.md` contains the repository-specific conventions and gotchas for
 contributors and coding agents.

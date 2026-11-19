@@ -78,7 +78,8 @@ testing outside CI.
 
 `scripts/test.py` deliberately forwards only a small allowlist of environment
 variables to Meson. This prevents API keys, tokens, and other shell secrets
-from being copied into `build/meson-logs/`. It also sets:
+from being copied into `build/meson-logs/`. The wrapper also removes stale
+`build/meson-logs/testlog.*` files before running. It sets:
 
 - `GSETTINGS_BACKEND=memory`
 - `PYTHONDONTWRITEBYTECODE=1`
