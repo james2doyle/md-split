@@ -24,7 +24,7 @@
 
   <screenshots>
     <screenshot type="default">
-      <image type="source" width="1150" height="770">https://raw.githubusercontent.com/james2doyle/md-split/v1.3.0/docs/screenshot.png</image>
+      <image type="source" width="1150" height="770">https://raw.githubusercontent.com/james2doyle/md-split/v1.4.0/docs/screenshot.png</image>
       <caption>Markdown source and rendered preview side by side</caption>
     </screenshot>
   </screenshots>
@@ -64,6 +64,19 @@
   </branding>
 
   <releases>
+    <release version="1.4.0" date="2026-11-19">
+      <description translate="no">
+        <p>Editing, export and multi-instance update.</p>
+        <ul>
+          <li>Start a separate process with --new-instance while normal launches reuse the running app.</li>
+          <li>Copy the active file path from the main menu.</li>
+          <li>Control the PDF base font size from Preferences.</li>
+          <li>HTML export uses system fonts, a new.css-derived stylesheet, and the viewer's light or dark preference.</li>
+          <li>Find Next and Find Previous cycle through matches; PDF export drops HTML comments.</li>
+          <li>Task-list checkboxes align with their text.</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.3.0" date="2026-11-18">
       <description translate="no">
         <p>Startup, Vim and packaging update.</p>
