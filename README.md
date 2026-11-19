@@ -54,7 +54,7 @@ has no runtime Python dependencies beyond PyGObject.
 
 - [Architecture](docs/architecture.md) — module map, edit-to-preview flow, file I/O, rendering, and scroll sync
 - [Testing](docs/testing.md) — test matrix, headless/display behavior, Xvfb, and adding tests
-- [Release builds](docs/releasing.md) — tagged source archives, native release builds, Flatpak bundles, and AppImages
+- [Release builds](docs/releasing.md) — tagged source archives, native release builds, the published Flatpak repository, Flatpak bundles, and AppImages
 - [AppImage](docs/appimage.md) — container build, bundled runtime, verification, and limits
 - [Flathub checklist](docs/flathub.md) — AppStream, icons, pinned sources, permissions, and submission
 - [Security model](docs/security.md) — raw HTML, links, remote images, limits, and export
@@ -320,6 +320,41 @@ separate process. GUI tests skip themselves when no display is available; CI
 runs them under Xvfb.
 
 ## Flatpak
+
+### Install from the project repository
+
+Stable builds are published to
+[GitHub Pages](https://james2doyle.github.io/md-split), with the application
+images in GHCR, by the [AetherPak](https://github.com/aetherpak/actions)
+publish workflow. Add the `md-split` remote and install the app:
+
+```sh
+flatpak remote-add --user \
+  --signature-lookaside=https://james2doyle.github.io/md-split/sigs \
+  md-split https://james2doyle.github.io/md-split/md-split.flatpakrepo
+flatpak install --user md-split io.github.james2doyle.MdSplit
+```
+
+Every `v*.*.*` release tag publishes a new stable build, so the normal Flatpak
+update picks it up:
+
+```sh
+flatpak update --user io.github.james2doyle.MdSplit
+```
+
+The verified install needs Flatpak 1.17 or newer. On older releases, use the
+unsigned form instead:
+
+```sh
+flatpak remote-add --if-not-exists --user --no-gpg-verify \
+  md-split oci+https://james2doyle.github.io/md-split
+flatpak install --user md-split io.github.james2doyle.MdSplit
+```
+
+The publish workflow, signing key, and one-time repository setup are described
+in [docs/releasing.md](docs/releasing.md#published-flatpak-repository).
+
+### Build and run locally
 
 ```sh
 flatpak-builder --user --install --force-clean build-flatpak io.github.james2doyle.MdSplit.json

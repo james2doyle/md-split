@@ -179,7 +179,8 @@ settings.set_string('view-mode', 'source')
   test_renderer.py, test_window.py, test_lifecycle.py, test_preferences.py,
   test_view_modes.py, test_cli.py, test_scroll_sync.py, test_images.py (display)
 [Scripts] scripts/test.py (sanitized test runner), dev.py, scripts/init.py
-[CI] .github/workflows/ci.yml, .github/workflows/release.yml
+[CI] .github/workflows/ci.yml, .github/workflows/release.yml,
+  .github/workflows/publish.yml
 [Docs] README.md, AGENTS.md, CONTRIBUTING.md, docs/*.md
 [Packaging] meson.build, src/meson.build, io.github.james2doyle.MdSplit.json,
   scripts/compile-bytecode.py (install-time unchecked-hash .pyc),

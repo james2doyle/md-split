@@ -89,6 +89,64 @@ The archive must have a top-level directory (`--prefix=...`). Flatpak strips
 one leading path component when extracting; without it the source tree is
 flattened and Meson fails with `first statement must be a call to project()`.
 
+## Published Flatpak repository
+
+`.github/workflows/publish.yml` publishes the stable channel with the
+[AetherPak Flatpak registry publisher](https://github.com/aetherpak/actions).
+It runs on every `v*.*.*` tag push. The reusable workflow builds the manifest
+for `x86_64` and `aarch64`, pushes the application images to GHCR, and deploys
+the repository index and landing page to GitHub Pages. Users add the
+`md-split` remote and receive later releases through `flatpak update`; see the
+[README](../README.md#flatpak) for the install and update commands.
+
+A manual run builds the selected ref, so re-publish a channel from its release
+tag, for example after rotating the signing key. The tag must contain this
+workflow file:
+
+```sh
+gh workflow run publish.yml --ref v1.5.0  # replace with the release tag
+```
+
+The caller workflow is pinned to AetherPak `v3.14.0` by commit SHA.
+
+### One-time setup
+
+1. Enable Pages with **Settings → Pages → Build and deployment → Source:
+   GitHub Actions**.
+2. Create a release signing key and add it as the `GPG_PRIVATE_KEY` repository
+   secret. Add `GPG_PRIVATE_KEY_PASSPHRASE` as well when the key is protected.
+3. After the first successful publish, make the `md-split` container package
+   public: your profile or organization, then **Packages** → `md-split` →
+   **Package settings** → **Change visibility** → **Public**. Installs fail
+   while the package is private.
+
+A passphrase-less key is enough for CI:
+
+```sh
+gpg --batch --gen-key <<EOF
+%no-protection
+Key-Type: RSA
+Key-Length: 4096
+Name-Real: MD Split Releases
+Name-Email: releases@example.org
+Expire-Date: 0
+%commit
+EOF
+gpg --armor --export-secret-keys releases@example.org
+```
+
+Store the armored output as the secret and keep it out of the repository:
+
+```sh
+gpg --armor --export-secret-keys releases@example.org |
+  gh secret set GPG_PRIVATE_KEY --repo james2doyle/md-split
+```
+
+Signing is requested with `signing: gpg` in the workflow. AetherPak's
+[signing documentation](https://github.com/aetherpak/actions#signing-optional)
+covers key rotation; after rotating, run the publish workflow once so every
+image listed in the stable index is signed by the new key.
+
 ## AppImage release build
 
 The AppImage is built from the tagged source in an Ubuntu 26.04 container. The
@@ -150,7 +208,9 @@ publishes.
 `.github/workflows/release.yml` runs after the **CI** workflow succeeds for a
 `v*.*.*` tag push. It is deliberately separate from `ci.yml` so CI stays
 read-only and releases cannot be published from pull requests or `main` pushes.
-CI runs on pull requests, `main` pushes, and `v*.*.*` tag pushes.
+CI runs on pull requests, `main` pushes, and `v*.*.*` tag pushes. The same tag
+push also runs `.github/workflows/publish.yml`, which updates the
+[published Flatpak repository](#published-flatpak-repository).
 
 The workflow:
 

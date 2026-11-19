@@ -1,0 +1,33 @@
+# Publish the stable Flatpak channel for every release tag. A manual run
+# publishes the selected ref as stable, so use a release tag to re-publish a
+# channel, for example after rotating the signing key. See docs/releasing.md
+# for the one-time repository setup.
+name: Publish Flatpak
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: publish-flatpak
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    uses: aetherpak/actions/.github/workflows/publish.yml@d3803c8feb52143ebb13c8909d2d2a7364eeddef # v3.14.0
+    with:
+      manifest-path: io.github.james2doyle.MdSplit.json
+      branch: stable
+      remote-name: md-split
+      signing: gpg
+      pages-url: https://james2doyle.github.io/md-split
+    secrets:
+      gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+      gpg-private-key-passphrase: ${{ secrets.GPG_PRIVATE_KEY_PASSPHRASE }}
