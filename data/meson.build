@@ -1,6 +1,6 @@
 desktop_file = i18n.merge_file(
-        input: 'com.james2doyle.MdSplit.desktop.in',
-       output: 'com.james2doyle.MdSplit.desktop',
+        input: 'io.github.james2doyle.MdSplit.desktop.in',
+       output: 'io.github.james2doyle.MdSplit.desktop',
          type: 'desktop',
        po_dir: '../po',
       install: true,
@@ -13,8 +13,8 @@ if desktop_utils.found()
 endif
 
 appstream_file = i18n.merge_file(
-        input: 'com.james2doyle.MdSplit.metainfo.xml.in',
-       output: 'com.james2doyle.MdSplit.metainfo.xml',
+        input: 'io.github.james2doyle.MdSplit.metainfo.xml.in',
+       output: 'io.github.james2doyle.MdSplit.metainfo.xml',
        po_dir: '../po',
       install: true,
   install_dir: get_option('datadir') / 'metainfo'
@@ -24,13 +24,13 @@ appstreamcli = find_program('appstreamcli', required: false, disabler: true)
 test('Validate appstream file', appstreamcli,
      args: ['validate', '--no-net', '--explain', appstream_file])
 
-install_data('com.james2doyle.MdSplit.gschema.xml',
+install_data('io.github.james2doyle.MdSplit.gschema.xml',
   install_dir: get_option('datadir') / 'glib-2.0' / 'schemas'
 )
 
 # Compiled schemas for tests that must not depend on the install prefix.
 test_schemas = gnome.compile_schemas(
-  depend_files: ['com.james2doyle.MdSplit.gschema.xml'],
+  depend_files: ['io.github.james2doyle.MdSplit.gschema.xml'],
 )
 
 compile_schemas = find_program('glib-compile-schemas', required: false, disabler: true)
@@ -41,8 +41,8 @@ test('Validate schema file',
 service_conf = configuration_data()
 service_conf.set('bindir', get_option('prefix') / get_option('bindir'))
 configure_file(
-  input: 'com.james2doyle.MdSplit.service.in',
-  output: 'com.james2doyle.MdSplit.service',
+  input: 'io.github.james2doyle.MdSplit.service.in',
+  output: 'io.github.james2doyle.MdSplit.service',
   configuration: service_conf,
   install_dir: get_option('datadir') / 'dbus-1' / 'services'
 )

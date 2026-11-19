@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <gresources>
-  <gresource prefix="/com/james2doyle/MdSplit">
+  <gresource prefix="/io/github/james2doyle/MdSplit">
     <file preprocess="xml-stripblanks">preferences-dialog.ui</file>
     <file preprocess="xml-stripblanks">shortcuts-dialog.ui</file>
     <file preprocess="xml-stripblanks">window.ui</file>
     <file>style.css</file>
     <file alias="demo.md">examples/demo.md</file>
-    <file alias="icons/scalable/apps/com.james2doyle.MdSplit.svg">data/icons/hicolor/scalable/apps/com.james2doyle.MdSplit.svg</file>
-    <file alias="icons/symbolic/apps/com.james2doyle.MdSplit-symbolic.svg">data/icons/hicolor/symbolic/apps/com.james2doyle.MdSplit-symbolic.svg</file>
+    <file alias="icons/scalable/apps/io.github.james2doyle.MdSplit.svg">data/icons/hicolor/scalable/apps/io.github.james2doyle.MdSplit.svg</file>
+    <file alias="icons/symbolic/apps/io.github.james2doyle.MdSplit-symbolic.svg">data/icons/hicolor/symbolic/apps/io.github.james2doyle.MdSplit-symbolic.svg</file>
   </gresource>
 </gresources>

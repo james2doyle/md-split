@@ -181,8 +181,8 @@ recovery prompt. Set `autosave` to false to stop new drafts.
 Session paths and recent files are ordinary list settings:
 
 ```sh
-gsettings get com.james2doyle.MdSplit session-files
-gsettings get com.james2doyle.MdSplit recent-files
+gsettings get io.github.james2doyle.MdSplit session-files
+gsettings get io.github.james2doyle.MdSplit recent-files
 ```
 
 Missing session paths are skipped with a warning and removed on the next
@@ -212,7 +212,7 @@ The bundled demo loads only when the app starts without a file and
 `load-demo-on-startup` is enabled. Disable it in Preferences or run:
 
 ```sh
-gsettings set com.james2doyle.MdSplit load-demo-on-startup false
+gsettings set io.github.james2doyle.MdSplit load-demo-on-startup false
 ```
 
 For an uninstalled prefix, add
@@ -231,7 +231,7 @@ Run `md_split --help` for the current list.
 ## Reset settings
 
 ```sh
-gsettings reset-recursively com.james2doyle.MdSplit
+gsettings reset-recursively io.github.james2doyle.MdSplit
 ```
 
 Use the same `GSETTINGS_SCHEMA_DIR` as the running app when resetting an

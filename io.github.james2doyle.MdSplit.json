@@ -1,5 +1,5 @@
 {
-    "id": "com.james2doyle.MdSplit",
+    "id": "io.github.james2doyle.MdSplit",
     "runtime": "org.gnome.Platform",
     "runtime-version": "51",
     "sdk": "org.gnome.Sdk",
@@ -38,12 +38,16 @@
                         "build",
                         "build-install",
                         "build-flatpak",
+                        "build-release",
+                        "build-release-install",
                         ".flatpak-builder",
                         ".venv",
                         ".dex",
                         "__pycache__",
                         "*.pyc",
                         "dist",
+                        "packaging/appimage/AppDir",
+                        "packaging/appimage/appimage-build",
                         "subprojects/blueprint-compiler"
                     ]
                 }

@@ -75,13 +75,13 @@ jobs:
       - name: Build Flatpak repository
         uses: flatpak/flatpak-github-actions/flatpak-builder@79327416609af08178ad73b352877e51450790b3 # v6.8
         with:
-          manifest-path: com.james2doyle.MdSplit.json
+          manifest-path: io.github.james2doyle.MdSplit.json
           bundle: md_split.flatpak
           mirror-screenshots-url: https://dl.flathub.org/media
           upload-artifact: false
 
       - name: Lint manifest
-        run: flatpak-builder-lint manifest com.james2doyle.MdSplit.json
+        run: flatpak-builder-lint manifest io.github.james2doyle.MdSplit.json
 
       - name: Lint repository
         run: flatpak-builder-lint repo repo

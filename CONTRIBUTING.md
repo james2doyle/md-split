@@ -25,7 +25,7 @@ for the test matrix and focused test commands.
 - Markdown parsing: `src/markdown_parser.py` and the renderer in
   `src/renderer.py`; do not add a second parser.
 - HTML/PDF export: `src/exporting.py`.
-- Settings: `data/com.james2doyle.MdSplit.gschema.xml` and the preferences
+- Settings: `data/io.github.james2doyle.MdSplit.gschema.xml` and the preferences
   dialog.
 
 See [docs/architecture.md](docs/architecture.md) for the module map and data

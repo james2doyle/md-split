@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist gettext-domain="md_split">
-	<schema id="com.james2doyle.MdSplit" path="/com/james2doyle/MdSplit/">
+	<schema id="io.github.james2doyle.MdSplit" path="/io/github/james2doyle/MdSplit/">
 		<key name="window-width" type="i">
 			<default>1100</default>
 			<range min="600" max="4000"/>

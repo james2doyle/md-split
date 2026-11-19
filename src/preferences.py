@@ -20,7 +20,7 @@ from . import APP_ID, spellcheck
 _APPEARANCES = ("system", "light", "dark")
 
 
-@Gtk.Template(resource_path="/com/james2doyle/MdSplit/preferences-dialog.ui")
+@Gtk.Template(resource_path="/io/github/james2doyle/MdSplit/preferences-dialog.ui")
 class MdSplitPreferencesDialog(Adw.PreferencesDialog):
     __gtype_name__ = "MdSplitPreferencesDialog"
 

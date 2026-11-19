@@ -2,9 +2,9 @@
 # Please keep this file sorted alphabetically.
 # xgettext does not recognize .blp and falls back to C; Blueprint's _() and C_()
 # syntax is compatible with that parser, so the fallback is intentional.
-data/com.james2doyle.MdSplit.desktop.in
-data/com.james2doyle.MdSplit.gschema.xml
-data/com.james2doyle.MdSplit.metainfo.xml.in
+data/io.github.james2doyle.MdSplit.desktop.in
+data/io.github.james2doyle.MdSplit.gschema.xml
+data/io.github.james2doyle.MdSplit.metainfo.xml.in
 src/document.py
 src/exporting.py
 src/fileio.py

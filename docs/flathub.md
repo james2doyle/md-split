@@ -6,19 +6,19 @@ the Flathub repository, not from this repository's development manifest.
 
 ## Required app metadata
 
-- App ID `com.james2doyle.MdSplit` matches the desktop file, GSettings schema,
+- App ID `io.github.james2doyle.MdSplit` matches the desktop file, GSettings schema,
   D-Bus service, GResource prefix, and icon names.
-- `data/com.james2doyle.MdSplit.metainfo.xml.in` has a valid release entry for
+- `data/io.github.james2doyle.MdSplit.metainfo.xml.in` has a valid release entry for
   the submitted version and a public screenshot URL that points at the release
   tag.
 - The 128×128 scalable app icon is installed at
-  `data/icons/hicolor/scalable/apps/com.james2doyle.MdSplit.svg` and the
+  `data/icons/hicolor/scalable/apps/io.github.james2doyle.MdSplit.svg` and the
   symbolic icon at
-  `data/icons/hicolor/symbolic/apps/com.james2doyle.MdSplit-symbolic.svg`.
+  `data/icons/hicolor/symbolic/apps/io.github.james2doyle.MdSplit-symbolic.svg`.
 - The desktop file is installed in `share/applications` and declares
-  `Icon=com.james2doyle.MdSplit`.
+  `Icon=io.github.james2doyle.MdSplit`.
 - The AppStream launchable ID is
-  `com.james2doyle.MdSplit.desktop`.
+  `io.github.james2doyle.MdSplit.desktop`.
 - The release tag is pushed and the screenshot URL resolves, for example:
 
   ```text
@@ -27,7 +27,7 @@ the Flathub repository, not from this repository's development manifest.
 
 ## Manifest rules
 
-The development manifest (`com.james2doyle.MdSplit.json`) uses a `dir` source
+The development manifest (`io.github.james2doyle.MdSplit.json`) uses a `dir` source
 and is suitable for local builds only. Flathub requires a pinned source:
 
 ```json
@@ -94,7 +94,7 @@ Build and install the bundle locally:
 
 ```sh
 flatpak-builder --user --install --force-clean build-flatpak <manifest>
-flatpak run com.james2doyle.MdSplit
+flatpak run io.github.james2doyle.MdSplit
 ```
 
 Then verify:

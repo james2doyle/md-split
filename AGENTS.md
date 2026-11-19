@@ -2,7 +2,7 @@
 
 Native GNOME Markdown editor: GTK 4 + libadwaita, Python 3 (PyGObject),
 Blueprint UI (`.blp` -> GtkBuilder XML at build time), Meson, gettext and
-Flatpak packaging. App ID: `com.james2doyle.MdSplit`.
+Flatpak packaging. App ID: `io.github.james2doyle.MdSplit`.
 
 **The app is deliberately native.** It must not use WebKit, a web view or an
 embedded browser. The preview is a tree of ordinary GTK widgets. Do not
@@ -139,10 +139,10 @@ label.set_markup(self._render_inline(token))
 label.connect("activate-link", self._on_activate_link)
 ```
 
-GSettings access (keys live in `data/com.james2doyle.MdSplit.gschema.xml`):
+GSettings access (keys live in `data/io.github.james2doyle.MdSplit.gschema.xml`):
 
 ```python
-settings = Gio.Settings(schema_id='com.james2doyle.MdSplit')
+settings = Gio.Settings(schema_id='io.github.james2doyle.MdSplit')
 settings.set_string('view-mode', 'source')
 ```
 
@@ -181,7 +181,7 @@ settings.set_string('view-mode', 'source')
 [Scripts] scripts/test.py (sanitized test runner), dev.py, scripts/init.py
 [CI] .github/workflows/ci.yml, .github/workflows/release.yml
 [Docs] README.md, AGENTS.md, CONTRIBUTING.md, docs/*.md
-[Packaging] meson.build, src/meson.build, com.james2doyle.MdSplit.json,
+[Packaging] meson.build, src/meson.build, io.github.james2doyle.MdSplit.json,
   scripts/compile-bytecode.py (install-time unchecked-hash .pyc),
   packaging/appimage/AppImageBuilder.yml, scripts/build-appimage.sh
 ```

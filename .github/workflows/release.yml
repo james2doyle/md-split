@@ -90,7 +90,7 @@ jobs:
           archive = Path(f"dist/md-split-{version}.tar.gz")
           digest = hashlib.sha256(archive.read_bytes()).hexdigest()
           manifest = json.loads(
-              Path("com.james2doyle.MdSplit.json").read_text()
+              Path("io.github.james2doyle.MdSplit.json").read_text()
           )
           module = manifest["modules"][0]
           module["sources"] = [
@@ -101,7 +101,7 @@ jobs:
               }
           ]
           module["config-opts"] = ["--libdir=lib", "--buildtype=release"]
-          Path("dist/com.james2doyle.MdSplit.release.json").write_text(
+          Path("dist/io.github.james2doyle.MdSplit.release.json").write_text(
               json.dumps(manifest, indent=4) + "\n"
           )
           PY
@@ -114,7 +114,7 @@ jobs:
           # commit being released.
           GITHUB_SHA: ${{ github.event.workflow_run.head_sha }}
         with:
-          manifest-path: dist/com.james2doyle.MdSplit.release.json
+          manifest-path: dist/io.github.james2doyle.MdSplit.release.json
           bundle: md_split.flatpak
           branch: stable
           mirror-screenshots-url: https://dl.flathub.org/media
@@ -135,8 +135,8 @@ jobs:
           trap 'rm -rf "$tmp"' EXIT
           export FLATPAK_USER_DIR="$tmp"
           flatpak install --user --noninteractive "$bundle"
-          flatpak info --user com.james2doyle.MdSplit
-          timeout 60 flatpak run com.james2doyle.MdSplit --help
+          flatpak info --user io.github.james2doyle.MdSplit
+          timeout 60 flatpak run io.github.james2doyle.MdSplit --help
 
       - name: Collect release artifacts
         env:
@@ -162,7 +162,7 @@ jobs:
           path: |
             dist/md-split-*.tar.gz
             dist/md_split-*.flatpak
-            dist/com.james2doyle.MdSplit.release.json
+            dist/io.github.james2doyle.MdSplit.release.json
             dist/SHA256SUMS
           if-no-files-found: error
 
@@ -200,11 +200,13 @@ jobs:
           TAG: ${{ github.event.workflow_run.head_branch }}
         run: |
           set -euo pipefail
+          VERSION=""
           VERSION="${TAG#v}"
           apt-get install -y --no-install-recommends \
             libegl1 libgl1 libwayland-client0 libx11-6 xauth xvfb
           appimage="dist/md_split-$VERSION-x86_64.AppImage"
           test -x "$appimage"
+          runtime_info=""
           runtime_info=$("$appimage" --appimage-version 2>&1)
           echo "$runtime_info"
           case "$runtime_info" in
@@ -216,13 +218,15 @@ jobs:
           esac
           "$appimage" --appimage-extract >/dev/null
           test -f squashfs-root/AppRun
-          test -f squashfs-root/usr/share/applications/com.james2doyle.MdSplit.desktop
-          test -f squashfs-root/usr/share/icons/hicolor/scalable/apps/com.james2doyle.MdSplit.svg
+          test -f squashfs-root/usr/share/applications/io.github.james2doyle.MdSplit.desktop
+          test -f squashfs-root/usr/share/icons/hicolor/scalable/apps/io.github.james2doyle.MdSplit.svg
           ./squashfs-root/AppRun --help >/tmp/appimage-help.txt 2>&1
           grep -q "MD Split" /tmp/appimage-help.txt
 
-          export HOME=$(mktemp -d)
-          export XDG_RUNTIME_DIR=$(mktemp -d)
+          HOME="$(mktemp -d)"
+          export HOME
+          XDG_RUNTIME_DIR="$(mktemp -d)"
+          export XDG_RUNTIME_DIR
           chmod 0700 "$XDG_RUNTIME_DIR"
           set +e
           DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent \

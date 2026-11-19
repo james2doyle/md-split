@@ -65,7 +65,7 @@ is available, so `python3 scripts/test.py` still passes on a headless machine
 ## Packaging smoke tests
 
 The Flatpak release job builds the bundle, installs it into a temporary
-`FLATPAK_USER_DIR`, and runs `flatpak run com.james2doyle.MdSplit --help`.
+`FLATPAK_USER_DIR`, and runs `flatpak run io.github.james2doyle.MdSplit --help`.
 
 The AppImage release job builds in an Ubuntu 26.04 container, extracts the
 artifact with `--appimage-extract`, checks `squashfs-root/AppRun --help`, and

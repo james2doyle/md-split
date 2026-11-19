@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-ICON_RESOURCE_PATH = "/com/james2doyle/MdSplit/icons"
+ICON_RESOURCE_PATH = "/io/github/james2doyle/MdSplit/icons"
 MINIMUM_ADW = (1, 9)
 NEW_INSTANCE_FLAG = "--new-instance"
 
@@ -54,7 +54,7 @@ class MdSplitApplication(Adw.Application):
         super().__init__(
             application_id=APP_ID,
             flags=application_flags(new_instance=new_instance),
-            resource_base_path="/com/james2doyle/MdSplit",
+            resource_base_path="/io/github/james2doyle/MdSplit",
         )
         self.version = version
         self.new_instance = bool(new_instance)

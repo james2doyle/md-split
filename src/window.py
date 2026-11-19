@@ -83,7 +83,7 @@ def _ensure_gtksource_types() -> None:
     _gtksource_types_ready = True
 
 
-@Gtk.Template(resource_path="/com/james2doyle/MdSplit/window.ui")
+@Gtk.Template(resource_path="/io/github/james2doyle/MdSplit/window.ui")
 class MdSplitWindow(Adw.ApplicationWindow):
     __gtype_name__ = "MdSplitWindow"
 
@@ -830,7 +830,7 @@ class MdSplitWindow(Adw.ApplicationWindow):
             return
         try:
             data = Gio.resources_lookup_data(
-                "/com/james2doyle/MdSplit/demo.md",
+                "/io/github/james2doyle/MdSplit/demo.md",
                 Gio.ResourceLookupFlags.NONE,
             )
             text = data.get_data().decode("utf-8")

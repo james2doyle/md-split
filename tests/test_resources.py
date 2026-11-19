@@ -22,31 +22,31 @@ def contents(path: str) -> bytes:
     return resource.lookup_data(path, Gio.ResourceLookupFlags.NONE).get_data()
 
 
-demo = contents("/com/james2doyle/MdSplit/demo.md").decode("utf-8")
+demo = contents("/io/github/james2doyle/MdSplit/demo.md").decode("utf-8")
 assert demo.startswith("# MD Split"), demo[:40]
 assert len(demo) > 200
 
 preferences = contents(
-    "/com/james2doyle/MdSplit/preferences-dialog.ui"
+    "/io/github/james2doyle/MdSplit/preferences-dialog.ui"
 ).decode("utf-8")
 assert "switch_vim_mode" in preferences
 assert "close_button" not in preferences
 
-window = contents("/com/james2doyle/MdSplit/window.ui").decode("utf-8")
+window = contents("/io/github/james2doyle/MdSplit/window.ui").decode("utf-8")
 assert "view_menu" in window
 assert "toast_overlay" in window
 
-assert contents("/com/james2doyle/MdSplit/style.css")
+assert contents("/io/github/james2doyle/MdSplit/style.css")
 
 icon = contents(
-    "/com/james2doyle/MdSplit/icons/scalable/apps/com.james2doyle.MdSplit.svg"
+    "/io/github/james2doyle/MdSplit/icons/scalable/apps/io.github.james2doyle.MdSplit.svg"
 ).decode("utf-8")
 assert 'id="background"' in icon
 assert 'width="128"' in icon
 
 symbolic = contents(
-    "/com/james2doyle/MdSplit/icons/symbolic/apps/"
-    "com.james2doyle.MdSplit-symbolic.svg"
+    "/io/github/james2doyle/MdSplit/icons/symbolic/apps/"
+    "io.github.james2doyle.MdSplit-symbolic.svg"
 ).decode("utf-8")
 assert "<svg" in symbolic
 assert 'fill="#2e3436"' in symbolic

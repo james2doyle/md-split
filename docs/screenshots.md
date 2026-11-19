@@ -40,7 +40,7 @@ The AppStream screenshot is loaded from the release tag, not from `main`:
 ```
 
 When preparing a new release, update the tag in
-`data/com.james2doyle.MdSplit.metainfo.xml.in`. The tag must be pushed and
+`data/io.github.james2doyle.MdSplit.metainfo.xml.in`. The tag must be pushed and
 public before AppStream/Flathub can fetch the image. Do not point the URL at a
 branch.
 
@@ -58,7 +58,7 @@ Keep the alt text descriptive; it is also useful for accessibility.
 
 ```sh
 file docs/screenshot.png
-appstreamcli validate --no-net build/data/com.james2doyle.MdSplit.metainfo.xml
+appstreamcli validate --no-net build/data/io.github.james2doyle.MdSplit.metainfo.xml
 ```
 
 The AppStream validator runs as part of the test suite. It checks the metadata

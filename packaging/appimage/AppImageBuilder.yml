@@ -13,9 +13,9 @@ AppDir:
   path: ./AppDir
 
   app_info:
-    id: com.james2doyle.MdSplit
+    id: io.github.james2doyle.MdSplit
     name: md_split
-    icon: com.james2doyle.MdSplit
+    icon: io.github.james2doyle.MdSplit
     version: '{{APPIMAGE_VERSION}}'
     exec: usr/bin/python3
     exec_args: $APPDIR/usr/bin/md_split $@

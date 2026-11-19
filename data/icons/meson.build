@@ -1,4 +1,4 @@
-application_id = 'com.james2doyle.MdSplit'
+application_id = 'io.github.james2doyle.MdSplit'
 
 scalable_dir = 'hicolor' / 'scalable' / 'apps'
 install_data(

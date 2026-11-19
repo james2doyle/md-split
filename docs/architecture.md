@@ -36,7 +36,7 @@ contributors and coding agents.
 `src/md_split.in` registers the installed GResource, then imports
 `md_split.main`. `MdSplitApplication.do_startup()` registers the app icon
 resource path, so the window and About dialog resolve
-`com.james2doyle.MdSplit` without a system install. App CSS is not loaded by
+`io.github.james2doyle.MdSplit` without a system install. App CSS is not loaded by
 hand: `Adw.Application` automatically loads `style.css` from the resource base
 path.
 
@@ -243,7 +243,7 @@ get the expected `.html`/`.pdf` extension appended, and existing files
   `MdSplitWindow._apply_text_edit`.
 - Add an application action in `src/main.py`, wire it from a `.blp` menu or
   button, and add it to `src/shortcuts-dialog.blp`.
-- Add settings to `data/com.james2doyle.MdSplit.gschema.xml` and bind them in
+- Add settings to `data/io.github.james2doyle.MdSplit.gschema.xml` and bind them in
   the preferences dialog.
 
 Keep parser behavior GFM-compatible and do not add runtime pip dependencies;

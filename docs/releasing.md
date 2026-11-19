@@ -2,7 +2,7 @@
 
 Releases are built from an annotated tag, not from an arbitrary working tree.
 The version comes from `meson.build`; keep `pyproject.toml` and
-`data/com.james2doyle.MdSplit.metainfo.xml.in` in sync.
+`data/io.github.james2doyle.MdSplit.metainfo.xml.in` in sync.
 
 ## Prepare
 
@@ -49,7 +49,7 @@ Flatpak build for a self-contained artifact.
 
 ## Flatpak release bundle
 
-The development manifest (`com.james2doyle.MdSplit.json`) builds the working
+The development manifest (`io.github.james2doyle.MdSplit.json`) builds the working
 tree and does not set a release build type. For a release, create an archive
 from the tag and a derived manifest with a SHA-256-pinned `archive` source and
 `--buildtype=release`. The manifest step uses `jq`.
@@ -72,14 +72,14 @@ jq --arg sha "$sha" --arg archive "md-split-$VERSION.tar.gz" '
     "sha256": $sha
   }]
   | .modules[0]["config-opts"] = ["--libdir=lib", "--buildtype=release"]
-' com.james2doyle.MdSplit.json > "dist/com.james2doyle.MdSplit.release.json"
+' io.github.james2doyle.MdSplit.json > "dist/io.github.james2doyle.MdSplit.release.json"
 
 flatpak-builder --force-clean --repo=dist/repo --state-dir=.flatpak-builder \
   --default-branch=stable --subject="MD Split $VERSION" \
-  build-flatpak "dist/com.james2doyle.MdSplit.release.json"
+  build-flatpak "dist/io.github.james2doyle.MdSplit.release.json"
 
 flatpak build-bundle dist/repo "dist/md_split-$VERSION.flatpak" \
-  com.james2doyle.MdSplit stable
+  io.github.james2doyle.MdSplit stable
 ```
 
 On a machine without the GNOME 51 runtime and SDK, add
@@ -124,8 +124,8 @@ APPIMAGE="dist/md_split-$VERSION-x86_64.AppImage"
 export VERSION=1.0.0
 
 flatpak install --user --reinstall "dist/md_split-$VERSION.flatpak"
-flatpak info --user com.james2doyle.MdSplit
-flatpak run com.james2doyle.MdSplit
+flatpak info --user io.github.james2doyle.MdSplit
+flatpak run io.github.james2doyle.MdSplit
 ```
 
 `flatpak build-bundle` produces an unsigned local bundle. Flathub builds the
@@ -138,7 +138,7 @@ normal Flatpak installation:
 tmp=$(mktemp -d)
 FLATPAK_USER_DIR="$tmp" flatpak install --user --noninteractive \
   "dist/md_split-$VERSION.flatpak"
-FLATPAK_USER_DIR="$tmp" flatpak run com.james2doyle.MdSplit --help
+FLATPAK_USER_DIR="$tmp" flatpak run io.github.james2doyle.MdSplit --help
 rm -rf "$tmp"
 ```
 
@@ -160,7 +160,7 @@ The workflow:
   pinned release manifest shown above;
 - builds the Flatpak with `--buildtype=release`;
 - installs the built bundle into a temporary `FLATPAK_USER_DIR` and smoke-runs
-  `flatpak run com.james2doyle.MdSplit --help`;
+  `flatpak run io.github.james2doyle.MdSplit --help`;
 - builds the AppImage in an Ubuntu 26.04 container with the pinned
   `appimagetool` and type2 runtime, extracts it, checks
   `--appimage-version`, and smoke-runs `AppRun --help` plus an Xvfb launch;
@@ -177,6 +177,6 @@ command in the workflow if you prefer a manual approval step.
 `dist/` is gitignored. A successful release build produces:
 
 - `dist/md-split-$VERSION.tar.gz` — tagged source archive
-- `dist/com.james2doyle.MdSplit.release.json` — pinned release manifest
+- `dist/io.github.james2doyle.MdSplit.release.json` — pinned release manifest
 - `dist/md_split-$VERSION.flatpak` — installable bundle
 - `dist/repo/` — local OSTree repository

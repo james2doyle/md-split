@@ -129,4 +129,4 @@ Footnote reference[^native].
 
 [^native]: The parser is markdown-it-py with its composite GFM plugin.
 
-![MD Split icon](../data/icons/hicolor/scalable/apps/com.james2doyle.MdSplit.svg)
+![MD Split icon](../data/icons/hicolor/scalable/apps/io.github.james2doyle.MdSplit.svg)

@@ -11,7 +11,7 @@ gnome = import('gnome')
 
 install_data(
   meson.project_license_files(),
-  install_dir: get_option('datadir') / 'licenses' / 'com.james2doyle.MdSplit',
+  install_dir: get_option('datadir') / 'licenses' / 'io.github.james2doyle.MdSplit',
 )
 
 subdir('data')

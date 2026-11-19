@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>com.james2doyle.MdSplit</id>
+  <id>io.github.james2doyle.MdSplit</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT</project_license>
 
   <name>MD Split</name>
-  <summary>Native Markdown editor with live GitHub-Flavored Markdown preview</summary>
+  <summary>Edit Markdown with a live preview</summary>
   <description>
     <p>
       MD Split is a native GNOME Markdown editor. It shows your document and a
@@ -29,7 +29,7 @@
     </screenshot>
   </screenshots>
 
-  <developer id="com.james2doyle">
+  <developer id="io.github.james2doyle">
     <name>James Doyle</name>
   </developer>
 
@@ -38,7 +38,7 @@
   <url type="vcs-browser">https://github.com/james2doyle/md-split</url>
 
   <translation type="gettext">md_split</translation>
-  <launchable type="desktop-id">com.james2doyle.MdSplit.desktop</launchable>
+  <launchable type="desktop-id">io.github.james2doyle.MdSplit.desktop</launchable>
 
   <categories>
     <category>Utility</category>
@@ -55,6 +55,12 @@
   <provides>
     <binary>md_split</binary>
   </provides>
+
+  <requires>
+    <control>keyboard</control>
+    <control>pointing</control>
+    <display_length compare="ge">768</display_length>
+  </requires>
 
   <content_rating type="oars-1.1" />
 

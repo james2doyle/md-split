@@ -1,8 +1,8 @@
 # Settings
 
-Settings use the GSettings schema `com.james2doyle.MdSplit` with path
-`/com/james2doyle/MdSplit/`. The schema is defined in
-`data/com.james2doyle.MdSplit.gschema.xml` and installed under
+Settings use the GSettings schema `io.github.james2doyle.MdSplit` with path
+`/io/github/james2doyle/MdSplit/`. The schema is defined in
+`data/io.github.james2doyle.MdSplit.gschema.xml` and installed under
 `share/glib-2.0/schemas`.
 
 ## Keys
@@ -82,22 +82,22 @@ write the shared session or recovery prompts.
 For an installed app:
 
 ```sh
-gsettings get com.james2doyle.MdSplit view-mode
-gsettings set com.james2doyle.MdSplit remote-images false
-gsettings reset com.james2doyle.MdSplit paned-position
+gsettings get io.github.james2doyle.MdSplit view-mode
+gsettings set io.github.james2doyle.MdSplit remote-images false
+gsettings reset io.github.james2doyle.MdSplit paned-position
 ```
 
 For an uninstalled prefix, add the build schema directory:
 
 ```sh
 GSETTINGS_SCHEMA_DIR="$PWD/build/data" \
-  gsettings get com.james2doyle.MdSplit view-mode
+  gsettings get io.github.james2doyle.MdSplit view-mode
 ```
 
 Reset everything:
 
 ```sh
-gsettings reset-recursively com.james2doyle.MdSplit
+gsettings reset-recursively io.github.james2doyle.MdSplit
 ```
 
 ## Implementation notes

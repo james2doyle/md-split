@@ -322,8 +322,8 @@ runs them under Xvfb.
 ## Flatpak
 
 ```sh
-flatpak-builder --user --install --force-clean build-flatpak com.james2doyle.MdSplit.json
-flatpak run com.james2doyle.MdSplit
+flatpak-builder --user --install --force-clean build-flatpak io.github.james2doyle.MdSplit.json
+flatpak run io.github.james2doyle.MdSplit
 ```
 
 The development manifest builds from the working tree and allows network
