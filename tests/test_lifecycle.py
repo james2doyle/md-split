@@ -348,6 +348,24 @@ with tempfile.TemporaryDirectory() as tmp:
         pass
 assert not copy_action.get_enabled()
 
+# Secondary instances leave the primary session and recovery prompts alone.
+primary_session = list(app.settings.get_strv("session-files"))
+original_prompted = app._recovery_prompted
+app.new_instance = True
+try:
+    secondary_window = MdSplitWindow(application=app)
+    app.note_window_file(secondary_window, "/tmp/opencode/secondary.md")
+    assert app.settings.get_strv("session-files") == primary_session
+
+    app._recovery_prompted = False
+    app._prompt_recovery_drafts()
+    assert not app._recovery_prompted
+
+    secondary_window.destroy()
+finally:
+    app.new_instance = False
+    app._recovery_prompted = original_prompted
+
 # Session restore reopens file windows and focuses the previous active file.
 for existing in app.get_windows():
     existing._force_close = True

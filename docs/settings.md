@@ -68,6 +68,10 @@ initial view mode for the windows created by that invocation. `--light` and
 application and are not written to GSettings. Conflicting flags exit with
 status 1 before a window is created.
 
+`--new-instance` starts an independent process rather than forwarding files to
+the running instance. The new process starts with a fresh session and does not
+write the shared session or recovery prompts.
+
 ## Inspecting and resetting
 
 For an installed app:

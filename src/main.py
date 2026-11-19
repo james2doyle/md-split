@@ -29,18 +29,35 @@ log = logging.getLogger(__name__)
 
 ICON_RESOURCE_PATH = "/com/james2doyle/MdSplit/icons"
 MINIMUM_ADW = (1, 9)
+NEW_INSTANCE_FLAG = "--new-instance"
+
+
+def split_new_instance(argv: list[str]) -> tuple[bool, list[str]]:
+    """Remove --new-instance from argv and report whether present."""
+    if NEW_INSTANCE_FLAG not in argv:
+        return False, list(argv)
+    return True, [arg for arg in argv if arg != NEW_INSTANCE_FLAG]
+
+
+def application_flags(*, new_instance: bool = False) -> Gio.ApplicationFlags:
+    """Return the GApplication flags for a primary or secondary process."""
+    flags = Gio.ApplicationFlags.HANDLES_OPEN
+    if new_instance:
+        flags |= Gio.ApplicationFlags.NON_UNIQUE
+    return flags
 
 
 class MdSplitApplication(Adw.Application):
     """The main application singleton class."""
 
-    def __init__(self, version):
+    def __init__(self, version, *, new_instance=False):
         super().__init__(
             application_id=APP_ID,
-            flags=Gio.ApplicationFlags.HANDLES_OPEN,
+            flags=application_flags(new_instance=new_instance),
             resource_base_path="/com/james2doyle/MdSplit",
         )
         self.version = version
+        self.new_instance = bool(new_instance)
         GLib.set_application_name("MD Split")
         self.settings = Gio.Settings(schema_id=APP_ID)
         if (Adw.MAJOR_VERSION, Adw.MINOR_VERSION) < MINIMUM_ADW:
@@ -135,6 +152,7 @@ class MdSplitApplication(Adw.Application):
             ("preview-only", _("Start with the preview pane only")),
             ("light", _("Force light mode for this run")),
             ("dark", _("Force dark mode for this run")),
+            ("new-instance", _("Start a separate application instance")),
         ):
             self.add_main_option(
                 name,
@@ -215,7 +233,9 @@ class MdSplitApplication(Adw.Application):
         restored = False
         missing: list[str] = []
         target = None
-        if self.settings.get_boolean("restore-session"):
+        if not self.new_instance and self.settings.get_boolean(
+            "restore-session"
+        ):
             stored = self.settings.get_strv("session-files")
             existing, missing = session.prune_missing(stored)
             if existing != stored:
@@ -243,10 +263,11 @@ class MdSplitApplication(Adw.Application):
             target.present()
         if missing:
             self._warn_missing_files(missing)
-        self._prompt_recovery_drafts()
+        if not self.new_instance:
+            self._prompt_recovery_drafts()
 
     def _prompt_recovery_drafts(self) -> None:
-        if self._recovery_prompted:
+        if self.new_instance or self._recovery_prompted:
             return
         self._recovery_prompted = True
         drafts = recovery.list_drafts()
@@ -314,6 +335,8 @@ class MdSplitApplication(Adw.Application):
     def note_window_file(
         self, window: MdSplitWindow, path: str | None
     ) -> None:
+        if self.new_instance:
+            return
         if path:
             self._session_files[window] = path
             self._last_active_path = path
@@ -340,6 +363,8 @@ class MdSplitApplication(Adw.Application):
                 action.set_enabled(False)
 
     def _write_session(self) -> None:
+        if self.new_instance:
+            return
         windows = set(self.get_windows())
         paths = session.dedupe_paths(
             [
@@ -581,5 +606,6 @@ def main(version):
     level = logging.DEBUG if debug else logging.INFO
     logging.basicConfig(level=level, format="%(name)s: %(message)s")
     log.info("MD Split %s", version)
-    app = MdSplitApplication(version)
-    return app.run(sys.argv)
+    new_instance, argv = split_new_instance(sys.argv)
+    app = MdSplitApplication(version, new_instance=new_instance)
+    return app.run(argv)

@@ -205,6 +205,7 @@ md_split --help
 | `--no-preview` | `--source-only` | Start with the source editor only |
 | `--light` | | Force light mode for this run |
 | `--dark` | | Force dark mode for this run |
+| `--new-instance` | | Start a separate process instead of reusing the running instance |
 | `-h`, `--help` | | Show the available options |
 
 Examples:
@@ -218,6 +219,13 @@ md_split --no-preview --light notes.md
 `FILE` arguments open as documents; multiple files open in separate windows.
 View and appearance flags apply to every window opened by that invocation; they
 do not overwrite the saved settings.
+
+By default MD Split keeps one process per session, and a later launch hands its
+files to the running process. Pass `--new-instance` to start an independent
+process instead. Secondary processes start with a fresh session: they do not
+restore or update the shared session, and they do not prompt for recovery
+drafts. Avoid editing the same file in two processes at once; file monitoring
+and autosave will report external changes.
 
 The aliases are exact synonyms. Any source-only flag combined with any
 preview-only flag is rejected, as is `--light` with `--dark`; conflicts exit

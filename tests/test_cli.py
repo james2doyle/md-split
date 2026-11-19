@@ -29,11 +29,37 @@ Adw.init()
 resource = Gio.Resource.load(RESOURCE)
 resource._register()
 
-from src.main import MdSplitApplication
+from src.main import (
+    MdSplitApplication,
+    application_flags,
+    split_new_instance,
+)
 from src.window import MdSplitWindow
 
 app = MdSplitApplication("test")
 app.register(None)
+
+# --new-instance is removed before GApplication parses the command line.
+assert split_new_instance(["md_split", "notes.md"]) == (
+    False,
+    ["md_split", "notes.md"],
+)
+assert split_new_instance(["md_split", "--new-instance", "notes.md"]) == (
+    True,
+    ["md_split", "notes.md"],
+)
+assert split_new_instance(["md_split", "--new-instance"]) == (
+    True,
+    ["md_split"],
+)
+
+# Primary launches stay unique; secondary processes skip D-Bus negotiation.
+primary_flags = application_flags()
+secondary_flags = application_flags(new_instance=True)
+assert primary_flags & Gio.ApplicationFlags.HANDLES_OPEN
+assert not (primary_flags & Gio.ApplicationFlags.NON_UNIQUE)
+assert secondary_flags & Gio.ApplicationFlags.HANDLES_OPEN
+assert secondary_flags & Gio.ApplicationFlags.NON_UNIQUE
 
 
 def cli_options(**flags):
