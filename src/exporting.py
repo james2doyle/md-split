@@ -219,6 +219,73 @@ def _text_rule(tokens, idx, options, _env):
     return content
 
 
+_HTML_COMMENT_OPEN = "<!--"
+_HTML_COMMENT_CLOSE = "-->"
+
+
+def _comment_ranges(children: list[Token]) -> list[tuple[int, int]]:
+    """Return character ranges covered by complete inline HTML comments."""
+    stream = "".join(
+        child.content for child in children if child.type == "text"
+    )
+    ranges: list[tuple[int, int]] = []
+    index = 0
+    while True:
+        start = stream.find(_HTML_COMMENT_OPEN, index)
+        if start < 0:
+            break
+        close = stream.find(_HTML_COMMENT_CLOSE, start + 4)
+        if close < 0:
+            # An unclosed opener stays literal, like the preview shows it.
+            break
+        end = close + len(_HTML_COMMENT_CLOSE)
+        ranges.append((start, end))
+        index = end
+    return ranges
+
+
+def _strip_inline_comments(children: list[Token]) -> list[Token]:
+    """Copy inline children with complete HTML comments removed.
+
+    HTML is disabled in the parser, so comments arrive as text tokens. Markup
+    inside a comment is dropped with it; code spans outside comments are left
+    untouched.
+    """
+    ranges = _comment_ranges(children)
+    if not ranges:
+        return children
+    kept: list[Token] = []
+    offset = 0
+    for child in children:
+        if child.type == "text":
+            start = offset
+            end = start + len(child.content)
+            offset = end
+            pieces: list[str] = []
+            cursor = start
+            for comment_start, comment_end in ranges:
+                if comment_end <= cursor or comment_start >= end:
+                    continue
+                if comment_start > cursor:
+                    pieces.append(
+                        child.content[cursor - start : comment_start - start]
+                    )
+                cursor = max(cursor, comment_end)
+            if cursor < end:
+                pieces.append(child.content[cursor - start :])
+            text = "".join(pieces)
+            if text:
+                copy = child.copy()
+                copy.content = text
+                kept.append(copy)
+        elif not any(
+            comment_start < offset < comment_end
+            for comment_start, comment_end in ranges
+        ):
+            kept.append(child)
+    return kept
+
+
 def _sole_image_inline(tokens: list[Token], index: int) -> Token | None:
     """Return the image token when a paragraph contains only that image."""
     if index < 0 or index + 1 >= len(tokens):
@@ -768,17 +835,19 @@ class _PdfWriter:
                     heading_size = _BODY_FONT_SIZE * _HEADING_SCALES.get(
                         level, 1.0
                     )
-                    self._ensure_space(heading_size * 1.6 + 24)
-                    self._draw_text(
-                        self._inline(inline),
-                        indent=indent,
-                        size=heading_size,
-                        bold=True,
-                        spacing_before=14 if level <= 2 else 8,
-                        spacing_after=2 if level <= 2 else 5,
-                    )
-                    if level <= 2:
-                        self._draw_heading_rule(indent)
+                    markup = self._inline(inline)
+                    if markup.strip():
+                        self._ensure_space(heading_size * 1.6 + 24)
+                        self._draw_text(
+                            markup,
+                            indent=indent,
+                            size=heading_size,
+                            bold=True,
+                            spacing_before=14 if level <= 2 else 8,
+                            spacing_after=2 if level <= 2 else 5,
+                        )
+                        if level <= 2:
+                            self._draw_heading_rule(indent)
                 index += 3
             elif kind == "paragraph_open":
                 inline = tokens[index + 1] if index + 1 < end else None
@@ -788,10 +857,12 @@ class _PdfWriter:
                         self._draw_image(image, indent)
                     else:
                         prefix = first_prefix or ""
-                        markup = GLib.markup_escape_text(prefix) + self._inline(
-                            inline
-                        )
-                        self._draw_text(markup, indent=indent)
+                        content = self._inline(inline)
+                        if content.strip():
+                            markup = (
+                                GLib.markup_escape_text(prefix) + content
+                            )
+                            self._draw_text(markup, indent=indent)
                     first_prefix = None
                 index += 3
             elif kind in ("bullet_list_open", "ordered_list_open"):
@@ -1470,6 +1541,12 @@ class _PdfWriter:
         self.cr.restore()
 
     def _inline(self, token: Token, *, plain_code: bool = False) -> str:
+        children = _strip_inline_comments(token.children or [])
+        if not children:
+            return ""
+        if children is not token.children:
+            token = token.copy()
+            token.children = children
         return _ANCHOR_TAG.sub(
             "",
             self.renderer.inline_token_markup(

@@ -173,6 +173,51 @@ with tempfile.TemporaryDirectory() as tmp:
     assert data.startswith(b"%PDF"), data[:8]
     assert len(data) > 500
 
+    # HTML comments are literal text with HTML disabled; PDF export drops them
+    # without touching code spans, code blocks or the surrounding text.
+    comment_pdf = root / "comments.pdf"
+    drawn: list[str] = []
+    original_text = exporting_module._PdfWriter._draw_text
+    original_code = exporting_module._PdfWriter._draw_code
+
+    def record_text(self, markup, **kwargs):
+        drawn.append(markup)
+        return original_text(self, markup, **kwargs)
+
+    def record_code(self, text, indent):
+        drawn.append(text)
+        return original_code(self, text, indent)
+
+    exporting_module._PdfWriter._draw_text = record_text
+    exporting_module._PdfWriter._draw_code = record_code
+    try:
+        write_pdf(
+            "# Visible heading <!-- hidden heading text -->\n\n"
+            "before <!-- secret comment --> after\n\n"
+            "<!-- comment only -->\n\n"
+            "before\n<!-- multi\nline secret -->\nafter\n\n"
+            "`<!-- kept code -->`\n\n"
+            "```\n<!-- kept fence -->\n```\n\n"
+            "    <!-- kept indent -->\n",
+            comment_pdf,
+            title="Comments",
+            base_dir=root,
+        )
+    finally:
+        exporting_module._PdfWriter._draw_text = original_text
+        exporting_module._PdfWriter._draw_code = original_code
+    drawn_text = "\n".join(drawn)
+    assert "hidden heading text" not in drawn_text, drawn_text
+    assert "secret comment" not in drawn_text, drawn_text
+    assert "comment only" not in drawn_text, drawn_text
+    assert "line secret" not in drawn_text, drawn_text
+    assert "Visible heading" in drawn_text, drawn_text
+    assert "before" in drawn_text and "after" in drawn_text, drawn_text
+    assert "&lt;!-- kept code --&gt;" in drawn_text, drawn_text
+    assert "<!-- kept fence -->" in drawn_text, drawn_text
+    assert "<!-- kept indent -->" in drawn_text, drawn_text
+    assert comment_pdf.read_bytes().startswith(b"%PDF")
+
     # Tables become a real grid: full content width, header fill and
     # borders, per-column alignment, and a repeated header on later pages.
     probe_surface = exporting_module.cairo.PDFSurface(
