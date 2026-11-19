@@ -93,6 +93,7 @@ assert dialog.switch_autosave.get_active()
 assert dialog.spin_autosave_interval.get_value() == 30
 assert not dialog.switch_backups.get_active()
 assert dialog.spin_backup_retention.get_value() == 5
+assert dialog.spin_export_font_size.get_value() == 11
 
 dialog.switch_restore_session.set_active(False)
 assert app.settings.get_boolean("restore-session") is False
@@ -110,6 +111,10 @@ assert app.settings.get_int("autosave-interval") == 45
 app.settings.set_int("autosave-interval", 20)
 assert dialog.spin_autosave_interval.get_value() == 20
 app.settings.set_int("autosave-interval", 30)
+dialog.spin_export_font_size.set_value(16)
+assert app.settings.get_int("export-font-size") == 16
+app.settings.set_int("export-font-size", 11)
+assert dialog.spin_export_font_size.get_value() == 11
 
 from src import spellcheck
 

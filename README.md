@@ -263,7 +263,8 @@ images are embedded as bounded data URIs, remote images keep their URLs, and
 relative links are resolved against the source document. **Export PDF…** uses
 Cairo and Pango to write a styled A4 PDF with headings, lists, quotes, code,
 tables, local images and footnotes. Export uses the current editor contents,
-including unsaved changes.
+including unsaved changes. **Preferences → Export → Base font size** controls
+the PDF and print text size; headings, code, tables and captions scale with it.
 
 ## Architecture
 
@@ -274,6 +275,7 @@ src/document.py         headless document model (text, file, dirty state)
 src/fileio.py           headless async UTF-8 load/save helpers
 src/editing.py          selection wrapping, link completion, formatting edits
 src/exporting.py        standalone HTML and styled PDF export
+src/export.css          HTML export stylesheet, inlined at export
 src/markdown_parser.py  shared GFM parser configuration
 src/renderer.py         Markdown tokens -> native GTK widgets
 src/markdown_view.py    scrollable preview, empty state, theme rerendering

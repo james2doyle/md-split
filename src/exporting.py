@@ -15,7 +15,6 @@ import tempfile
 from dataclasses import dataclass
 from gettext import gettext as _
 from pathlib import Path
-from string import Template
 from typing import TYPE_CHECKING, Any
 from urllib.parse import unquote, urlparse
 
@@ -66,10 +65,12 @@ _SUCCESS_TINT_HEX = "#eaf7f1"
 _WARNING_TINT_HEX = "#fdf5e6"
 _ERROR_TINT_HEX = "#fdeced"
 _BODY_FONT_SIZE = 11.0
-_CODE_FONT_SIZE = 9.0
-_TABLE_FONT_SIZE = 9.5
-_CAPTION_FONT_SIZE = 9.0
-_FOOTER_FONT_SIZE = 8.0
+# Secondary sizes scale with the configurable body size instead of standing
+# alone, so a larger export stays proportional.
+_CODE_FONT_SCALE = 9.0 / 11.0
+_TABLE_FONT_SCALE = 9.5 / 11.0
+_CAPTION_FONT_SCALE = 9.0 / 11.0
+_FOOTER_FONT_SCALE = 8.0 / 11.0
 _HEADING_SCALES = {1: 2.0, 2: 1.55, 3: 1.27, 4: 1.09, 5: 1.0, 6: 1.0}
 
 _PAGE_WIDTH = 595.276
@@ -86,6 +87,39 @@ _CODE_PAD_Y = 7.0
 _CODE_RADIUS = 6.0
 _CODE_MARGIN_TOP = 6.0
 _CODE_MARGIN_BOTTOM = 8.0
+
+
+@dataclass(frozen=True)
+class _TypeScale:
+    """Export font sizes derived from one configurable body size."""
+
+    body: float = _BODY_FONT_SIZE
+
+    @property
+    def code(self) -> float:
+        return self.body * _CODE_FONT_SCALE
+
+    @property
+    def table(self) -> float:
+        return self.body * _TABLE_FONT_SCALE
+
+    @property
+    def caption(self) -> float:
+        return self.body * _CAPTION_FONT_SCALE
+
+    @property
+    def footer(self) -> float:
+        return self.body * _FOOTER_FONT_SCALE
+
+    def heading(self, level: int) -> float:
+        return self.body * _HEADING_SCALES.get(level, 1.0)
+
+
+def _css_number(value: float) -> str:
+    return f"{value:.3f}".rstrip("0").rstrip(".")
+
+
+_EXPORT_CSS = Path(__file__).with_name("export.css").read_text(encoding="utf-8")
 
 
 def _rgb(value: str) -> tuple[float, float, float]:
@@ -318,6 +352,7 @@ def render_html(
     title: str,
     base_dir: Path | None = None,
     base_file: Gio.File | None = None,
+    base_font_size: float = _BODY_FONT_SIZE,
 ) -> str:
     """Render a complete, standalone HTML document."""
     parser = create_parser()
@@ -389,7 +424,7 @@ def render_html(
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{escaped_title}</title>
 <style>
-{_EXPORT_CSS}
+{_export_css(base_font_size)}
 </style>
 </head>
 <body>
@@ -401,178 +436,39 @@ def render_html(
 """
 
 
-_EXPORT_CSS = Template(
-    """
-:root {
-  color-scheme: light;
-  --md-text: $text;
-  --md-muted: $muted;
-  --md-border: $border;
-  --md-surface: $surface;
-  --md-zebra: $zebra;
-  --md-accent: $accent;
-  --md-code-bg: $code_bg;
-  --md-quote-bar: $quote_bar;
-}
-* { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
-body {
-  margin: 0;
-  color: var(--md-text);
-  background: #ffffff;
-  font-family: Cantarell, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-size: 16px;
-  line-height: 1.6;
-  text-rendering: optimizeLegibility;
-}
-.md-document {
-  max-width: 46rem;
-  margin: 0 auto;
-  padding: 48px 32px 72px;
-}
-.md-document > :first-child { margin-top: 0; }
-h1, h2, h3, h4, h5, h6 {
-  line-height: 1.25;
-  margin: 1.6em 0 0.5em;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-h1, h2 {
-  border-bottom: 1px solid var(--md-border);
-  padding-bottom: 0.3em;
-}
-h1 { font-size: ${h1}em; letter-spacing: -0.02em; }
-h2 { font-size: ${h2}em; }
-h3 { font-size: ${h3}em; }
-h4 { font-size: ${h4}em; }
-h5 { font-size: ${h5}em; }
-h6 { font-size: ${h6}em; color: var(--md-muted); }
-p, ul, ol, blockquote, pre, table, figure { margin: 0.9em 0; }
-ul, ol { padding-left: 1.5em; }
-li + li { margin-top: 0.25em; }
-a {
-  color: var(--md-accent);
-  text-decoration: none;
-  text-underline-offset: 2px;
-}
-a:hover { text-decoration: underline; }
-code {
-  font-family: "JetBrains Mono", "Fira Code", "Source Code Pro", monospace;
-  background: var(--md-code-bg);
-  border-radius: 4px;
-  padding: 0.1em 0.3em;
-  font-size: 0.9em;
-}
-pre {
-  background: var(--md-surface);
-  border: 1px solid var(--md-border);
-  border-radius: 8px;
-  padding: 14px 16px;
-  overflow-x: auto;
-  line-height: 1.45;
-}
-pre code { background: transparent; padding: 0; }
-td code, th code { background: transparent; padding: 0; }
-blockquote {
-  border-left: 3px solid var(--md-quote-bar);
-  color: var(--md-muted);
-  margin-left: 0;
-  padding: 0.2em 0 0.2em 16px;
-}
-blockquote > :first-child { margin-top: 0; }
-blockquote > :last-child { margin-bottom: 0; }
-.markdown-alert {
-  border-left: 4px solid var(--md-accent);
-  background: $accent_tint;
-  border-radius: 8px;
-  padding: 12px 16px;
-  margin: 1em 0;
-}
-.markdown-alert > :first-child { margin-top: 0; }
-.markdown-alert > :last-child { margin-bottom: 0; }
-.markdown-alert-title { font-weight: 700; }
-.markdown-alert-tip {
-  border-left-color: $success;
-  background: $success_tint;
-}
-.markdown-alert-important {
-  border-left-color: var(--md-accent);
-  background: $accent_tint;
-}
-.markdown-alert-warning {
-  border-left-color: $warning;
-  background: $warning_tint;
-}
-.markdown-alert-caution {
-  border-left-color: $error;
-  background: $error_tint;
-}
-table {
-  width: 100%;
-  border: 1px solid var(--md-border);
-  border-collapse: separate;
-  border-spacing: 0;
-  border-radius: 8px;
-  overflow: hidden;
-}
-thead { background: var(--md-surface); }
-th, td {
-  border-bottom: 1px solid var(--md-border);
-  border-right: 1px solid var(--md-border);
-  padding: 8px 12px;
-  text-align: left;
-  vertical-align: top;
-}
-th { font-weight: 600; }
-th:last-child, td:last-child { border-right: none; }
-tbody tr:last-child td { border-bottom: none; }
-tbody tr:nth-child(even) { background: var(--md-zebra); }
-figure {
-  margin: 1.2em 0;
-  text-align: center;
-}
-figure img { border-radius: 8px; }
-figcaption {
-  margin-top: 6px;
-  color: var(--md-muted);
-  font-size: 0.9em;
-}
-img { max-width: 100%; height: auto; }
-hr {
-  border: none;
-  border-top: 1px solid var(--md-border);
-  margin: 1.5em 0;
-}
-@media print {
-  @page { margin: 18mm; }
-  body { background: #ffffff; font-size: 11pt; }
-  .md-document { max-width: none; padding: 0; }
-  a { color: inherit; text-decoration: underline; }
-  h1, h2, h3, h4, h5, h6 { break-after: avoid; }
-  p, li { orphans: 3; widows: 3; }
-  pre, blockquote, figure, img, tr { break-inside: avoid; }
-  pre { white-space: pre-wrap; overflow-wrap: anywhere; }
-  thead { display: table-header-group; }
-}
-"""
-).substitute(
-    text=_TEXT_HEX,
-    muted=_MUTED_HEX,
-    border=_BORDER_HEX,
-    surface=_SURFACE_HEX,
-    zebra=_ZEBRA_HEX,
-    accent=_ACCENT_HEX,
-    code_bg=_CODE_BG_HEX,
-    quote_bar=_QUOTE_BAR_HEX,
-    success=_SUCCESS_HEX,
-    warning=_WARNING_HEX,
-    error=_ERROR_HEX,
-    accent_tint=_ACCENT_TINT_HEX,
-    success_tint=_SUCCESS_TINT_HEX,
-    warning_tint=_WARNING_TINT_HEX,
-    error_tint=_ERROR_TINT_HEX,
-    **{f"h{level}": scale for level, scale in _HEADING_SCALES.items()},
-)
+def _export_css(base_font_size: float = _BODY_FONT_SIZE) -> str:
+    variables = [
+        ("text", _TEXT_HEX),
+        ("muted", _MUTED_HEX),
+        ("border", _BORDER_HEX),
+        ("surface", _SURFACE_HEX),
+        ("zebra", _ZEBRA_HEX),
+        ("accent", _ACCENT_HEX),
+        ("code-bg", _CODE_BG_HEX),
+        ("quote-bar", _QUOTE_BAR_HEX),
+        ("success", _SUCCESS_HEX),
+        ("warning", _WARNING_HEX),
+        ("error", _ERROR_HEX),
+        ("accent-tint", _ACCENT_TINT_HEX),
+        ("success-tint", _SUCCESS_TINT_HEX),
+        ("warning-tint", _WARNING_TINT_HEX),
+        ("error-tint", _ERROR_TINT_HEX),
+        *(
+            (f"h{level}", f"{_css_number(scale)}em")
+            for level, scale in _HEADING_SCALES.items()
+        ),
+        ("print-size", f"{_css_number(base_font_size)}pt"),
+    ]
+    declarations = "\n".join(
+        f"  --md-{name}: {value};" for name, value in variables
+    )
+    return (
+        ":root {\n"
+        "  color-scheme: light;\n"
+        f"{declarations}\n"
+        "}\n\n"
+        f"{_EXPORT_CSS}"
+    )
 
 
 def _find_close(
@@ -628,12 +524,14 @@ class _PdfWriter:
         base_dir: Path | None,
         base_file: Gio.File | None,
         title: str = "",
+        base_font_size: float = _BODY_FONT_SIZE,
     ) -> None:
         self.surface = surface
         self.cr = cairo.Context(surface)
         self.base_dir = base_dir
         self.base_file = base_file
         self.title = title
+        self.type = _TypeScale(base_font_size)
         self.parser = create_parser()
         self.renderer = MarkdownRenderer()
         self.page = 0
@@ -676,13 +574,13 @@ class _PdfWriter:
             layout = self._layout(
                 GLib.markup_escape_text(self.title),
                 self.content_width - 40,
-                size=_FOOTER_FONT_SIZE,
+                size=self.type.footer,
             )
             layout.set_ellipsize(Pango.EllipsizeMode.END)
             self.cr.move_to(_PAGE_MARGIN, baseline)
             PangoCairo.show_layout(self.cr, layout)
         layout = self._layout(
-            str(self.page), self.content_width, size=_FOOTER_FONT_SIZE
+            str(self.page), self.content_width, size=self.type.footer
         )
         width, _height = layout.get_pixel_size()
         self.cr.move_to(_PAGE_WIDTH - _PAGE_MARGIN - width, baseline)
@@ -714,7 +612,7 @@ class _PdfWriter:
         markup: str,
         width: float,
         *,
-        size: float = _BODY_FONT_SIZE,
+        size: float | None = None,
         monospace: bool = False,
         bold: bool = False,
         align: Pango.Alignment = Pango.Alignment.LEFT,
@@ -722,7 +620,7 @@ class _PdfWriter:
         layout = PangoCairo.create_layout(self.cr)
         description = Pango.FontDescription()
         description.set_family("Monospace" if monospace else "Sans")
-        description.set_size(int(size * Pango.SCALE))
+        description.set_size(int((size or self.type.body) * Pango.SCALE))
         if bold:
             description.set_weight(Pango.Weight.BOLD)
         layout.set_font_description(description)
@@ -787,7 +685,7 @@ class _PdfWriter:
         markup: str,
         *,
         indent: float = 0,
-        size: float = _BODY_FONT_SIZE,
+        size: float | None = None,
         monospace: bool = False,
         bold: bool = False,
         spacing_before: float = 0,
@@ -832,9 +730,7 @@ class _PdfWriter:
                     level = 1
                     if len(token.tag) == 2 and token.tag[0] == "h":
                         level = int(token.tag[1])
-                    heading_size = _BODY_FONT_SIZE * _HEADING_SCALES.get(
-                        level, 1.0
-                    )
+                    heading_size = self.type.heading(level)
                     markup = self._inline(inline)
                     if markup.strip():
                         self._ensure_space(heading_size * 1.6 + 24)
@@ -1045,7 +941,7 @@ class _PdfWriter:
                 natural[index] = max(
                     natural[index],
                     float(
-                        self._natural_width(cell.markup, _TABLE_FONT_SIZE)
+                        self._natural_width(cell.markup, self.type.table)
                         + 2 * _TABLE_PAD_X
                     ),
                 )
@@ -1090,7 +986,7 @@ class _PdfWriter:
             layout = self._layout(
                 cell.markup or " ",
                 max(1.0, width - 2 * _TABLE_PAD_X),
-                size=_TABLE_FONT_SIZE,
+                size=self.type.table,
             )
             lines = []
             for line in layout.get_lines():
@@ -1315,7 +1211,7 @@ class _PdfWriter:
         self._draw_text(
             _("Footnotes"),
             indent=indent,
-            size=_BODY_FONT_SIZE * _HEADING_SCALES[3],
+            size=self.type.heading(3),
             bold=True,
             spacing_before=10,
             spacing_after=4,
@@ -1384,7 +1280,7 @@ class _PdfWriter:
             layout = self._layout(
                 markup,
                 available,
-                size=_CODE_FONT_SIZE,
+                size=self.type.code,
                 monospace=True,
             )
             _width, height = layout.get_pixel_size()
@@ -1495,7 +1391,7 @@ class _PdfWriter:
             self._draw_text(
                 GLib.markup_escape_text(alt),
                 indent=indent,
-                size=_CAPTION_FONT_SIZE,
+                size=self.type.caption,
                 spacing_before=0,
                 spacing_after=8,
                 align=Pango.Alignment.CENTER,
@@ -1577,6 +1473,7 @@ def write_pdf(
     title: str,
     base_dir: Path | None = None,
     base_file: Gio.File | None = None,
+    base_font_size: float = _BODY_FONT_SIZE,
 ) -> int:
     """Write a styled PDF and return the number of pages."""
     target = Path(path)
@@ -1593,7 +1490,11 @@ def write_pdf(
         surface.set_metadata(cairo.PDF_METADATA_CREATOR, "MD Split")
         surface.set_metadata(cairo.PDF_METADATA_SUBJECT, title)
         writer = _PdfWriter(
-            surface, base_dir=base_dir, base_file=base_file, title=title
+            surface,
+            base_dir=base_dir,
+            base_file=base_file,
+            title=title,
+            base_font_size=base_font_size,
         )
         tokens = writer.parser.parse(text)
         writer.start()

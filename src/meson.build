@@ -61,6 +61,7 @@ md_split_sources = [
 ]
 
 install_data(md_split_sources, install_dir: moduledir)
+install_data('export.css', install_dir: moduledir)
 install_subdir('vendor',
   install_dir: moduledir,
   exclude_directories: ['**/__pycache__'],

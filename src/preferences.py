@@ -31,6 +31,7 @@ class MdSplitPreferencesDialog(Adw.PreferencesDialog):
     spin_autosave_interval = Gtk.Template.Child("spin_autosave_interval")
     switch_backups = Gtk.Template.Child("switch_backups")
     spin_backup_retention = Gtk.Template.Child("spin_backup_retention")
+    spin_export_font_size = Gtk.Template.Child("spin_export_font_size")
     switch_spell_check = Gtk.Template.Child("switch_spell_check")
     combo_spell_language = Gtk.Template.Child("combo_spell_language")
     switch_sync_scroll = Gtk.Template.Child("switch_sync_scroll")
@@ -87,47 +88,14 @@ class MdSplitPreferencesDialog(Adw.PreferencesDialog):
             self._bindings.append((row, "active"))
 
         self._window_handlers: list[int] = []
-        self.spin_autosave_interval.set_adjustment(
-            Gtk.Adjustment(
-                lower=5,
-                upper=300,
-                step_increment=5,
-                page_increment=5,
-                value=self._settings.get_int("autosave-interval"),
-            )
+        self._setup_spin(
+            self.spin_autosave_interval, "autosave-interval", 5, 300, 5
         )
-        self.spin_autosave_interval.set_value(
-            self._settings.get_int("autosave-interval")
+        self._setup_spin(
+            self.spin_backup_retention, "backup-retention", 1, 50, 1
         )
-        self.spin_backup_retention.set_adjustment(
-            Gtk.Adjustment(
-                lower=1,
-                upper=50,
-                step_increment=1,
-                page_increment=1,
-                value=self._settings.get_int("backup-retention"),
-            )
-        )
-        self.spin_backup_retention.set_value(
-            self._settings.get_int("backup-retention")
-        )
-        self.spin_autosave_interval.connect(
-            "notify::value", self._on_autosave_interval_changed
-        )
-        self.spin_backup_retention.connect(
-            "notify::value", self._on_backup_retention_changed
-        )
-        self._window_handlers.append(
-            self._settings.connect(
-                "changed::autosave-interval",
-                self._on_autosave_interval_setting_changed,
-            )
-        )
-        self._window_handlers.append(
-            self._settings.connect(
-                "changed::backup-retention",
-                self._on_backup_retention_setting_changed,
-            )
+        self._setup_spin(
+            self.spin_export_font_size, "export-font-size", 8, 18, 1
         )
         self._spell_choices = spellcheck.language_choices()
         self._updating_language = False
@@ -185,29 +153,48 @@ class MdSplitPreferencesDialog(Adw.PreferencesDialog):
     def _on_spell_language_changed(self, _settings, _key) -> None:
         self._sync_spell_language()
 
-    def _on_autosave_interval_changed(self, row, _pspec) -> None:
-        value = max(5, min(300, int(round(row.get_value()))))
-        if self._settings.get_int("autosave-interval") != value:
-            self._settings.set_int("autosave-interval", value)
-
-    def _on_autosave_interval_setting_changed(
-        self, _settings, _key
+    def _setup_spin(
+        self,
+        row: Adw.SpinRow,
+        key: str,
+        lower: int,
+        upper: int,
+        step: int,
     ) -> None:
-        value = self._settings.get_int("autosave-interval")
-        if int(round(self.spin_autosave_interval.get_value())) != value:
-            self.spin_autosave_interval.set_value(value)
+        value = self._settings.get_int(key)
+        row.set_adjustment(
+            Gtk.Adjustment(
+                lower=lower,
+                upper=upper,
+                step_increment=step,
+                page_increment=step,
+                value=value,
+            )
+        )
+        row.set_value(value)
+        row.connect("notify::value", self._on_spin_changed, key, lower, upper)
+        self._window_handlers.append(
+            self._settings.connect(
+                f"changed::{key}",
+                self._on_spin_setting_changed,
+                row,
+                key,
+            )
+        )
 
-    def _on_backup_retention_changed(self, row, _pspec) -> None:
-        value = max(1, min(50, int(round(row.get_value()))))
-        if self._settings.get_int("backup-retention") != value:
-            self._settings.set_int("backup-retention", value)
-
-    def _on_backup_retention_setting_changed(
-        self, _settings, _key
+    def _on_spin_changed(
+        self, row: Adw.SpinRow, _pspec, key: str, lower: int, upper: int
     ) -> None:
-        value = self._settings.get_int("backup-retention")
-        if int(round(self.spin_backup_retention.get_value())) != value:
-            self.spin_backup_retention.set_value(value)
+        value = max(lower, min(upper, int(round(row.get_value()))))
+        if self._settings.get_int(key) != value:
+            self._settings.set_int(key, value)
+
+    def _on_spin_setting_changed(
+        self, _settings, _key, row: Adw.SpinRow, key: str
+    ) -> None:
+        value = self._settings.get_int(key)
+        if int(round(row.get_value())) != value:
+            row.set_value(value)
 
     def _appearance_index(self) -> int:
         value = self._settings.get_string("appearance")

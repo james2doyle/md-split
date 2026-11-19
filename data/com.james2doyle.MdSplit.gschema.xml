@@ -103,6 +103,12 @@
 			<range min="1" max="50"/>
 			<default>5</default>
 		</key>
+		<key name="export-font-size" type="i">
+			<summary>Export font size</summary>
+			<description>Base text size in points for PDF and printed HTML exports. Headings, code, tables and captions scale with it.</description>
+			<range min="8" max="18"/>
+			<default>11</default>
+		</key>
 		<key name="vim-mode" type="b">
 			<summary>Use Vim keybindings</summary>
 			<description>Enable modal Vim editing in the source editor and Vim-style navigation and search in the preview.</description>

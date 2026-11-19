@@ -165,7 +165,8 @@ settings.set_string('view-mode', 'source')
 [Preview] src/renderer.py (tokens -> widgets), src/markdown_view.py (scroll/theme),
   src/preview_vim.py (Vim navigation/search for the preview),
   src/markdown_parser.py (shared GFM parser)
-[Export] src/exporting.py (standalone HTML and styled PDF)
+[Export] src/exporting.py (standalone HTML and styled PDF),
+  src/export.css (HTML export stylesheet, inlined at export)
 [Prefs] src/preferences.py (settings-backed preferences dialog)
 [Data] data/*.gschema.xml, data/*.desktop.in, data/*.metainfo.xml.in,
   data/icons/hicolor/*/apps/*.svg

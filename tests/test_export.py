@@ -86,6 +86,15 @@ with tempfile.TemporaryDirectory() as tmp:
     assert "&lt;script&gt;" in html
     assert "<script>alert" not in html
     assert "<style>" in html and "@media print" in html
+    assert (
+        'font-family: system-ui, -apple-system, BlinkMacSystemFont, '
+        '"Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;'
+    ) in html
+    assert (
+        "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "
+        '"Liberation Mono", "Courier New", monospace'
+    ) in html
+    assert "font-family: var(--md-mono);" in html
     assert "td code, th code { background: transparent; padding: 0; }" in html
     assert "Tiny dot" in html
     assert "<figure><img" in html
@@ -93,6 +102,8 @@ with tempfile.TemporaryDirectory() as tmp:
     assert "@page" in html
     assert "break-inside: avoid" in html
     assert "nth-child(even)" in html
+    assert "--md-print-size: 11pt;" in html
+    assert "--md-h1: 2em;" in html
     inline_image = render_html(
         "Text before ![Tiny dot](dot.png) after",
         title="Inline image",
@@ -172,6 +183,44 @@ with tempfile.TemporaryDirectory() as tmp:
     assert pages >= 1
     assert data.startswith(b"%PDF"), data[:8]
     assert len(data) > 500
+
+    # A configurable base size scales every derived size and changes layout.
+    default_scale = exporting_module._TypeScale()
+    assert default_scale.body == exporting_module._BODY_FONT_SIZE
+    assert abs(default_scale.code - 9.0) < 1e-9
+    assert abs(default_scale.table - 9.5) < 1e-9
+    assert abs(default_scale.caption - 9.0) < 1e-9
+    assert abs(default_scale.footer - 8.0) < 1e-9
+    large_scale = exporting_module._TypeScale(16.0)
+    assert large_scale.body == 16.0
+    assert abs(large_scale.code - 16.0 * 9 / 11) < 1e-9
+    assert abs(large_scale.table - 16.0 * 9.5 / 11) < 1e-9
+    assert large_scale.heading(1) == 32.0
+    assert abs(large_scale.heading(3) - 16.0 * 1.27) < 1e-9
+
+    long_text = "\n\n".join(
+        f"Paragraph {index} with enough text to wrap across the page."
+        for index in range(24)
+    )
+    small_pages = write_pdf(
+        long_text,
+        root / "small.pdf",
+        title="Small",
+        base_font_size=8.0,
+    )
+    large_pages = write_pdf(
+        long_text,
+        root / "large.pdf",
+        title="Large",
+        base_font_size=18.0,
+    )
+    assert small_pages < large_pages, (small_pages, large_pages)
+
+    scaled_html = render_html(
+        "# Scaled", title="Scaled", base_font_size=16.0
+    )
+    assert "--md-print-size: 16pt;" in scaled_html
+    assert "--md-print-size: 16pt;" not in html
 
     # HTML comments are literal text with HTML disabled; PDF export drops them
     # without touching code spans, code blocks or the surrounding text.

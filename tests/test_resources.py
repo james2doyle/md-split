@@ -59,4 +59,8 @@ for module in sorted((source_root / "src").glob("*.py")):
         f"{module.name} is missing from src/meson.build"
     )
 
+# The export stylesheet lives beside exporting.py and is inlined at export.
+assert (source_root / "src" / "export.css").is_file()
+assert "'export.css'" in meson_file
+
 print("ok: packaged resources")

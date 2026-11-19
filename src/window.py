@@ -1901,6 +1901,7 @@ class MdSplitWindow(Adw.ApplicationWindow):
         title = Path(self._document.display_name).stem
         base_dir = self._document.directory
         base_file = self._document.file
+        base_font_size = float(self._settings.get_int("export-font-size"))
 
         def produce() -> None:
             try:
@@ -1909,6 +1910,7 @@ class MdSplitWindow(Adw.ApplicationWindow):
                     title=title,
                     base_dir=base_dir,
                     base_file=base_file,
+                    base_font_size=base_font_size,
                 )
             except Exception as error:  # pragma: no cover - reported to user
                 GLib.idle_add(self._export_failed, "HTML", error)
@@ -1964,6 +1966,7 @@ class MdSplitWindow(Adw.ApplicationWindow):
         title = Path(self._document.display_name).stem
         base_dir = self._document.directory
         base_file = self._document.file
+        base_font_size = float(self._settings.get_int("export-font-size"))
 
         def produce() -> None:
             try:
@@ -1973,6 +1976,7 @@ class MdSplitWindow(Adw.ApplicationWindow):
                     title=title,
                     base_dir=base_dir,
                     base_file=base_file,
+                    base_font_size=base_font_size,
                 )
             except Exception as error:  # pragma: no cover - reported to user
                 GLib.idle_add(self._export_failed, "PDF", error)
