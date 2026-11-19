@@ -1325,7 +1325,9 @@ class MdSplitWindow(Adw.ApplicationWindow):
     def _on_search_changed(self, *_args) -> None:
         count = self._refresh_search()
         if count and self.search_entry.get_text():
-            self._find_next()
+            # Keep the current match as the anchor while the query is refined,
+            # otherwise every keystroke would advance to a later match.
+            self._search(forward=True, advance=False)
 
     def _on_search_options_changed(self, *_args) -> None:
         self._refresh_search()
@@ -1388,18 +1390,26 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self.editor_view.scroll_to_iter(start, 0.0, False, 0.0, 0.0)
 
     def _find_next(self, *_args) -> None:
-        if not self._prepare_search():
-            return
-        insert = self._buffer.get_iter_at_mark(self._buffer.get_insert())
-        found, start, end, _wrapped = self._search_context.forward(insert)
-        if found:
-            self._select_search_match(start, end)
+        self._search(forward=True)
 
     def _find_previous(self, *_args) -> None:
+        self._search(forward=False)
+
+    def _search(self, *, forward: bool, advance: bool = True) -> None:
         if not self._prepare_search():
             return
-        insert = self._buffer.get_iter_at_mark(self._buffer.get_insert())
-        found, start, end, _wrapped = self._search_context.backward(insert)
+        bounds = self._buffer.get_selection_bounds()
+        if bounds:
+            # Explicit next/previous must move past the selection; searching
+            # from its start would select the same match again. Refining a
+            # query stays anchored to the start so typing does not skip ahead.
+            anchor = bounds[1] if forward and advance else bounds[0]
+        else:
+            anchor = self._buffer.get_iter_at_mark(self._buffer.get_insert())
+        if forward:
+            found, start, end, _wrapped = self._search_context.forward(anchor)
+        else:
+            found, start, end, _wrapped = self._search_context.backward(anchor)
         if found:
             self._select_search_match(start, end)
 

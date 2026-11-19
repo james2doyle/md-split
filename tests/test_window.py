@@ -234,10 +234,36 @@ window._on_search_changed()
 assert "3 matches" in window.search_status_label.get_label(), (
     window.search_status_label.get_label()
 )
+
+
+def find_selection():
+    bounds = window._buffer.get_selection_bounds()
+    if not bounds:
+        return None
+    return (
+        window._buffer.get_text(bounds[0], bounds[1], True),
+        bounds[0].get_offset(),
+    )
+
+
+# Return and the next/previous buttons must advance past the current match.
+assert find_selection() == ("one", 0), find_selection()
 window._find_next()
-bounds = window._buffer.get_selection_bounds()
-assert bounds, "find did not select a match"
-assert window._buffer.get_text(bounds[0], bounds[1], True) == "one"
+assert find_selection() == ("one", 4), find_selection()
+window.search_next_button.emit("clicked")
+assert find_selection() == ("one", 8), find_selection()
+window.search_entry.emit("activate")
+assert find_selection() == ("one", 0), find_selection()
+window.search_previous_button.emit("clicked")
+assert find_selection() == ("one", 8), find_selection()
+
+# Refining the query keeps the current match as the anchor.
+window.search_entry.set_text("on")
+window._on_search_changed()
+assert find_selection() == ("on", 8), find_selection()
+window.search_entry.set_text("one")
+window._on_search_changed()
+assert find_selection() == ("one", 8), find_selection()
 
 window.replace_entry.set_text("two")
 window._replace_all()
