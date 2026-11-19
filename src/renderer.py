@@ -365,9 +365,12 @@ class MarkdownRenderer:
                 marker.set_active(bool(checked))
                 marker.set_sensitive(False)
                 marker.set_can_focus(False)
-                marker.set_valign(Gtk.Align.START)
-                marker.set_margin_top(2)
+                marker.set_valign(Gtk.Align.CENTER)
                 marker.add_css_class("md-task-check")
+                # Align the item text with the checkbox along the first
+                # block's baseline rather than the top of the row.
+                content.set_baseline_child(0)
+                content.set_valign(Gtk.Align.BASELINE_CENTER)
             elif ordered:
                 label = Gtk.Label(label=f"{number}.")
                 label.set_xalign(1.0)

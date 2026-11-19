@@ -172,6 +172,12 @@ with tempfile.TemporaryDirectory() as tmp:
     assert len(check_buttons) == 2, len(check_buttons)
     assert check_buttons[0].get_active() is True
     assert check_buttons[1].get_active() is False
+    for button in check_buttons:
+        assert button.get_valign() == Gtk.Align.CENTER
+        content = button.get_next_sibling()
+        assert isinstance(content, Gtk.Box)
+        assert content.get_valign() == Gtk.Align.BASELINE_CENTER
+        assert content.get_baseline_child() == 0
 
     grids = [w for w in walk(root) if isinstance(w, Gtk.Grid)]
     assert grids, "table grid missing"
