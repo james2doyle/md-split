@@ -24,7 +24,7 @@
 
   <screenshots>
     <screenshot type="default">
-      <image type="source" width="1150" height="770">https://raw.githubusercontent.com/james2doyle/md-split/v1.4.0/docs/screenshot.png</image>
+      <image type="source" width="1150" height="770">https://raw.githubusercontent.com/james2doyle/md-split/v1.5.0/docs/screenshot.png</image>
       <caption>Markdown source and rendered preview side by side</caption>
     </screenshot>
   </screenshots>
@@ -70,6 +70,18 @@
   </branding>
 
   <releases>
+    <release version="1.5.0" date="2026-11-19">
+      <description translate="no">
+        <p>Flatpak distribution update.</p>
+        <ul>
+          <li>Rename the application ID to io.github.james2doyle.MdSplit.</li>
+          <li>Update the desktop entry, GSettings schema, D-Bus service, icons and Flatpak manifest to the new ID.</li>
+          <li>Publish signed stable Flatpak builds through a project repository.</li>
+          <li>Install once and receive later releases with flatpak update.</li>
+          <li>The new application ID starts with fresh settings; settings from com.james2doyle.MdSplit are not migrated.</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.4.0" date="2026-11-19">
       <description translate="no">
         <p>Editing, export and multi-instance update.</p>
