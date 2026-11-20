@@ -105,6 +105,9 @@ jobs:
               }
           ]
           module["config-opts"] = ["--libdir=lib", "--buildtype=release"]
+          for item in manifest["modules"]:
+              if item["name"] == "libspelling":
+                  item["config-opts"].append("--buildtype=release")
           Path("dist/io.github.james2doyle.MdSplit.release.json").write_text(
               json.dumps(manifest, indent=4) + "\n"
           )

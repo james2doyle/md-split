@@ -165,6 +165,25 @@ the GNOME runtime ships hunspell dictionaries, so a Flatpak build should not
 need the typelib installed by the host. If dictionaries live outside the
 standard directories, force detection with `MD_SPLIT_SPELLCHECK=1`.
 
+### Custom dictionaries in Flatpak
+
+The sandbox does not expose your home directory, so dictionaries under
+`~/.local/share/hunspell` or `~/.local/share/myspell` stay invisible even
+though the app checks those paths. Grant read-only access to the directory
+that holds them:
+
+- In Flatseal, select MD Split, open **Filesystem > Other files**, and add
+  `~/.local/share/hunspell:ro`.
+- Or run:
+
+  ```sh
+  flatpak override --user \
+    --filesystem=~/.local/share/hunspell:ro \
+    io.github.james2doyle.MdSplit
+  ```
+
+Restart MD Split after changing the permission.
+
 ## Recovery drafts or backups
 
 Drafts and backups live under `$XDG_STATE_HOME/md-split`. Inspect them with:

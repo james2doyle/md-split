@@ -74,6 +74,8 @@ jq --arg sha "$sha" --arg archive "md-split-$VERSION.tar.gz" '
         "sha256": $sha
       }]
       | .["config-opts"] = ["--libdir=lib", "--buildtype=release"]
+    elif .name == "libspelling" then
+      .["config-opts"] += ["--buildtype=release"]
     else . end
   )
 ' io.github.james2doyle.MdSplit.json > "dist/io.github.james2doyle.MdSplit.release.json"

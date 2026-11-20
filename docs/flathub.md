@@ -76,7 +76,9 @@ are disabled by default and only load HTTP(S) URLs after the user enables them;
 the app runs no background networking. The manifest is plain JSON with no
 comment syntax, so permissions are justified here instead. Files are opened
 through the file chooser/portal; the app does not request host filesystem
-access.
+access. Custom spell-check dictionaries under `~/.local/share/hunspell` are
+not visible by default; users can grant read-only access themselves, as
+described in [troubleshooting](troubleshooting.md#spell-checking-is-unavailable).
 
 ## Validate before submitting
 
