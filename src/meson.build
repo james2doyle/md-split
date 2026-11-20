@@ -46,6 +46,7 @@ md_split_sources = [
   'filechanges.py',
   'fileio.py',
   'formatting.py',
+  'links.py',
   'logging_utils.py',
   'main.py',
   'markdown_parser.py',
@@ -143,6 +144,8 @@ test('Lazy startup imports', python3, args: [files('../tests/test_startup.py')],
 test('Remote image policy', python3, args: [files('../tests/test_images.py')],
   env: test_env)
 test('Editing helpers', python3, args: [files('../tests/test_editing.py')],
+  env: test_env)
+test('Link helpers', python3, args: [files('../tests/test_links.py')],
   env: test_env)
 test('Preview Vim helpers', python3, args: [files('../tests/test_preview_vim.py')],
   env: test_env)

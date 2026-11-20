@@ -42,7 +42,7 @@ if str(_VENDOR) not in sys.path:
 from markdown_it.token import Token
 
 from .markdown_parser import create_parser, has_valid_underline_inline
-from .paths import contained_file, document_root
+from .paths import contained_file, document_root, resolve_link
 
 log = logging.getLogger(__name__)
 
@@ -55,7 +55,6 @@ _HEADING_CLASSES = {
     6: ("heading", "md-h6"),
 }
 
-_UNSAFE_SCHEMES = {"javascript", "vbscript", "data"}
 _ANCHOR_TAG = re.compile(r"<(/?)a\b[^>]*>")
 _MAX_IMAGE_BYTES = 10 * 1024 * 1024
 _MAX_IMAGE_PIXELS = 20_000_000
@@ -1284,56 +1283,7 @@ class MarkdownRenderer:
         return 0.0
 
     def _resolve_link(self, href: str) -> str | None:
-        href = href.strip()
-        if not href:
-            return None
-        try:
-            parsed = urlparse(href)
-        except ValueError:
-            return None
-        scheme = parsed.scheme.lower()
-        if scheme in _UNSAFE_SCHEMES:
-            return None
-        if scheme in ("http", "https", "mailto"):
-            return href
-        if scheme:
-            return None
-        if href.startswith("#"):
-            return href
-        if href.startswith("//"):
-            return None
-
-        suffix = ""
-        if parsed.query:
-            suffix += f"?{parsed.query}"
-        if parsed.fragment:
-            suffix += f"#{parsed.fragment}"
-
-        if self._base_file is not None:
-            parent = self._base_file.get_parent()
-            if parent is None:
-                return None
-            target = parent.resolve_relative_path(unquote(parsed.path))
-            root = document_root(self._base_dir, self._base_file)
-            if root is None:
-                # No local directory to confine to (for example a remote GIO
-                # mount); keep the existing URI behaviour.
-                uri = target.get_uri()
-                return uri + suffix if uri else None
-            local = target.get_path()
-            if local is None:
-                return None
-            path = contained_file(Path(local), root)
-            if path is None:
-                return None
-            return path.as_uri() + suffix
-        if self._base_dir is None:
-            return href
-        root = document_root(self._base_dir, self._base_file)
-        path = contained_file(self._base_dir / unquote(parsed.path), root)
-        if path is None:
-            return None
-        return path.as_uri() + suffix
+        return resolve_link(href, self._base_dir, self._base_file)
 
     def _resolve_image(
         self, src: str

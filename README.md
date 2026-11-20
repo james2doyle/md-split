@@ -42,6 +42,8 @@ flatpak update --user io.github.james2doyle.MdSplit
 - Three view modes: both panes, source only, and preview only
 - Selection wrapping for brackets, braces, backticks and quotes
 - Automatic list continuation on Return and `[]` to `[]()` completion
+- Ctrl+click links in the source pane, including inline, autolink and
+  reference links
 - Bold, italic, underline, block quote and code formatting shortcuts
 - Format Document normalizes headings, list spacing, block quotes, tables,
   blank lines and code fences, with a preview for large changes

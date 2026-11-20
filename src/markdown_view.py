@@ -126,7 +126,7 @@ class MarkdownView(Gtk.ScrolledWindow):
             base_file=base_file,
             allow_remote_images=self._remote_images,
             cancellable=cancellable,
-            on_internal_link=self._scroll_to_anchor,
+            on_internal_link=self.scroll_to_anchor,
             on_external_link=self._open_external,
         )
         # Arm the restore before swapping children so allocation changes
@@ -289,7 +289,7 @@ class MarkdownView(Gtk.ScrolledWindow):
         if maximum > 0:
             self._set_adjustment_value(fraction * maximum)
 
-    def _scroll_to_anchor(self, name: str) -> None:
+    def scroll_to_anchor(self, name: str) -> None:
         renderer = self._renderer
         if renderer is None:
             return

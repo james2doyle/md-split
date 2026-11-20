@@ -31,6 +31,7 @@ from . import (
     editing,
     filechanges,
     fileio,
+    links,
     preview_vim,
     recovery,
     session,
@@ -38,7 +39,7 @@ from . import (
 )
 from .document import Document, text_statistics
 from .markdown_view import MarkdownView
-from .paths import ensure_file_extension
+from .paths import ensure_file_extension, resolve_link
 
 if TYPE_CHECKING:
     from . import formatting
@@ -171,6 +172,13 @@ class MdSplitWindow(Adw.ApplicationWindow):
         self._vim_search_handler = 0
         self._vim_search_message = ""
         self._vim_search_check = False
+        self._link_motion: Gtk.EventControllerMotion | None = None
+        self._text_cursor: Gdk.Cursor | None = None
+        self._pointer_cursor: Gdk.Cursor | None = None
+        self._editor_cursor_name: str | None = None
+        self._link_hover_position: tuple[float, float] | None = None
+        self._link_hover_links: list[links.SourceLink] = []
+        self._link_hover_revision = -1
 
         self.set_icon_name(APP_ID)
         self._preview = MarkdownView()
@@ -204,6 +212,45 @@ class MdSplitWindow(Adw.ApplicationWindow):
         # helpers always see keys before the Vim IM controller on the view.
         self.editor_scroller.add_controller(controller)
         self._key_controller = controller
+        click = Gtk.GestureClick.new()
+        click.set_button(Gdk.BUTTON_PRIMARY)
+        click.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        self._signal_handlers.append(
+            (click, click.connect("pressed", self._on_editor_pressed))
+        )
+        self.editor_view.add_controller(click)
+        self._link_click = click
+        motion = Gtk.EventControllerMotion.new()
+        motion.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        self._signal_handlers.append(
+            (motion, motion.connect("motion", self._on_editor_motion))
+        )
+        self._signal_handlers.append(
+            (motion, motion.connect("leave", self._on_editor_leave))
+        )
+        self.editor_view.add_controller(motion)
+        self._link_motion = motion
+        modifier = Gtk.EventControllerKey.new()
+        modifier.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        self._signal_handlers.append(
+            (
+                modifier,
+                modifier.connect(
+                    "key-pressed", self._on_link_modifier_pressed
+                ),
+            )
+        )
+        self._signal_handlers.append(
+            (
+                modifier,
+                modifier.connect(
+                    "key-released", self._on_link_modifier_released
+                ),
+            )
+        )
+        self.add_controller(modifier)
+        self._text_cursor = Gdk.Cursor.new_from_name("text")
+        self._pointer_cursor = Gdk.Cursor.new_from_name("pointer")
         # libspelling and dictionary loading can take a while; let the first
         # frame paint before spell checking attaches to the buffer.
         self._spell_idle = GLib.idle_add(
@@ -222,6 +269,141 @@ class MdSplitWindow(Adw.ApplicationWindow):
             self._buffer.set_language(language)
         self._buffer.set_highlight_syntax(True)
         return False
+
+    # -- source links ----------------------------------------------------
+
+    def _on_editor_pressed(
+        self, gesture: Gtk.GestureClick, n_press: int, x: float, y: float
+    ) -> None:
+        """Follow a Markdown link on Ctrl+click without affecting plain clicks."""
+        if n_press != 1:
+            return
+        state = gesture.get_current_event_state()
+        if not state & Gdk.ModifierType.CONTROL_MASK:
+            return
+        if state & Gdk.ModifierType.SHIFT_MASK:
+            return
+        if self._buffer.get_has_selection():
+            return
+        offset = self._editor_offset_at(x, y)
+        if offset is not None:
+            self._follow_link_at_offset(offset)
+
+    def _on_editor_motion(
+        self, controller: Gtk.EventControllerMotion, x: float, y: float
+    ) -> None:
+        self._link_hover_position = (x, y)
+        state = controller.get_current_event_state()
+        self._update_link_cursor(
+            x, y, bool(state & Gdk.ModifierType.CONTROL_MASK)
+        )
+
+    def _on_editor_leave(
+        self, _controller: Gtk.EventControllerMotion
+    ) -> None:
+        self._link_hover_position = None
+        self._editor_cursor_name = None
+        self.editor_view.set_cursor(None)
+
+    def _on_link_modifier_pressed(
+        self, _controller, keyval: int, _keycode: int, _state
+    ) -> bool:
+        if keyval in (Gdk.KEY_Control_L, Gdk.KEY_Control_R):
+            self._refresh_link_cursor(True)
+        return False
+
+    def _on_link_modifier_released(
+        self, _controller, keyval: int, _keycode: int, _state
+    ) -> bool:
+        if keyval in (Gdk.KEY_Control_L, Gdk.KEY_Control_R):
+            self._refresh_link_cursor(False)
+        return False
+
+    def _refresh_link_cursor(self, ctrl: bool) -> None:
+        position = self._link_hover_position
+        if position is not None:
+            self._update_link_cursor(position[0], position[1], ctrl)
+
+    def _update_link_cursor(self, x: float, y: float, ctrl: bool) -> None:
+        name = "text"
+        if ctrl and not self._buffer.get_has_selection():
+            offset = self._editor_offset_at(x, y)
+            if offset is not None and self._link_at_offset(offset):
+                name = "pointer"
+        if name == self._editor_cursor_name:
+            return
+        self._editor_cursor_name = name
+        cursor = self._pointer_cursor if name == "pointer" else self._text_cursor
+        self.editor_view.set_cursor(cursor)
+
+    def _link_at_offset(self, offset: int) -> links.SourceLink | None:
+        if self._link_hover_revision != self._document.revision:
+            self._link_hover_links = links.links_in_text(self.get_text())
+            self._link_hover_revision = self._document.revision
+        for link in self._link_hover_links:
+            if link.start <= offset < link.end:
+                return link
+        return None
+
+    def _editor_offset_at(self, x: float, y: float) -> int | None:
+        buffer_x, buffer_y = self.editor_view.window_to_buffer_coords(
+            Gtk.TextWindowType.WIDGET, int(x), int(y)
+        )
+        found, iterator = self.editor_view.get_iter_at_location(
+            buffer_x, buffer_y
+        )
+        if not found:
+            return None
+        return iterator.get_offset()
+
+    def _follow_link_at_offset(self, offset: int) -> bool:
+        """Open or reveal the link at ``offset``; return whether one was found."""
+        link = self._link_at_offset(offset)
+        if link is None:
+            return False
+        uri = resolve_link(
+            link.destination, self._document.directory, self._document.file
+        )
+        if uri is None:
+            self._show_error(
+                _("Could not open link"),
+                _("Unsupported or invalid link: {destination}").format(
+                    destination=link.destination
+                ),
+            )
+            return True
+        if uri.startswith("#"):
+            self._preview.scroll_to_anchor(uri[1:])
+            return True
+        if uri.startswith("file:"):
+            file_uri = uri.split("#", 1)[0].split("?", 1)[0]
+            target = Gio.File.new_for_uri(file_uri)
+            try:
+                exists = target.query_exists(None)
+            except GLib.Error:
+                exists = False
+            if not exists:
+                self._show_error(
+                    _("Could not open link"),
+                    _("File not found: {path}").format(
+                        path=target.get_path() or link.destination
+                    ),
+                )
+                return True
+        self._launch_uri(uri)
+        return True
+
+    def _launch_uri(self, uri: str) -> None:
+        launcher = Gtk.UriLauncher.new(uri)
+        launcher.launch(self, None, self._on_link_launched, None)
+
+    def _on_link_launched(
+        self, launcher: Gtk.UriLauncher, result, _data
+    ) -> None:
+        try:
+            launcher.launch_finish(result)
+        except GLib.Error as error:
+            self._show_error(_("Could not open link"), error.message)
 
     # -- vim mode --------------------------------------------------------
 
@@ -974,6 +1156,7 @@ class MdSplitWindow(Adw.ApplicationWindow):
     # -- editor signals --------------------------------------------------
 
     def _on_buffer_changed(self, *_args) -> None:
+        self._link_hover_revision = -1
         if self._loading:
             return
         self._document.set_text(self.get_text(), changed=True)

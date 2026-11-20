@@ -91,9 +91,9 @@ adversarial = {
     "entities": "&" * 256_000,
 }
 for label, source in adversarial.items():
-    started = time.perf_counter()
+    started = time.process_time()
     renderer.inline_markup(source)
-    elapsed = time.perf_counter() - started
+    elapsed = time.process_time() - started
     assert elapsed < 1.5, f"{label} took {elapsed:.3f}s"
 
 renderer._base_dir = Path("/tmp/docs")

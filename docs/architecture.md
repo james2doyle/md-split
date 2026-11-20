@@ -20,6 +20,7 @@ small app stylesheet.
 | `src/session.py` | Session path pruning, deduplication, and recent-file ordering |
 | `src/spellcheck.py` | Optional libspelling backend, language discovery and fallback |
 | `src/editing.py` | Pure `TextEdit` helpers: wrapping, link completion, formatting, list continuation, search, and replace-all |
+| `src/links.py` | Source-editor link detection: inline, autolink and reference ranges with code-span and fence exclusion |
 | `src/formatting.py` | Pure Markdown source normalizer: headings, lists, block quotes, fences, tables, blank lines and diff summaries |
 | `src/markdown_parser.py` | Shared `markdown-it-py` + GFM parser configuration |
 | `src/renderer.py` | Markdown tokens to native GTK widgets, links, images, code blocks |
@@ -180,7 +181,10 @@ Links, preview images and export images resolve through `src/paths.py`.
 Targets are resolved (including `..`, percent-encoding and symlinks) and must
 stay inside the document directory; unsafe schemes (`javascript`, `vbscript`,
 `data`) are rejected. External links use `Gtk.UriLauncher`; internal
-`#anchors` scroll within the preview.
+`#anchors` scroll within the preview. Ctrl+click in the source pane detects
+inline, autolink and reference links with `src/links.py`, which ignores code
+spans and fenced or indented code blocks before resolving through the same
+helper.
 
 ## Theming
 

@@ -945,6 +945,113 @@ spin()
 window.preview.scroll_to_value(0, sync=False)
 assert window._vim_controller not in controllers(window.editor_view)
 assert vim._controller not in controllers(window.preview)
+# Ctrl+click follows Markdown links from the source pane.
+class _FakeGesture:
+    def __init__(self, state):
+        self._state = state
+
+    def get_current_event_state(self):
+        return self._state
+
+
+with tempfile.TemporaryDirectory() as link_directory:
+    link_root = Path(link_directory)
+    link_target = link_root / "notes.md"
+    link_target.write_text("# Notes\n", encoding="utf-8")
+    window.document.file = Gio.File.new_for_path(
+        str(link_root / "doc.md")
+    )
+    window.set_text("[notes](notes.md) and [missing](absent.md)")
+    launched = []
+    window._launch_uri = launched.append
+    errors = []
+    window._show_error = lambda heading, message: errors.append(
+        (heading, message)
+    )
+
+    # Pointer coordinates map back to the link's buffer offset.
+    window._buffer.place_cursor(window._buffer.get_start_iter())
+    window.editor_view.scroll_to_mark(
+        window._buffer.get_insert(), 0, False, 0, 0
+    )
+    spin()
+    pointer_iter = window._buffer.get_iter_at_offset(2)
+    pointer_rect = window.editor_view.get_iter_location(pointer_iter)
+    pointer_x, pointer_y = window.editor_view.buffer_to_window_coords(
+        Gtk.TextWindowType.WIDGET,
+        pointer_rect.x + pointer_rect.width // 2,
+        pointer_rect.y + pointer_rect.height // 2,
+    )
+    mapped_offset = window._editor_offset_at(pointer_x, pointer_y)
+    assert mapped_offset in (1, 2, 3), (
+        mapped_offset,
+        pointer_x,
+        pointer_y,
+        pointer_rect,
+    )
+
+    notes_offset = window.get_text().index("notes")
+    assert window._follow_link_at_offset(notes_offset)
+    assert launched == [link_target.as_uri()]
+
+    window.set_text("[notes](notes.md#top)")
+    launched.clear()
+    assert window._follow_link_at_offset(window.get_text().index("notes"))
+    assert launched == [link_target.as_uri() + "#top"]
+
+    window.set_text("[missing](absent.md)")
+    missing_offset = window.get_text().index("missing")
+    assert window._follow_link_at_offset(missing_offset)
+    assert "File not found" in errors[-1][1]
+    assert launched == [link_target.as_uri() + "#top"]
+
+    window.set_text("`[notes](notes.md)`")
+    assert not window._follow_link_at_offset(window.get_text().index("notes"))
+
+    window.set_text("[bad](javascript:alert(1))")
+    assert window._follow_link_at_offset(1)
+    assert "Unsupported" in errors[-1][1]
+
+    # The gesture ignores plain clicks, double-clicks and selections.
+    window.set_text("[notes](notes.md)")
+    window._editor_offset_at = lambda x, y: window.get_text().index("notes")
+
+    # The pointer cursor follows Ctrl+hover over a link.
+    window._on_editor_motion(_FakeGesture(Gdk.ModifierType(0)), 0, 0)
+    assert window.editor_view.get_cursor().get_name() == "text"
+    window._on_editor_motion(
+        _FakeGesture(Gdk.ModifierType.CONTROL_MASK), 0, 0
+    )
+    assert window.editor_view.get_cursor().get_name() == "pointer"
+    window._on_link_modifier_released(None, Gdk.KEY_Control_L, 0, 0)
+    assert window.editor_view.get_cursor().get_name() == "text"
+    window._on_link_modifier_pressed(None, Gdk.KEY_Control_L, 0, 0)
+    assert window.editor_view.get_cursor().get_name() == "pointer"
+    window._on_editor_leave(None)
+    assert window.editor_view.get_cursor() is None
+
+    launched.clear()
+    window._on_editor_pressed(
+        _FakeGesture(Gdk.ModifierType(0)), 1, 0, 0
+    )
+    assert not launched
+    window._on_editor_pressed(
+        _FakeGesture(Gdk.ModifierType.CONTROL_MASK), 2, 0, 0
+    )
+    assert not launched
+    window._buffer.select_range(
+        window._buffer.get_start_iter(), window._buffer.get_end_iter()
+    )
+    window._on_editor_pressed(
+        _FakeGesture(Gdk.ModifierType.CONTROL_MASK), 1, 0, 0
+    )
+    assert not launched
+    window._buffer.place_cursor(window._buffer.get_start_iter())
+    window._on_editor_pressed(
+        _FakeGesture(Gdk.ModifierType.CONTROL_MASK), 1, 0, 0
+    )
+    assert launched == [link_target.as_uri()]
+
 window.destroy()
 window.settings.reset("vim-mode")
 
