@@ -81,7 +81,13 @@ jobs:
           upload-artifact: false
 
       - name: Lint manifest
-        run: flatpak-builder-lint manifest io.github.james2doyle.MdSplit.json
+        run: |
+          flatpak-builder-lint --exceptions \
+            --user-exceptions .flatpak-exceptions.json \
+            manifest io.github.james2doyle.MdSplit.json
 
       - name: Lint repository
-        run: flatpak-builder-lint repo repo
+        run: |
+          flatpak-builder-lint --exceptions \
+            --user-exceptions .flatpak-exceptions.json \
+            repo repo

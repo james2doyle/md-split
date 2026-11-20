@@ -97,9 +97,19 @@ python3 scripts/test.py
 CI already runs:
 
 ```sh
-flatpak-builder-lint manifest <manifest>
-flatpak-builder-lint repo repo
+flatpak-builder-lint --exceptions \
+  --user-exceptions .flatpak-exceptions.json \
+  manifest <manifest>
+flatpak-builder-lint --exceptions \
+  --user-exceptions .flatpak-exceptions.json \
+  repo repo
 ```
+
+The local exception covers `finish-args-home-filesystem-access`, which the app
+needs for command-line paths and recent or session files under home. The app is
+distributed from its own Flatpak repository; a Flathub submission would need
+the same permission exception approved there. The exception file only affects
+this repository's lint run and does not weaken the sandbox.
 
 Build and install the bundle locally:
 

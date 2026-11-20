@@ -24,7 +24,7 @@
 
   <screenshots>
     <screenshot type="default">
-      <image type="source" width="1150" height="770">https://raw.githubusercontent.com/james2doyle/mdsplit/v1.6.0/docs/screenshot.png</image>
+      <image type="source" width="1150" height="770">https://raw.githubusercontent.com/james2doyle/mdsplit/v1.6.1/docs/screenshot.png</image>
       <caption>Markdown source and rendered preview side by side</caption>
     </screenshot>
   </screenshots>
@@ -70,6 +70,17 @@
   </branding>
 
   <releases>
+    <release version="1.6.1" date="2026-11-20">
+      <description translate="no">
+        <p>Flatpak file access and spell-check defaults.</p>
+        <ul>
+          <li>Spell checking selects the provider's locale default when no language is configured.</li>
+          <li>The Flatpak shares the home directory, so command-line paths, recent files, session paths, and user dictionaries under home work directly.</li>
+          <li>File-open errors explain when the Flatpak sandbox cannot access a location and how to grant access.</li>
+          <li>Document the Flatpak command-line path and filesystem access rules.</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.6.0" date="2026-11-20">
       <description translate="no">
         <p>Flatpak spell checking and source link navigation.</p>
