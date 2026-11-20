@@ -94,6 +94,18 @@ oversized document. Large-document word counting is also paused.
 - Spell checking uses the system libspelling and dictionary provider. Personal
   dictionary entries are managed by that provider.
 
+## Flatpak sandbox
+
+The Flatpak manifest shares the user's home directory (`--filesystem=home`) so
+command-line file arguments, recent and session paths, and dictionaries under
+`~/.local/share/hunspell` work directly. It does not share the rest of the host
+filesystem; files outside home are opened through the document portal.
+
+Sandbox access does not loosen the document rules above. Markdown links,
+preview images and export images are still resolved against the open document
+and cannot escape its directory, even when the Flatpak can read more of the
+home directory.
+
 ## Export
 
 HTML export produces a standalone document with embedded CSS. Local images are

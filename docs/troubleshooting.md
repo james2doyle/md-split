@@ -115,6 +115,29 @@ git archive --format=tar.gz --prefix="md-split-$VERSION/" \
 
 See [releasing.md](releasing.md).
 
+## Flatpak cannot open a command-line file
+
+Flatpak only preserves the working directory when the app can see it. The
+manifest shares your home directory, so relative paths work from a directory
+under `$HOME`:
+
+```sh
+flatpak run io.github.james2doyle.MdSplit README.md
+flatpak run io.github.james2doyle.MdSplit ~/notes/README.md
+```
+
+For a file outside home, grant access to its folder first with Flatseal
+(**Filesystem > Other files**) or:
+
+```sh
+flatpak override --user --filesystem=/path/to/folder \
+  io.github.james2doyle.MdSplit
+```
+
+Then restart the app and pass the absolute path. Without that access Flatpak
+cannot see the file even though it exists on the host; the app reports a
+sandbox permission error instead of the raw `g-io-error-quark` message.
+
 ## PDF export fails
 
 PDF export uses the optional Cairo/Pango bindings. If pycairo is unavailable,
@@ -167,10 +190,9 @@ standard directories, force detection with `MD_SPLIT_SPELLCHECK=1`.
 
 ### Custom dictionaries in Flatpak
 
-The sandbox does not expose your home directory, so dictionaries under
-`~/.local/share/hunspell` or `~/.local/share/myspell` stay invisible even
-though the app checks those paths. Grant read-only access to the directory
-that holds them:
+The Flatpak shares your home directory, so dictionaries under
+`~/.local/share/hunspell` or `~/.local/share/myspell` are visible. If your
+dictionaries live elsewhere, grant read-only access to that directory:
 
 - In Flatseal, select MD Split, open **Filesystem > Other files**, and add
   `~/.local/share/hunspell:ro`.

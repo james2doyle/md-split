@@ -69,16 +69,21 @@ Current finish arguments:
 | `--socket=fallback-x11` | X11 fallback |
 | `--socket=wayland` | Wayland |
 | `--device=dri` | GTK rendering |
+| `--filesystem=home` | CLI file arguments, recent/session paths, and user dictionaries under home |
 
 `--share=network` applies to the whole sandbox because Flatpak has no
 per-feature network permission. It is kept for optional remote images, which
 are disabled by default and only load HTTP(S) URLs after the user enables them;
 the app runs no background networking. The manifest is plain JSON with no
-comment syntax, so permissions are justified here instead. Files are opened
-through the file chooser/portal; the app does not request host filesystem
-access. Custom spell-check dictionaries under `~/.local/share/hunspell` are
-not visible by default; users can grant read-only access themselves, as
-described in [troubleshooting](troubleshooting.md#spell-checking-is-unavailable).
+comment syntax, so permissions are justified here instead.
+
+`--filesystem=home` lets paths under the home directory, including command-line
+file arguments and recent or session entries, open directly. The app does not
+enumerate or scan the home directory. Files outside home still open through the
+file chooser/document portal. Custom spell-check dictionaries under
+`~/.local/share/hunspell` are inside home and therefore visible; other
+dictionary locations need an override, as described in
+[troubleshooting](troubleshooting.md#spell-checking-is-unavailable).
 
 ## Validate before submitting
 

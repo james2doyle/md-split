@@ -41,8 +41,12 @@ os.environ.setdefault(
     ),
 )
 
-from src import fileio, recovery
-from src.window import MdSplitWindow, _preview_interval
+from src import fileio, recovery, window as window_module
+from src.window import (
+    MdSplitWindow,
+    _file_load_error_message,
+    _preview_interval,
+)
 
 assert _preview_interval(0) == 180
 assert _preview_interval(100_000) == 180
@@ -1051,6 +1055,30 @@ with tempfile.TemporaryDirectory() as link_directory:
         _FakeGesture(Gdk.ModifierType.CONTROL_MASK), 1, 0, 0
     )
     assert launched == [link_target.as_uri()]
+
+# Missing files get a clear message; Flatpak adds the sandbox hint only for
+# paths outside the shared home directory.
+missing_error = GLib.Error.new_literal(
+    Gio.io_error_quark(), "missing", Gio.IOErrorEnum.NOT_FOUND
+)
+outside_home = Gio.File.new_for_path("/var/tmp/md-split-missing.md")
+assert _file_load_error_message(missing_error, outside_home) == (
+    "File not found: /var/tmp/md-split-missing.md"
+)
+inside_home = Gio.File.new_for_path(
+    str(Path.home() / "md-split-missing.md")
+)
+original_sandbox = window_module._flatpak_sandbox
+window_module._flatpak_sandbox = lambda: True
+try:
+    assert "Flatpak cannot access" in _file_load_error_message(
+        missing_error, outside_home
+    )
+    assert "File not found" in _file_load_error_message(
+        missing_error, inside_home
+    )
+finally:
+    window_module._flatpak_sandbox = original_sandbox
 
 window.destroy()
 window.settings.reset("vim-mode")

@@ -53,6 +53,35 @@ def _io_error_matches(error: Exception, code: Gio.IOErrorEnum) -> bool:
         matches and matches(Gio.io_error_quark(), code)
     )
 
+
+def _flatpak_sandbox() -> bool:
+    """Return True when the app is running inside a Flatpak sandbox."""
+    return bool(os.environ.get("FLATPAK_ID")) or os.path.exists("/.flatpak-info")
+
+
+def _flatpak_home_path(path: str) -> bool:
+    """Return True when ``path`` is inside the shared home directory."""
+    try:
+        return Path(path).resolve().is_relative_to(Path.home().resolve())
+    except (OSError, RuntimeError):
+        return True
+
+
+def _file_load_error_message(error: Exception, file: Gio.File) -> str:
+    """Turn a load failure into an actionable message for the user."""
+    if not _io_error_matches(error, Gio.IOErrorEnum.NOT_FOUND):
+        return str(error)
+    path = file.get_path()
+    if path is None:
+        return str(error)
+    if _flatpak_sandbox() and not _flatpak_home_path(path):
+        return _(
+            "Flatpak cannot access {path}. The sandbox shares your home "
+            "directory; grant access to other locations with Flatseal or a "
+            "flatpak override."
+        ).format(path=path)
+    return _("File not found: {path}").format(path=path)
+
 _MAX_WORD_COUNT_CHARS = 2_000_000
 _LARGE_PREVIEW_CHARS = 100_000
 
@@ -2544,7 +2573,10 @@ class MdSplitWindow(Adw.ApplicationWindow):
                     _("The file is not valid UTF-8 text."),
                 )
             else:
-                self._show_error(_("Could not open file"), str(error))
+                self._show_error(
+                    _("Could not open file"),
+                    _file_load_error_message(error, requested_file),
+                )
             return
 
         assert text is not None
