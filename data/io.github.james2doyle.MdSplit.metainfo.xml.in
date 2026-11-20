@@ -24,7 +24,7 @@
 
   <screenshots>
     <screenshot type="default">
-      <image type="source" width="1150" height="770">https://raw.githubusercontent.com/james2doyle/mdsplit/v1.5.0/docs/screenshot.png</image>
+      <image type="source" width="1150" height="770">https://raw.githubusercontent.com/james2doyle/mdsplit/v1.6.0/docs/screenshot.png</image>
       <caption>Markdown source and rendered preview side by side</caption>
     </screenshot>
   </screenshots>
@@ -70,6 +70,19 @@
   </branding>
 
   <releases>
+    <release version="1.6.0" date="2026-11-20">
+      <description translate="no">
+        <p>Flatpak spell checking and source link navigation.</p>
+        <ul>
+          <li>Flatpak builds bundle libspelling, so spell checking works without host packages.</li>
+          <li>Grant Flatpak read-only access to custom hunspell dictionaries with Flatseal or flatpak override.</li>
+          <li>Ctrl+click links in the source editor to open inline, autolink, and reference links.</li>
+          <li>The pointer becomes a hand over links while Ctrl is held.</li>
+          <li>Missing local files and unsupported link schemes show a clear error.</li>
+          <li>Refresh the documentation index and installation instructions.</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.5.0" date="2026-11-19">
       <description translate="no">
         <p>Flatpak distribution update.</p>
