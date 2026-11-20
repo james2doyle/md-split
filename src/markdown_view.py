@@ -17,6 +17,8 @@ gi.require_version("Gio", "2.0")
 
 from gi.repository import Adw, Gio, GLib, GObject, Gtk
 
+from . import launcher as launcher_mod
+
 if TYPE_CHECKING:
     from .renderer import MarkdownRenderer
 
@@ -363,12 +365,24 @@ class MarkdownView(Gtk.ScrolledWindow):
             self.scroll_to_value(max(0.0, y + offset - 12), sync=sync)
 
     def _open_external(self, uri: str) -> None:
+        # Local .md links open in a new MD Split instance; other file links
+        # go through FileLauncher because Gtk.UriLauncher sends plain OpenURI
+        # portal calls, which xdg-desktop-portal >= 1.21 rejects for file://
+        # URIs ("The application launch failed"); FileLauncher passes a GFile
+        # and uses the fd-based OpenFile path.
+        if uri.startswith("file:"):
+            file_uri = uri.split("#", 1)[0].split("?", 1)[0]
+            if launcher_mod.spawn_markdown_instance(uri):
+                return
+            launcher = Gtk.FileLauncher.new(Gio.File.new_for_uri(file_uri))
+            launcher.launch(self.get_root(), None, self._on_launch_finished, None)
+            return
         launcher = Gtk.UriLauncher.new(uri)
         launcher.launch(
             self.get_root(), None, self._on_launch_finished, None
         )
 
-    def _on_launch_finished(self, launcher: Gtk.UriLauncher, result, _data) -> None:
+    def _on_launch_finished(self, launcher, result, _data) -> None:
         try:
             launcher.launch_finish(result)
         except GLib.Error as error:

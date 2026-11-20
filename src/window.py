@@ -31,6 +31,7 @@ from . import (
     editing,
     filechanges,
     fileio,
+    launcher as launcher_mod,
     links,
     preview_vim,
     recovery,
@@ -423,12 +424,21 @@ class MdSplitWindow(Adw.ApplicationWindow):
         return True
 
     def _launch_uri(self, uri: str) -> None:
-        launcher = Gtk.UriLauncher.new(uri)
+        # Local .md links open in a new MD Split instance; other file links
+        # go through FileLauncher because Gtk.UriLauncher sends plain OpenURI
+        # portal calls, which xdg-desktop-portal >= 1.21 rejects for file://
+        # URIs ("The application launch failed"); FileLauncher passes a GFile
+        # and uses the fd-based OpenFile path.
+        if uri.startswith("file:"):
+            if launcher_mod.spawn_markdown_instance(uri):
+                return
+            file_uri = uri.split("#", 1)[0].split("?", 1)[0]
+            launcher = Gtk.FileLauncher.new(Gio.File.new_for_uri(file_uri))
+        else:
+            launcher = Gtk.UriLauncher.new(uri)
         launcher.launch(self, None, self._on_link_launched, None)
 
-    def _on_link_launched(
-        self, launcher: Gtk.UriLauncher, result, _data
-    ) -> None:
+    def _on_link_launched(self, launcher, result, _data) -> None:
         try:
             launcher.launch_finish(result)
         except GLib.Error as error:
