@@ -92,7 +92,11 @@ jobs:
           manifest = json.loads(
               Path("io.github.james2doyle.MdSplit.json").read_text()
           )
-          module = manifest["modules"][0]
+          module = next(
+              item
+              for item in manifest["modules"]
+              if item["name"] == "md_split"
+          )
           module["sources"] = [
               {
                   "type": "archive",
@@ -137,6 +141,8 @@ jobs:
           flatpak install --user --noninteractive "$bundle"
           flatpak info --user io.github.james2doyle.MdSplit
           timeout 60 flatpak run io.github.james2doyle.MdSplit --help
+          flatpak run --command=python3 io.github.james2doyle.MdSplit -c \
+            'import gi; gi.require_version("Spelling", "1"); from gi.repository import Spelling; Spelling.init(); print(Spelling.Checker.get_default())'
 
       - name: Collect release artifacts
         env:

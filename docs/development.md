@@ -17,7 +17,9 @@
 The Markdown parser is vendored; install no parser packages.
 
 Spell checking is optional. It needs the libspelling typelib, one libenchant
-provider, and at least one dictionary. For example:
+provider, and at least one dictionary. The Flatpak bundles libspelling and uses
+the runtime's hunspell dictionaries; for local builds, install the system
+packages:
 
 ```sh
 # Debian/Ubuntu

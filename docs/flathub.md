@@ -51,6 +51,10 @@ The module should build with:
 "config-opts": ["--libdir=lib", "--buildtype=release"]
 ```
 
+Keep the bundled `libspelling` module pinned to a released tarball and leave
+introspection enabled (`-Dintrospection=enabled`); the Python app imports the
+`Spelling` GI namespace at runtime.
+
 Keep `runtime-version` aligned with the GNOME runtime the app targets. The
 current manifest uses `org.gnome.Platform` / `org.gnome.Sdk` 51.
 
@@ -103,8 +107,8 @@ Then verify:
 - the desktop entry launches the app;
 - the demo document loads when no file is passed;
 - remote images are off by default and work when enabled;
-- spell checking is disabled when the runtime has no libspelling module, and
-  the preferences rows explain the missing backend;
+- spell checking works with the bundled libspelling and the runtime's hunspell
+  dictionaries;
 - the AppStream screenshot URL opens at the tagged commit;
 - the release version matches `meson.build`, `pyproject.toml`, and the
   AppStream release entry.

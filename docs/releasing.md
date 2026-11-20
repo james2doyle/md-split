@@ -66,12 +66,16 @@ git archive --format=tar.gz --prefix="md-split-$VERSION/" \
 
 sha=$(sha256sum "dist/md-split-$VERSION.tar.gz" | cut -d' ' -f1)
 jq --arg sha "$sha" --arg archive "md-split-$VERSION.tar.gz" '
-  .modules[0].sources = [{
-    "type": "archive",
-    "path": $archive,
-    "sha256": $sha
-  }]
-  | .modules[0]["config-opts"] = ["--libdir=lib", "--buildtype=release"]
+  .modules |= map(
+    if .name == "md_split" then
+      .sources = [{
+        "type": "archive",
+        "path": $archive,
+        "sha256": $sha
+      }]
+      | .["config-opts"] = ["--libdir=lib", "--buildtype=release"]
+    else . end
+  )
 ' io.github.james2doyle.MdSplit.json > "dist/io.github.james2doyle.MdSplit.release.json"
 
 flatpak-builder --force-clean --repo=dist/repo --state-dir=.flatpak-builder \

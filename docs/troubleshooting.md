@@ -160,8 +160,9 @@ python3 -c 'import gi; gi.require_version("Spelling", "1"); from gi.repository i
 
 The app logs one `Spell checking disabled` warning at startup that names the
 missing namespace, provider, or dictionary source. Install a dictionary package
-for your locale and reopen the app. The Flatpak runtime has dictionaries, but
-the manifest does not bundle libspelling. If dictionaries live outside the
+for your locale and reopen the app. The Flatpak image bundles libspelling and
+the GNOME runtime ships hunspell dictionaries, so a Flatpak build should not
+need the typelib installed by the host. If dictionaries live outside the
 standard directories, force detection with `MD_SPLIT_SPELLCHECK=1`.
 
 ## Recovery drafts or backups
