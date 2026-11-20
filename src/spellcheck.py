@@ -34,6 +34,8 @@ _UNLOADED: Any = object()
 Spelling: Any = _UNLOADED
 # Provider languages, cached after the first non-empty listing.
 _choices: list[tuple[str, str]] | None = None
+# The provider's locale-derived default, captured before any adapter changes it.
+_default_code = ""
 
 
 def _load_spelling() -> Any:
@@ -107,6 +109,8 @@ def language_choices() -> list[tuple[str, str]]:
         if provider is None:
             _warn_unavailable("the provider is not available")
             return []
+        global _default_code
+        _default_code = checker.get_language() or ""
         model = provider.list_languages()
         choices: list[tuple[str, str]] = []
         for index in range(model.get_n_items()):
@@ -131,14 +135,22 @@ def backend_available() -> bool:
 
 
 def choose_language(
-    choices: list[tuple[str, str]], preferred: str
+    choices: list[tuple[str, str]], preferred: str, default: str | None = None
 ) -> str:
-    """Pick the preferred language, falling back to the first available."""
+    """Pick the preferred language, then the provider default or the first.
+
+    An empty ``spell-language`` keeps following the system locale instead of
+    pinning the first dictionary the provider happens to list. Callers that
+    need a specific fallback can pass ``default`` explicitly.
+    """
     codes = [code for code, _name in choices]
     if not codes:
         return ""
     if preferred in codes:
         return preferred
+    fallback = _default_code if default is None else default
+    if fallback in codes:
+        return fallback
     return codes[0]
 
 

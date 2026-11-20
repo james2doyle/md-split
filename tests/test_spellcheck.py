@@ -20,8 +20,16 @@ with tempfile.TemporaryDirectory() as tmp:
 choices = [("en_US", "English (United States)"), ("fr_FR", "French")]
 assert spellcheck.choose_language(choices, "fr_FR") == "fr_FR"
 assert spellcheck.choose_language(choices, "xx") == "en_US"
-assert spellcheck.choose_language(choices, "") == "en_US"
+assert spellcheck.choose_language(choices, "", "") == "en_US"
+assert spellcheck.choose_language(choices, "", "fr_FR") == "fr_FR"
+assert spellcheck.choose_language(choices, "", "xx") == "en_US"
 assert spellcheck.choose_language([], "") == ""
+original_default = spellcheck._default_code
+spellcheck._default_code = "fr_FR"
+try:
+    assert spellcheck.choose_language(choices, "") == "fr_FR"
+finally:
+    spellcheck._default_code = original_default
 
 original = spellcheck.Spelling
 original_warned = spellcheck._warned
